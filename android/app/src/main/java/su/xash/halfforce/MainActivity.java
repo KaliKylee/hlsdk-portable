@@ -1,14 +1,12 @@
 package su.xash.halfforce;
 
 import android.app.Activity;
-import android.Manifest;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.ComponentName;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
@@ -25,8 +23,6 @@ import android.graphics.drawable.RippleDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Environment;
-import android.provider.Settings;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
@@ -40,9 +36,6 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
 
 public class MainActivity extends Activity {
 
@@ -82,7 +75,7 @@ public class MainActivity extends Activity {
         Intent in = getIntent();
 
         if (in != null && ACTION_MOD.equals(in.getAction())) {
-            launchGameNow();
+            launchGame();
             return;
         }
 
@@ -95,7 +88,7 @@ public class MainActivity extends Activity {
         setContentView(buildUi());
     }
 
-    private void launchGameNow() {
+    private void launchGame() {
         String pkg = "su.xash.engine.test";
 
         try {
@@ -152,198 +145,6 @@ public class MainActivity extends Activity {
         } catch (ActivityNotFoundException e) {
             Toast.makeText(this, "Nenhum app para abrir o link", Toast.LENGTH_SHORT).show();
         }
-    }
-
-    // O Xash3D em ARM de 32 bits cai ao carregar mapas com blocos desalinhados. Aqui o app confere os mapas
-    // do jogo antes de abrir e, so se for preciso, regrava cada um com o alinhamento certo (o conteudo
-    // nao muda). Celulares de 64 bits nao passam por nada disso.
-    private static final String XASH_DIR = "xash"; // pasta do Xash3D no armazenamento interno
-    private static final int REQ_STORAGE = 4242;
-    private boolean waitingStorage = false;
-
-    private File mapsDir() {
-        return new File(Environment.getExternalStorageDirectory(), XASH_DIR + "/" + GAMEDIR + "/maps");
-    }
-
-    /** true em aparelho que so roda 32 bits (o unico caso em que o motor cai com esses mapas) */
-    private boolean is32BitOnly() {
-        return Build.VERSION.SDK_INT >= 21 && Build.SUPPORTED_64_BIT_ABIS.length == 0;
-    }
-
-    private boolean hasStorageAccess() {
-        if (Build.VERSION.SDK_INT >= 30) {
-            return Environment.isExternalStorageManager();
-        }
-        if (Build.VERSION.SDK_INT >= 23) {
-            return checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                    == PackageManager.PERMISSION_GRANTED;
-        }
-        return true;
-    }
-
-    private void onPlayPressed() {
-        if (!is32BitOnly()) {
-            launchGameNow();
-            return;
-        }
-        if (!hasStorageAccess()) {
-            askStorageAccess();
-            return;
-        }
-        scanMapsThenLaunch();
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        // voltou da tela de permissao: continua o que o jogador tinha pedido
-        if (waitingStorage && hasStorageAccess()) {
-            waitingStorage = false;
-            onPlayPressed();
-        }
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == REQ_STORAGE && waitingStorage) {
-            waitingStorage = false;
-            if (hasStorageAccess()) {
-                onPlayPressed();
-            } else {
-                launchGameNow();
-            }
-        }
-    }
-
-    private void askStorageAccess() {
-        TextView msg = text("Este celular roda apenas 32 bits. Para o jogo abrir sem travar, o app precisa "
-                + "ajustar os arquivos dos mapas. Permita o acesso aos arquivos e toque em PLAY de novo "
-                + "se o jogo nao abrir sozinho.", 14, RED, false);
-        msg.setPadding(dp(24), dp(20), dp(24), dp(8));
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setView(msg)
-                .setPositiveButton("Permitir", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface d, int which) {
-                        requestStorageAccess();
-                    }
-                })
-                .setNegativeButton("Jogar assim mesmo", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface d, int which) {
-                        launchGameNow();
-                    }
-                })
-                .create();
-        dialog.getWindow().setBackgroundDrawable(box(BG, GREEN_DEEP, 2, 18));
-        dialog.show();
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(GREEN);
-        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(GREEN);
-    }
-
-    private void requestStorageAccess() {
-        waitingStorage = true;
-        if (Build.VERSION.SDK_INT >= 30) {
-            try {
-                startActivity(new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                        Uri.parse("package:" + getPackageName())));
-            } catch (ActivityNotFoundException e) {
-                startActivity(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
-            }
-        } else if (Build.VERSION.SDK_INT >= 23) {
-            requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQ_STORAGE);
-        }
-    }
-
-    /** confere os cabecalhos dos mapas (rapido); se nada precisa de ajuste, abre o jogo direto */
-    private void scanMapsThenLaunch() {
-        final File dir = mapsDir();
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                final ArrayList<File> todo = new ArrayList<File>();
-                File[] list = dir.listFiles();
-                if (list != null) {
-                    for (int i = 0; i < list.length; i++) {
-                        File f = list[i];
-                        if (f.isFile() && f.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".bsp")) {
-                            try {
-                                if (BspAligner.needsFix(f)) {
-                                    todo.add(f);
-                                }
-                            } catch (IOException ignored) {
-                                // mapa ilegivel: o motor mostra o erro dele
-                            }
-                        }
-                    }
-                }
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (isFinishing()) {
-                            return;
-                        }
-                        if (todo.isEmpty()) {
-                            launchGameNow();
-                        } else {
-                            fixMapsThenLaunch(todo);
-                        }
-                    }
-                });
-            }
-        }).start();
-    }
-
-    private void fixMapsThenLaunch(final ArrayList<File> todo) {
-        final TextView msg = text("", 15, RED, false);
-        msg.setPadding(dp(24), dp(20), dp(24), dp(20));
-        msg.setText("Ajustando os mapas para este celular (so na primeira vez)...\n0/" + todo.size());
-
-        final AlertDialog dialog = new AlertDialog.Builder(this).setView(msg).setCancelable(false).create();
-        dialog.getWindow().setBackgroundDrawable(box(BG, GREEN_DEEP, 2, 18));
-        dialog.show();
-
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                int failed = 0;
-                for (int i = 0; i < todo.size(); i++) {
-                    final File f = todo.get(i);
-                    final int n = i + 1;
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            msg.setText("Ajustando os mapas para este celular (so na primeira vez)...\n"
-                                    + n + "/" + todo.size() + "  " + f.getName());
-                        }
-                    });
-                    try {
-                        BspAligner.fix(f);
-                    } catch (IOException e) {
-                        failed++;
-                    }
-                }
-                final int failedFinal = failed;
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            dialog.dismiss();
-                        } catch (RuntimeException ignored) {
-                        }
-                        if (failedFinal > 0) {
-                            Toast.makeText(MainActivity.this, failedFinal + " mapa(s) nao puderam ser ajustados",
-                                    Toast.LENGTH_LONG).show();
-                        }
-                        if (!isFinishing()) {
-                            launchGameNow();
-                        }
-                    }
-                });
-            }
-        }).start();
     }
 
     private View buildUi() {
@@ -431,7 +232,7 @@ public class MainActivity extends Activity {
         play.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                onPlayPressed();
+                launchGame();
             }
         });
 
