@@ -44,7 +44,66 @@ else()
 	add_definitions(-D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_DEPRECATE)
 endif()
 
-set (SVDLL_SOURCES
+set (SVDLL_SOURCES 
+	gearbox/blkop_apache.cpp
+	gearbox/blkop_osprey.cpp
+	gearbox/cleansuit_scientist.cpp
+	gearbox/ctf_gamerules.cpp
+	gearbox/ctf_items.cpp
+	gearbox/ctf_powerups.cpp
+	gearbox/displacer.cpp
+	gearbox/drillsergeant.cpp
+	gearbox/eagle.cpp
+	gearbox/deagle.cpp
+	hf_crash.cpp
+	gearbox/chaingun.cpp
+	gearbox/glauncher.cpp
+	gearbox/handgrenadegas.cpp
+	gearbox/m24.cpp
+	gearbox/ggrenadegas.cpp
+	gearbox/ggrenade_m1a1.cpp
+	gearbox/m1a1.cpp
+	gearbox/startbosshud.cpp
+	gearbox/startbosshud2.cpp
+	gearbox/ggrenadebullet.cpp
+	gearbox/ggrenadebullet2.cpp
+	gearbox/fgrunt.cpp
+	gearbox/func_tank_of.cpp
+	gearbox/gearbox_effects.cpp
+	gearbox/gearbox_triggers.cpp
+	gearbox/gearbox_utils.cpp
+	gearbox/generic_items.cpp
+	gearbox/geneworm.cpp
+	gearbox/gonome.cpp
+	gearbox/grapple_tonguetip.cpp
+	gearbox/grapple.cpp
+	gearbox/houndeye_dead.cpp
+	gearbox/islave_dead.cpp
+	gearbox/knife.cpp
+	gearbox/loader.cpp
+	gearbox/m249.cpp
+	gearbox/massn.cpp
+	gearbox/nuclearbomb.cpp
+	gearbox/op4mortar.cpp
+	gearbox/otis.cpp
+	gearbox/penguin.cpp
+	gearbox/pipewrench.cpp
+	gearbox/pitdrone.cpp
+	gearbox/pitworm.cpp
+	gearbox/recruit.cpp
+	gearbox/ropes.cpp
+	gearbox/shock.cpp
+	gearbox/shockrifle.cpp
+	gearbox/shockroach.cpp
+	gearbox/skeleton.cpp
+	gearbox/sniperrifle.cpp
+	gearbox/spore_ammo.cpp
+	gearbox/sporegrenade.cpp
+	gearbox/sporelauncher.cpp
+	gearbox/strooper.cpp
+	gearbox/voltigore.cpp
+	gearbox/zombie_barney.cpp
+	gearbox/zombie_soldier.cpp
 	agrunt.cpp
 	airtank.cpp
 	aflock.cpp
@@ -166,7 +225,11 @@ else()
 		../external/openbsd/strlcat.c)
 endif()
 
-include_directories (. wpn_shared ../common ../engine ../pm_shared ../game_shared ../public)
+if (NOT MSVC)
+	set_source_files_properties(gearbox/ropes.cpp PROPERTIES COMPILE_FLAGS -O0)
+endif()
+
+include_directories (. wpn_shared ../common ../engine ../pm_shared ../game_shared ../public gearbox)
 
 if(MSVC)
 	set(SVDLL_SOURCES
@@ -176,6 +239,9 @@ endif()
 
 add_library (${SVDLL_LIBRARY} SHARED ${SVDLL_SOURCES})
 target_link_libraries(${SVDLL_LIBRARY} vcs_info)
+if(ANDROID)
+	target_link_libraries(${SVDLL_LIBRARY} log)
+endif()
 
 set_target_properties (${SVDLL_LIBRARY} PROPERTIES POSITION_INDEPENDENT_CODE 1)
 

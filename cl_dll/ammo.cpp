@@ -925,7 +925,7 @@ int CHudAmmo::Draw( float flTime )
 		else
 		{
 			// SPR_Draw a bullets only line
-			x = ScreenWidth - 4 * AmmoWidth - iIconWidth;
+			x = ScreenWidth - 5 * AmmoWidth - iIconWidth;
 			x = gHUD.DrawHudNumber( x, y, iFlags | DHN_3DIGITS, gWR.CountAmmo( pw->iAmmoType ), r, g, b );
 		}
 
@@ -944,7 +944,7 @@ int CHudAmmo::Draw( float flTime )
 		if( ( pw->iAmmo2Type != 0 ) && ( gWR.CountAmmo( pw->iAmmo2Type ) > 0 ) )
 		{
 			y -= gHUD.m_iFontHeight + gHUD.m_iFontHeight / 4;
-			x = ScreenWidth - 4 * AmmoWidth - iIconWidth;
+			x = ScreenWidth - 5 * AmmoWidth - iIconWidth;
 			x = gHUD.DrawHudNumber( x, y, iFlags | DHN_3DIGITS, gWR.CountAmmo( pw->iAmmo2Type ), r, g, b );
 
 			// Draw the ammo Icon

@@ -385,6 +385,12 @@ void CHud::Init( void )
 	m_AmmoSecondary.Init();
 	m_TextMessage.Init();
 	m_StatusIcons.Init();
+	m_HudBossBarHealth.Init(); // BOSSBARHEALTH
+	m_HudCredit.Init(); // PORT CREDIT
+	m_HudBossBarHealthName.Init(); // BOSSBARNAME
+	m_HudBossBarHealthName2.Init(); // BOSSBARNAME2
+	m_HudBossBarHealthName3.Init(); // BOSSBARNAME3
+	m_Nightvision.Init();
 	GetClientVoiceMgr()->Init(&g_VoiceStatusHelper, (vgui::Panel**)&gViewPort);
 
 	m_MOTD.Init();
@@ -580,6 +586,12 @@ void CHud::VidInit( void )
 	m_AmmoSecondary.VidInit();
 	m_TextMessage.VidInit();
 	m_StatusIcons.VidInit();
+	m_HudBossBarHealth.VidInit(); // BOSSBARHEALTH
+	m_HudCredit.VidInit(); // PORT CREDIT
+	m_HudBossBarHealthName.VidInit(); // BOSSBARNAME
+	m_HudBossBarHealthName2.VidInit(); // BOSSBARNAME2
+	m_HudBossBarHealthName3.VidInit(); // BOSSBARNAME3
+	m_Nightvision.VidInit();
 	GetClientVoiceMgr()->VidInit();
 	m_MOTD.VidInit();
 	m_Scoreboard.VidInit();

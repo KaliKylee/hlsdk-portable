@@ -37,6 +37,8 @@
 #include "pm_shared.h"
 #include "hltv.h"
 
+#include "ropes.h"
+
 // #define DUCKFIX
 
 extern DLL_GLOBAL ULONG g_ulModelIndexPlayer;
@@ -117,6 +119,10 @@ TYPEDESCRIPTION	CBasePlayer::m_playerSaveData[] =
 	DEFINE_FIELD( CBasePlayer, m_iHideHUD, FIELD_INTEGER ),
 	DEFINE_FIELD( CBasePlayer, m_iFOV, FIELD_INTEGER ),
 
+	DEFINE_FIELD(CBasePlayer, m_fInXen, FIELD_BOOLEAN),
+	DEFINE_FIELD(CBasePlayer, m_DisplacerReturn, FIELD_VECTOR),
+	DEFINE_FIELD(CBasePlayer, m_pRope, FIELD_CLASSPTR),
+
 	//DEFINE_FIELD( CBasePlayer, m_fDeadTime, FIELD_FLOAT ), // only used in multiplayer games
 	//DEFINE_FIELD( CBasePlayer, m_fGameHUDInitialized, FIELD_INTEGER ), // only used in multiplayer games
 	//DEFINE_FIELD( CBasePlayer, m_flStopExtraSoundTime, FIELD_TIME ),
@@ -181,9 +187,19 @@ int gmsgSetFOV = 0;
 int gmsgShowMenu = 0;
 int gmsgGeigerRange = 0;
 int gmsgTeamNames = 0;
+int gmsgBossBarHealthView = 0;
+int gmsgBossBarHealthNameView = 0;
+int gmsgBossBarHealthNameView2 = 0;
+int gmsgBossBarHealthNameView3 = 0;
 
 int gmsgStatusText = 0;
 int gmsgStatusValue = 0;
+
+int gmsgNightvision = 0;
+int gmsgCTFMsgs	= 0;
+int gmsgFlagStatus = 0;
+int gmsgRuneStatus = 0;
+int gmsgFlagCarrier = 0;
 
 void LinkUserMessages( void )
 {
@@ -198,7 +214,7 @@ void LinkUserMessages( void )
 	gmsgGeigerRange = REG_USER_MSG( "Geiger", 1 );
 	gmsgFlashlight = REG_USER_MSG( "Flashlight", 2 );
 	gmsgFlashBattery = REG_USER_MSG( "FlashBat", 1 );
-	gmsgHealth = REG_USER_MSG( "Health", 1 );
+	gmsgHealth = REG_USER_MSG( "Health", 4 );
 	gmsgDamage = REG_USER_MSG( "Damage", 12 );
 	gmsgBattery = REG_USER_MSG( "Battery", 2);
 	gmsgTrain = REG_USER_MSG( "Train", 1 );
@@ -227,9 +243,20 @@ void LinkUserMessages( void )
 	gmsgFade = REG_USER_MSG( "ScreenFade", sizeof(ScreenFade) );
 	gmsgAmmoX = REG_USER_MSG( "AmmoX", 2 );
 	gmsgTeamNames = REG_USER_MSG( "TeamNames", -1 );
+	gmsgBossBarHealthView = REG_USER_MSG( "BBHView", -1 );
+	gmsgBossBarHealthNameView = REG_USER_MSG( "BBHNView", -1 );
+	gmsgBossBarHealthNameView2 = REG_USER_MSG( "BBHNView2", -1 );
+	gmsgBossBarHealthNameView3 = REG_USER_MSG( "BBHNView3", -1 );
 
 	gmsgStatusText = REG_USER_MSG( "StatusText", -1 );
 	gmsgStatusValue = REG_USER_MSG( "StatusValue", 3 );
+
+	gmsgNightvision = REG_USER_MSG( "Nightvision", 1 );
+
+	gmsgCTFMsgs = REG_USER_MSG( "CTFMsg", 1 );
+	gmsgFlagStatus = REG_USER_MSG( "FlagStatus", 5 );
+	gmsgRuneStatus = REG_USER_MSG( "RuneStatus", 1 );
+	gmsgFlagCarrier = REG_USER_MSG( "FlagCarrier", 2 );
 }
 
 LINK_ENTITY_TO_CLASS( player, CBasePlayer )
@@ -927,7 +954,7 @@ void CBasePlayer::Killed( entvars_t *pevAttacker, int iGib )
 	// send "health" update message to zero
 	m_iClientHealth = 0;
 	MESSAGE_BEGIN( MSG_ONE, gmsgHealth, NULL, pev );
-		WRITE_BYTE( m_iClientHealth );
+		WRITE_LONG( m_iClientHealth );
 	MESSAGE_END();
 
 	// Tell Ammo Hud that the player is dead
@@ -1011,7 +1038,13 @@ void CBasePlayer::SetAnimation( PLAYER_ANIM playerAnim )
 		break;
 	case PLAYER_IDLE:
 	case PLAYER_WALK:
-		if( pev->waterlevel > 1 )
+		if( ( m_afPhysicsFlags & PFLAG_LATCHING ) && ( pev->velocity.Length() > 100 ) )
+		{
+			ASSERT( ( m_pActiveItem && FClassnameIs( m_pActiveItem->pev, "weapon_grapple" ) ) == TRUE );
+
+			m_IdealActivity = ACT_SWIM;
+		}
+		else if( pev->waterlevel > 1 )
 		{
 			if( speed == 0 )
 				m_IdealActivity = ACT_HOVER;
@@ -1150,6 +1183,10 @@ void CBasePlayer::TabulateAmmo()
 	ammo_rockets = AmmoInventory( GetAmmoIndex( "rockets" ) );
 	ammo_uranium = AmmoInventory( GetAmmoIndex( "uranium" ) );
 	ammo_hornets = AmmoInventory( GetAmmoIndex( "Hornets" ) );
+	ammo_556 = AmmoInventory( GetAmmoIndex( "556" ) );
+	ammo_762 = AmmoInventory( GetAmmoIndex( "762" ) );
+	ammo_shocks = AmmoInventory( GetAmmoIndex( "Shocks" ) );
+	ammo_spores = AmmoInventory( GetAmmoIndex( "spores" ) );
 }
 
 /*
@@ -1884,6 +1921,8 @@ void CBasePlayer::PreThink( void )
 	m_afButtonPressed =  buttonsChanged & pev->button;		// The changed ones still down are "pressed"
 	m_afButtonReleased = buttonsChanged & ( ~pev->button );	// The ones not down are "released"
 
+	GlowShellUpdate();
+
 	g_pGameRules->PlayerThink( this );
 
 	if( g_fGameOver )
@@ -1928,6 +1967,119 @@ void CBasePlayer::PreThink( void )
 		pev->flags |= FL_ONTRAIN;
 	else 
 		pev->flags &= ~FL_ONTRAIN;
+
+	//We're on a rope. - Solokiller
+	if( (m_afPhysicsFlags & PFLAG_ONROPE) && m_pRope )
+	{
+		pev->velocity = g_vecZero;
+
+		Vector vecAttachPos = m_pRope->GetAttachedObjectsPosition();
+
+		pev->origin = vecAttachPos;
+
+		Vector vecForce;
+
+		/*
+		//This causes sideways acceleration that doesn't occur in Op4. - Solokiller
+		if( pev->button & IN_DUCK )
+		{
+			vecForce.x = gpGlobals->v_right.x;
+			vecForce.y = gpGlobals->v_right.y;
+			vecForce.z = 0;
+			m_pRope->ApplyForceFromPlayer( vecForce );
+		}
+		if( pev->button & IN_JUMP )
+		{
+			vecForce.x = -gpGlobals->v_right.x;
+			vecForce.y = -gpGlobals->v_right.y;
+			vecForce.z = 0;
+			m_pRope->ApplyForceFromPlayer( vecForce );
+		}
+		*/
+
+		//Determine if any force should be applied to the rope, or if we should move around. - Solokiller
+		if( pev->button & ( IN_BACK | IN_FORWARD ) )
+		{
+			if( ( gpGlobals->v_forward.x * gpGlobals->v_forward.x +
+				gpGlobals->v_forward.y * gpGlobals->v_forward.y -
+				gpGlobals->v_forward.z * gpGlobals->v_forward.z ) <= 0.0 )
+			{
+				if( m_bIsClimbing )
+				{
+					const float flDelta = gpGlobals->time - m_flLastClimbTime;
+					m_flLastClimbTime = gpGlobals->time;
+					if( pev->button & IN_FORWARD )
+					{
+						if( gpGlobals->v_forward.z < 0.0 )
+						{
+							if( !m_pRope->MoveDown( flDelta ) )
+							{
+								//Let go of the rope, detach. - Solokiller
+								LetGoRope();
+							}
+						}
+						else
+						{
+							m_pRope->MoveUp( flDelta );
+						}
+					}
+					if( pev->button & IN_BACK )
+					{
+						if( gpGlobals->v_forward.z < 0.0 )
+						{
+							m_pRope->MoveUp( flDelta );
+						}
+						else if( !m_pRope->MoveDown( flDelta ) )
+						{
+							//Let go of the rope, detach. - Solokiller
+							LetGoRope();
+						}
+					}
+				}
+				else
+				{
+					m_bIsClimbing = true;
+					m_flLastClimbTime = gpGlobals->time;
+				}
+			}
+			else
+			{
+				vecForce.x = gpGlobals->v_forward.x;
+				vecForce.y = gpGlobals->v_forward.y;
+				vecForce.z = 0.0;
+				if( pev->button & IN_BACK )
+				{
+					vecForce.x = -gpGlobals->v_forward.x;
+					vecForce.y = -gpGlobals->v_forward.y;
+					vecForce.z = 0;
+				}
+				m_pRope->ApplyForceFromPlayer( vecForce );
+				m_bIsClimbing = false;
+			}
+		}
+		else
+		{
+			m_bIsClimbing = false;
+		}
+
+		if( m_afButtonPressed & IN_JUMP )
+		{
+			//We've jumped off the rope, give us some momentum - Solokiller
+			CRope* rope = m_pRope;
+			LetGoRope();
+
+			Vector vecDir = gpGlobals->v_up * 165.0 + gpGlobals->v_forward * 150.0;
+
+			Vector vecVelocity = rope->GetAttachedObjectsVelocity() * 2;
+
+			vecVelocity = vecVelocity.Normalize();
+
+			vecVelocity = vecVelocity * 200;
+
+			pev->velocity = vecVelocity + vecDir;
+		}
+		return;
+	}
 
 	// Train speed control
 	if( m_afPhysicsFlags & PFLAG_ONTRAIN )
@@ -2044,6 +2196,21 @@ void CBasePlayer::PreThink( void )
 		pev->velocity = g_vecZero;
 	}
 }
+
+void CBasePlayer::LetGoRope()
+{
+	//Let go of the rope, detach. - Solokiller
+	pev->movetype = MOVETYPE_WALK;
+	pev->solid = SOLID_SLIDEBOX;
+	m_afPhysicsFlags &= ~PFLAG_ONROPE;
+	if (m_pRope)
+	{
+		m_pRope->DetachObject();
+		m_pRope = NULL;
+	}
+	m_bIsClimbing = false;
+}
+
 /* Time based Damage works as follows: 
 	1) There are several types of timebased damage:
 
@@ -2813,37 +2980,27 @@ edict_t *EntSelectSpawnPoint( CBaseEntity *pPlayer )
 
 	player = pPlayer->edict();
 
-	// choose a info_player_deathmatch point
-	if( g_pGameRules->IsCoOp() )
-	{
-		pSpot = UTIL_FindEntityByClassname( g_pLastSpawn, "info_player_coop" );
-		if( !FNullEnt( pSpot ) )
-			goto ReturnSpot;
-		pSpot = UTIL_FindEntityByClassname( g_pLastSpawn, "info_player_start" );
-		if( !FNullEnt(pSpot) ) 
-			goto ReturnSpot;
-	}
-	else if( g_pGameRules->IsDeathmatch() )
+	if( !strnicmp( STRING( gpGlobals->mapname ), "op4ctf", 6 ) )
 	{
 		if( !g_pLastSpawn )
 		{
 			nNumRandomSpawnsToTry = 0;
 			CBaseEntity* pEnt = 0;
 
-			while( ( pEnt = UTIL_FindEntityByClassname( pEnt, "info_player_deathmatch" )))
+			while( ( pEnt = UTIL_FindEntityByClassname( pEnt, "info_ctfspawn" )))
 				nNumRandomSpawnsToTry++;
 		}
 
 		pSpot = g_pLastSpawn;
 		// Randomize the start spot
 		for( int i = RANDOM_LONG( 1, nNumRandomSpawnsToTry - 1 ); i > 0; i-- )
-			pSpot = UTIL_FindEntityByClassname( pSpot, "info_player_deathmatch" );
+			pSpot = UTIL_FindEntityByClassname( pSpot, "info_ctfspawn" );
 		if( FNullEnt( pSpot ) )  // skip over the null point
-			pSpot = UTIL_FindEntityByClassname( pSpot, "info_player_deathmatch" );
+			pSpot = UTIL_FindEntityByClassname( pSpot, "info_ctfspawn" );
 
 		CBaseEntity *pFirstSpot = pSpot;
 
-		do 
+		do
 		{
 			if( pSpot )
 			{
@@ -2852,7 +3009,7 @@ edict_t *EntSelectSpawnPoint( CBaseEntity *pPlayer )
 				{
 					if( pSpot->pev->origin == Vector( 0, 0, 0 ) )
 					{
-						pSpot = UTIL_FindEntityByClassname( pSpot, "info_player_deathmatch" );
+						pSpot = UTIL_FindEntityByClassname( pSpot, "info_ctfspawn" );
 						continue;
 					}
 
@@ -2861,23 +3018,89 @@ edict_t *EntSelectSpawnPoint( CBaseEntity *pPlayer )
 				}
 			}
 			// increment pSpot
-			pSpot = UTIL_FindEntityByClassname( pSpot, "info_player_deathmatch" );
+			pSpot = UTIL_FindEntityByClassname( pSpot, "info_ctfspawn" );
 		} while( pSpot != pFirstSpot ); // loop if we're not back to the start
 
-		// we haven't found a place to spawn yet,  so kill any guy at the first spawn point and spawn there
+		// we haven't found a place to spawn yet, so kill any guy at the first spawn point and spawn there
 		if( !FNullEnt( pSpot ) )
 		{
 			CBaseEntity *ent = NULL;
 			while( ( ent = UTIL_FindEntityInSphere( ent, pSpot->pev->origin, 128 ) ) != NULL )
 			{
 				// if ent is a client, kill em (unless they are ourselves)
-				if( ent->IsPlayer() && !(ent->edict() == player) )
-					ent->TakeDamage( VARS( INDEXENT( 0 ) ), VARS( INDEXENT( 0 ) ), 300, DMG_GENERIC );
+				if( ent->IsPlayer() && !( ent->edict() == player ) )
+					ent->TakeDamage( VARS(INDEXENT( 0 ) ), VARS( INDEXENT( 0 ) ), 300, DMG_GENERIC );
 			}
 			goto ReturnSpot;
 		}
 	}
+	else
+	{
+		// choose a info_player_deathmatch point
+		if( g_pGameRules->IsCoOp() )
+		{
+			pSpot = UTIL_FindEntityByClassname( g_pLastSpawn, "info_player_coop" );
+			if( !FNullEnt( pSpot ) )
+				goto ReturnSpot;
+			pSpot = UTIL_FindEntityByClassname( g_pLastSpawn, "info_player_start" );
+			if( !FNullEnt(pSpot) ) 
+				goto ReturnSpot;
+		}
+		else if( g_pGameRules->IsDeathmatch() )
+		{
+			if( !g_pLastSpawn )
+			{
+				nNumRandomSpawnsToTry = 0;
+				CBaseEntity* pEnt = 0;
 
+				while( ( pEnt = UTIL_FindEntityByClassname( pEnt, "info_player_deathmatch" )))
+					nNumRandomSpawnsToTry++;
+			}
+
+			pSpot = g_pLastSpawn;
+			// Randomize the start spot
+			for( int i = RANDOM_LONG( 1, nNumRandomSpawnsToTry - 1 ); i > 0; i-- )
+				pSpot = UTIL_FindEntityByClassname( pSpot, "info_player_deathmatch" );
+			if( FNullEnt( pSpot ) )  // skip over the null point
+				pSpot = UTIL_FindEntityByClassname( pSpot, "info_player_deathmatch" );
+
+			CBaseEntity *pFirstSpot = pSpot;
+
+			do 
+			{
+				if( pSpot )
+				{
+					// check if pSpot is valid
+					if( IsSpawnPointValid( pPlayer, pSpot ) )
+					{
+						if( pSpot->pev->origin == Vector( 0, 0, 0 ) )
+						{
+							pSpot = UTIL_FindEntityByClassname( pSpot, "info_player_deathmatch" );
+							continue;
+						}
+
+						// if so, go to pSpot
+						goto ReturnSpot;
+					}
+				}
+				// increment pSpot
+				pSpot = UTIL_FindEntityByClassname( pSpot, "info_player_deathmatch" );
+			} while( pSpot != pFirstSpot ); // loop if we're not back to the start
+
+			// we haven't found a place to spawn yet,  so kill any guy at the first spawn point and spawn there
+			if( !FNullEnt( pSpot ) )
+			{
+				CBaseEntity *ent = NULL;
+				while( ( ent = UTIL_FindEntityInSphere( ent, pSpot->pev->origin, 128 ) ) != NULL )
+				{
+					// if ent is a client, kill em (unless they are ourselves)
+					if( ent->IsPlayer() && !(ent->edict() == player) )
+						ent->TakeDamage( VARS( INDEXENT( 0 ) ), VARS( INDEXENT( 0 ) ), 300, DMG_GENERIC );
+				}
+				goto ReturnSpot;
+			}
+		}
+	}
 	// If startspot is set, (re)spawn there.
 	if( FStringNull( gpGlobals->startspot ) || (STRING( gpGlobals->startspot ) )[0] == '\0')
 	{
@@ -2997,6 +3220,7 @@ void CBasePlayer::Spawn( void )
 	m_flNextChatTime = gpGlobals->time;
 
 	SET_VIEW(edict(), edict());
+	m_fInXen = FALSE;
 
 	g_pGameRules->PlayerSpawn( this );
 }
@@ -3419,7 +3643,7 @@ CBaseEntity *FindEntityForward( CBaseEntity *pMe )
 
 BOOL CBasePlayer::FlashlightIsOn( void )
 {
-	return FBitSet( pev->effects, EF_DIMLIGHT );
+	return FBitSet( pev->effects, EF_BRIGHTLIGHT );
 }
 
 void CBasePlayer::FlashlightTurnOn( void )
@@ -3432,10 +3656,15 @@ void CBasePlayer::FlashlightTurnOn( void )
 	if( (pev->weapons & ( 1 << WEAPON_SUIT ) ) )
 	{
 		EMIT_SOUND_DYN( ENT( pev ), CHAN_WEAPON, SOUND_FLASHLIGHT_ON, 1.0, ATTN_NORM, 0, PITCH_NORM );
-		SetBits( pev->effects, EF_DIMLIGHT );
+		SetBits( pev->effects, EF_BRIGHTLIGHT );
 		MESSAGE_BEGIN( MSG_ONE, gmsgFlashlight, NULL, pev );
 			WRITE_BYTE( 1 );
 			WRITE_BYTE( m_iFlashBattery );
+		MESSAGE_END();
+
+		// Send Nightvision On message.
+		MESSAGE_BEGIN( MSG_ONE, gmsgNightvision, NULL, pev );
+			WRITE_BYTE( 1 );
 		MESSAGE_END();
 
 		m_flFlashLightTime = FLASH_DRAIN_TIME + gpGlobals->time;
@@ -3445,10 +3674,15 @@ void CBasePlayer::FlashlightTurnOn( void )
 void CBasePlayer::FlashlightTurnOff( void )
 {
 	EMIT_SOUND_DYN( ENT( pev ), CHAN_WEAPON, SOUND_FLASHLIGHT_OFF, 1.0, ATTN_NORM, 0, PITCH_NORM );
-	ClearBits( pev->effects, EF_DIMLIGHT );
+	ClearBits( pev->effects, EF_BRIGHTLIGHT );
 	MESSAGE_BEGIN( MSG_ONE, gmsgFlashlight, NULL, pev );
 		WRITE_BYTE( 0 );
 		WRITE_BYTE( m_iFlashBattery );
+	MESSAGE_END();
+
+	// Send Nightvision Off message.
+	MESSAGE_BEGIN( MSG_ONE, gmsgNightvision, NULL, pev );
+		WRITE_BYTE( 0 );
 	MESSAGE_END();
 
 	m_flFlashLightTime = FLASH_CHARGE_TIME + gpGlobals->time;
@@ -3615,6 +3849,21 @@ void CBasePlayer::CheatImpulseCommands( int iImpulse )
 		GiveNamedItem( "weapon_satchel" );
 		GiveNamedItem( "weapon_snark" );
 		GiveNamedItem( "weapon_hornetgun" );
+		GiveNamedItem( "weapon_eagle" );
+		GiveNamedItem( "weapon_deagle" );
+		GiveNamedItem( "weapon_sporelauncher" );
+		GiveNamedItem( "weapon_shockrifle" );
+		GiveNamedItem( "weapon_m249" );
+		GiveNamedItem( "weapon_sniperrifle" );
+		GiveNamedItem( "weapon_displacer" );
+		GiveNamedItem( "weapon_grapple" );
+		GiveNamedItem( "weapon_knife" );
+		GiveNamedItem( "weapon_pipewrench" );
+		GiveNamedItem( "weapon_penguin" );
+		GiveNamedItem( "weapon_glauncher" );
+		GiveNamedItem( "weapon_handgrenadegas" );
+		GiveNamedItem( "weapon_m24" );
+		GiveNamedItem( "ammo_m24_clip" );
 #endif
 		gEvilImpulse101 = FALSE;
 		break;
@@ -4076,7 +4325,7 @@ void CBasePlayer::UpdateClientData( void )
 
 		// send "health" update message
 		MESSAGE_BEGIN( MSG_ONE, gmsgHealth, NULL, pev );
-			WRITE_BYTE( iHealth );
+			WRITE_LONG( iHealth );
 		MESSAGE_END();
 
 		m_iClientHealth = (int)pev->health;
@@ -4248,6 +4497,12 @@ void CBasePlayer::UpdateClientData( void )
 BOOL CBasePlayer::FBecomeProne( void )
 {
 	m_afPhysicsFlags |= PFLAG_ONBARNACLE;
+
+	if( (m_afPhysicsFlags & PFLAG_ONROPE) )
+	{
+		LetGoRope();
+	}
+
 	return TRUE;
 }
 
@@ -4792,8 +5047,8 @@ LINK_ENTITY_TO_CLASS( monster_hevsuit_dead, CDeadHEV )
 //=========================================================
 void CDeadHEV::Spawn( void )
 {
-	PRECACHE_MODEL( "models/player.mdl" );
-	SET_MODEL( ENT( pev ), "models/player.mdl" );
+	PRECACHE_MODEL( "models/deadhaz.mdl" );
+	SET_MODEL( ENT( pev ), "models/deadhaz.mdl" );
 
 	pev->effects = 0;
 	pev->yaw_speed = 8;

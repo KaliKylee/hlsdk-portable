@@ -21,6 +21,7 @@
 */
 
 #include "extdll.h"
+#include "hf_log.h"
 #include "util.h"
 #include "cbase.h"
 #include "player.h"
@@ -169,6 +170,12 @@ void DecalGunshot( TraceResult *pTrace, int iBulletType )
 		case BULLET_MONSTER_MP5:
 		case BULLET_PLAYER_BUCKSHOT:
 		case BULLET_PLAYER_357:
+		case BULLET_PLAYER_EAGLE:
+		case BULLET_MONSTER_357:
+		case BULLET_PLAYER_556:
+		case BULLET_MONSTER_556:
+		case BULLET_PLAYER_762:
+		case BULLET_MONSTER_762:
 		default:
 			// smoke and decal
 			UTIL_GunshotDecalTrace( pTrace, DamageDecal( pEntity, DMG_BULLET ) );
@@ -251,6 +258,8 @@ void AddAmmoNameToAmmoRegistry( const char *szAmmoname )
 void UTIL_PrecacheOtherWeapon( const char *szClassname )
 {
 	edict_t	*pent;
+
+	HF_Breadcrumb( "precache weapon %s", szClassname );
 
 	pent = CREATE_NAMED_ENTITY( MAKE_STRING( szClassname ) );
 	if( FNullEnt( pent ) )
@@ -355,6 +364,29 @@ void W_Precache( void )
 	// hornetgun
 	UTIL_PrecacheOtherWeapon( "weapon_hornetgun" );
 
+	UTIL_PrecacheOtherWeapon( "weapon_displacer" );
+	UTIL_PrecacheOtherWeapon( "weapon_eagle" );
+	UTIL_PrecacheOtherWeapon( "weapon_deagle" );
+	UTIL_PrecacheOtherWeapon( "weapon_m249" );
+	UTIL_PrecacheOther( "ammo_556" );
+	UTIL_PrecacheOtherWeapon( "weapon_shockrifle" );
+	UTIL_PrecacheOtherWeapon( "weapon_sniperrifle" );
+	UTIL_PrecacheOther( "ammo_762" );
+	UTIL_PrecacheOtherWeapon( "weapon_sporelauncher" );
+	UTIL_PrecacheOther( "ammo_spore" );
+
+	UTIL_PrecacheOtherWeapon( "weapon_grapple" );
+	UTIL_PrecacheOtherWeapon( "weapon_knife" );
+	UTIL_PrecacheOtherWeapon( "weapon_penguin" );
+	UTIL_PrecacheOtherWeapon( "weapon_pipewrench" );
+	UTIL_PrecacheOtherWeapon( "weapon_glauncher" );
+	UTIL_PrecacheOther( "ammo_grenadesbox" );
+	UTIL_PrecacheOtherWeapon( "weapon_m24" );
+	UTIL_PrecacheOther( "ammo_m24_clip" );
+	UTIL_PrecacheOtherWeapon( "weapon_chaingun" );
+	UTIL_PrecacheOther( "ammo_cgun" );
+	UTIL_PrecacheOtherWeapon( "weapon_handgrenadegas" );
+
 	if( g_pGameRules->IsDeathmatch() )
 	{
 		UTIL_PrecacheOther( "weaponbox" );// container for dropped deathmatch weapons
@@ -386,6 +418,10 @@ void W_Precache( void )
 	PRECACHE_SOUND( "weapons/bullet_hit2.wav" );	// hit by bullet
 
 	PRECACHE_SOUND( "items/weapondrop1.wav" );// weapon falls to the ground
+
+	PRECACHE_SOUND( "weapons/spore_hit1.wav" );//sporegrenade
+	PRECACHE_SOUND( "weapons/spore_hit2.wav" );//sporegrenade
+	PRECACHE_SOUND( "weapons/spore_hit3.wav" );//sporegrenade
 }
 
 TYPEDESCRIPTION	CBasePlayerItem::m_SaveData[] =
@@ -1661,3 +1697,59 @@ TYPEDESCRIPTION	CSatchel::m_SaveData[] =
 };
 
 IMPLEMENT_SAVERESTORE( CSatchel, CBasePlayerWeapon )
+
+TYPEDESCRIPTION	CDisplacer::m_SaveData[] =
+{
+	DEFINE_FIELD( CDisplacer, m_iFireMode, FIELD_INTEGER ),
+	DEFINE_ARRAY( CDisplacer, m_pBeam, FIELD_CLASSPTR, 3 ),
+};
+
+IMPLEMENT_SAVERESTORE( CDisplacer, CBasePlayerWeapon )
+
+TYPEDESCRIPTION CEagle::m_SaveData[] =
+{
+	DEFINE_FIELD( CEagle, m_fEagleLaserActive, FIELD_INTEGER ),
+};
+
+IMPLEMENT_SAVERESTORE( CEagle, CBasePlayerWeapon )
+
+TYPEDESCRIPTION	CBarnacleGrapple::m_SaveData[] =
+{
+	DEFINE_FIELD( CBarnacleGrapple, m_pBeam, FIELD_CLASSPTR ),
+	DEFINE_FIELD( CBarnacleGrapple, m_flShootTime, FIELD_TIME ),
+	DEFINE_FIELD( CBarnacleGrapple, m_fireState, FIELD_INTEGER ),
+};
+IMPLEMENT_SAVERESTORE( CBarnacleGrapple, CBasePlayerWeapon )
+
+TYPEDESCRIPTION	CM249::m_SaveData[] =
+{
+	DEFINE_FIELD( CM249, m_fInSpecialReload, FIELD_INTEGER ),
+};
+IMPLEMENT_SAVERESTORE( CM249, CBasePlayerWeapon )
+
+TYPEDESCRIPTION	CPipeWrench::m_SaveData[] =
+{
+	DEFINE_FIELD( CPipeWrench, m_flBigSwingStart, FIELD_TIME ),
+	DEFINE_FIELD( CPipeWrench, m_iSwing, FIELD_INTEGER ),
+	DEFINE_FIELD( CPipeWrench, m_iSwingMode, FIELD_INTEGER ),
+};
+IMPLEMENT_SAVERESTORE( CPipeWrench, CBasePlayerWeapon )
+
+TYPEDESCRIPTION	CSniperrifle::m_SaveData[] =
+{
+	DEFINE_FIELD( CSniperrifle, m_fInSpecialReload, FIELD_INTEGER ),
+};
+IMPLEMENT_SAVERESTORE( CSniperrifle, CBasePlayerWeapon )
+
+TYPEDESCRIPTION	CSporelauncher::m_SaveData[] =
+{
+	DEFINE_FIELD( CSporelauncher, m_iSquidSpitSprite, FIELD_INTEGER ),
+};
+IMPLEMENT_SAVERESTORE( CSporelauncher, CShotgun )
+
+TYPEDESCRIPTION	CChaingun::m_SaveData[] =
+{
+	DEFINE_FIELD( CChaingun, m_fInAttack, FIELD_INTEGER ),
+	DEFINE_FIELD( CChaingun, m_fInSpecialReload, FIELD_INTEGER ),
+};
+IMPLEMENT_SAVERESTORE( CChaingun, CBasePlayerWeapon )

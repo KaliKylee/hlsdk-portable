@@ -106,8 +106,12 @@ void CTripmineGrenade::Spawn( void )
 	pev->sequence = TRIPMINE_WORLD;
 	ResetSequenceInfo();
 	pev->framerate = 0;
-	
-	UTIL_SetSize( pev, Vector( -8.0f, -8.0f, -8.0f ), Vector( 8.0f, 8.0f, 8.0f ) );
+
+	if (pev->angles.y >= 270.0 || pev->angles.y <= 90.0) {
+		UTIL_SetSize( pev, Vector( 0.0f, 0.0f, 0.0f ), Vector( 1.0f, 1.0f, 1.0f ) );
+	} else {
+		UTIL_SetSize( pev, Vector( -1.0f, -1.0f, 0.0f ), Vector( 0.0f, 0.0f, 1.0f ) );
+	}
 	UTIL_SetOrigin( pev, pev->origin );
 
 	if( pev->spawnflags & 1 )
@@ -301,7 +305,7 @@ void CTripmineGrenade::BeamBreakThink( void )
 #endif
 	}
 
-	if( fabs( m_flBeamLength - tr.flFraction ) > 0.001f )
+	if( tr.fStartSolid || fabs( m_flBeamLength - tr.flFraction ) > 0.001f )
 	{
 		bBlowup = 1;
 	}

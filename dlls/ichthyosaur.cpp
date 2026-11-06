@@ -91,6 +91,8 @@ public:
 	float FlPitchDiff( void );
 	float ChangePitch( int pitchSpeed );
 
+	virtual int SizeForGrapple() { return GRAPPLE_LARGE; }
+
 	Vector m_SaveVelocity;
 	float m_idealDist;
 

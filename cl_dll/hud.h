@@ -22,7 +22,7 @@
 #pragma once
 #if !defined(HUD_H)
 #define HUD_H
-#define RGB_YELLOWISH 0x00FFA000 //255,160,0
+#define RGB_YELLOWISH 0x0000A000 //0,160,0
 #define RGB_REDISH 0x00FF1010 //255,160,0
 #define RGB_GREENISH 0x0000A000 //0,160,0
 
@@ -34,6 +34,8 @@
 #define DHN_DRAWZERO 1
 #define DHN_2DIGITS  2
 #define DHN_3DIGITS  4
+#define DHN_4DIGITS  8
+#define DHN_5DIGITS  16
 #define MIN_ALPHA	 100	
 
 #define		HUDELEM_ACTIVE	1
@@ -59,6 +61,7 @@ typedef struct cvar_s cvar_t;
 
 #define HUD_ACTIVE	1
 #define HUD_INTERMISSION 2
+#define HUD_ALWAYSDRAW 4
 
 #define MAX_PLAYER_NAME_LENGTH		32
 
@@ -394,6 +397,26 @@ private:
 //
 //-----------------------------------------------------
 //
+class CHudNightvision : public CHudBase
+{
+public:
+	int Init( void );
+	int VidInit( void );
+	int Draw( float flTime );
+	void Reset( void );
+	int MsgFunc_Nightvision( const char *pszName, int iSize, void *pbuf );
+	int MsgFunc_Flashlight( const char *pszName, int iSize, void *pbuf );
+
+private:
+	HSPRITE m_hSprite1, m_hSprite2, m_hSprite3, m_hSprite4;
+
+	int m_fOn;
+	int m_iFrame, m_nFrameCount;
+};
+
+//
+//-----------------------------------------------------
+//
 class CHudFlashlight: public CHudBase
 {
 public:
@@ -486,6 +509,9 @@ private:
 
 	int m_HUD_title_life;
 	int m_HUD_title_half;
+
+	int m_HUD_title_opposing;
+	int m_HUD_title_force;
 };
 
 //
@@ -528,6 +554,125 @@ private:
 //
 //-----------------------------------------------------
 //
+#define ARMOR_PAIN_TIME			0.2
+class CHudCredit : public CHudBase
+{
+public:
+	int Init( void );
+	int VidInit( void );
+	int Draw( float flTime );
+private:
+	float m_flStart;
+};
+
+wrect_t CreateWrect ( int left, int top, int right, int bottom );
+
+class CHudBossBarHealth : public CHudBase
+{
+
+public:
+	int Init( void );
+	int VidInit( void );
+	int Draw(float flTime);
+
+	void SetViewPos ( struct ref_params_s *pparams );
+
+	int MsgFunc_BBHView ( const char *pszName, int iSize, void *pbuf );
+
+	HSPRITE m_sprBoss;
+
+	vec3_t	m_CamPos;
+	vec3_t	m_CamAng;
+	vec3_t	m_CamVelocity;
+	vec3_t	m_CamAVelocity;
+
+	bool	m_iPlayerInBoss;
+	int		m_iCamEnt;
+	int     m_HUD_cross;
+	float	m_flBossHealth;
+	float	m_flPain;
+    int     m_iHealth;
+    int     iHealth;
+};
+
+class CHudBossBarHealthName : public CHudBase
+{
+
+public:
+	int Init( void );
+	int VidInit( void );
+	int Draw(float flTime);
+
+	void SetViewPos ( struct ref_params_s *pparams );
+
+	int MsgFunc_BBHNView ( const char *pszName, int iSize, void *pbuf );
+
+	HSPRITE m_sprBoss;
+
+	vec3_t	m_CamPos;
+	vec3_t	m_CamAng;
+	vec3_t	m_CamVelocity;
+	vec3_t	m_CamAVelocity;
+
+	bool	m_iPlayerInBoss;
+	int		m_iCamEnt;
+	float	m_flBossHealth;
+	float	m_flPain;
+
+};
+
+class CHudBossBarHealthName2 : public CHudBase
+{
+
+public:
+	int Init( void );
+	int VidInit( void );
+	int Draw(float flTime);
+
+	void SetViewPos ( struct ref_params_s *pparams );
+
+	int MsgFunc_BBHNView2 ( const char *pszName, int iSize, void *pbuf );
+
+	HSPRITE m_sprBoss;
+
+	vec3_t	m_CamPos;
+	vec3_t	m_CamAng;
+	vec3_t	m_CamVelocity;
+	vec3_t	m_CamAVelocity;
+
+	bool	m_iPlayerInBoss;
+	int		m_iCamEnt;
+	float	m_flBossHealth;
+	float	m_flPain;
+
+};
+
+class CHudBossBarHealthName3 : public CHudBase
+{
+
+public:
+	int Init( void );
+	int VidInit( void );
+	int Draw(float flTime);
+
+	void SetViewPos ( struct ref_params_s *pparams );
+
+	int MsgFunc_BBHNView3 ( const char *pszName, int iSize, void *pbuf );
+
+	HSPRITE m_sprBoss;
+
+	vec3_t	m_CamPos;
+	vec3_t	m_CamAng;
+	vec3_t	m_CamVelocity;
+	vec3_t	m_CamAVelocity;
+
+	bool	m_iPlayerInBoss;
+	int		m_iCamEnt;
+	float	m_flBossHealth;
+	float	m_flPain;
+
+};
+
 class CHud
 {
 private:
@@ -613,6 +758,12 @@ public:
 	CHudAmmoSecondary	m_AmmoSecondary;
 	CHudTextMessage m_TextMessage;
 	CHudStatusIcons m_StatusIcons;
+	CHudBossBarHealth m_HudBossBarHealth; // BOSSBARHEALTH
+	CHudCredit m_HudCredit; // PORT CREDIT
+	CHudBossBarHealthName m_HudBossBarHealthName; // BOSSBARNAME
+	CHudBossBarHealthName2 m_HudBossBarHealthName2; // BOSSBARNAME2
+	CHudBossBarHealthName3 m_HudBossBarHealthName3; // BOSSBARNAME3
+	CHudNightvision m_Nightvision;
 	CHudScoreboard	m_Scoreboard;
 	CHudMOTD	m_MOTD;
 

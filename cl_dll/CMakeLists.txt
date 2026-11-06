@@ -71,6 +71,23 @@ set (CLDLL_SOURCES
 	../dlls/squeakgrenade.cpp
 	../dlls/tripmine.cpp
 	../dlls/glock.cpp
+	gearbox/hud_nightvision.cpp
+	../dlls/gearbox/displacer.cpp
+	../dlls/gearbox/knife.cpp
+	../dlls/gearbox/eagle.cpp
+	../dlls/gearbox/deagle.cpp
+	../dlls/hf_crash.cpp
+	../dlls/gearbox/chaingun.cpp
+	../dlls/gearbox/glauncher.cpp
+	../dlls/gearbox/handgrenadegas.cpp
+	../dlls/gearbox/m24.cpp
+	../dlls/gearbox/grapple.cpp
+	../dlls/gearbox/m249.cpp
+	../dlls/gearbox/penguin.cpp
+	../dlls/gearbox/pipewrench.cpp
+	../dlls/gearbox/shockrifle.cpp
+	../dlls/gearbox/sniperrifle.cpp
+	../dlls/gearbox/sporelauncher.cpp
 	ev_hldm.cpp
 	hl/hl_baseentity.cpp
 	hl/hl_events.cpp
@@ -94,6 +111,11 @@ set (CLDLL_SOURCES
 	hud.cpp
 	hud_msg.cpp
 	hud_redraw.cpp
+	hud_healthbarboss.cpp
+	hud_healthbarbossname.cpp
+	hud_healthbarbossname2.cpp
+	hud_healthbarbossname3.cpp
+	hud_credit.cpp
 	hud_spectator.cpp
 	hud_update.cpp
 	in_camera.cpp
@@ -160,7 +182,7 @@ else()
 		../external/openbsd/strlcat.c)
 endif()
 
-include_directories (. hl/ ../dlls ../dlls/wpn_shared ../common ../engine ../pm_shared ../game_shared ../public)
+include_directories (. hl/ ../dlls ../dlls/wpn_shared ../common ../engine ../pm_shared ../game_shared ../public ../dlls/gearbox)
 
 if (GOLDSOURCE_SUPPORT)
 	include_directories (../external/)
@@ -171,6 +193,9 @@ include_directories(../utils/vgui/include)
 
 add_library (${CLDLL_LIBRARY} SHARED ${CLDLL_SOURCES})
 target_link_libraries(${CLDLL_LIBRARY} vcs_info)
+if(ANDROID)
+	target_link_libraries(${CLDLL_LIBRARY} log)
+endif()
 
 if (GOLDSOURCE_SUPPORT)
 	target_link_libraries( ${CLDLL_LIBRARY} ${CMAKE_DL_LIBS} )

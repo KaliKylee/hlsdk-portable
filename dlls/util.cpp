@@ -21,6 +21,7 @@
 */
 
 #include "extdll.h"
+#include "hf_log.h"
 #include "util.h"
 #include "cbase.h"
 #include "saverestore.h"
@@ -31,6 +32,79 @@
 #include "weapons.h"
 #include "gamerules.h"
 #include "byteswap.h"
+
+const char *seven[] =
+{
+	"you don't jump like a monkey",
+	"a rising column of smoke",
+	"guns exploding all around",
+	"the silhouette of a dog",
+	"candy corn chicken fetus",
+	"and fed you to the chickens",
+	"i leave the windows open",
+	"you are my favorite thing",
+	"it tantalizes me so",
+	"in the middle of a storm",
+	"i'm coming out of the booth",
+	"i don't need the influence",
+	"put it in your report, bill",
+	"frictionless, massless mormon",
+	"programmer's head on a stick",
+	"crazy customizable",
+	"nuclear bedtime story",
+	"the half-life of lime jello"
+};
+
+const char *five[] =
+{
+	"the growing yodas",
+	"a specific dick",
+	"nice vomiting spell",
+	"let's tease the weasels",
+	"a velvet codpiece",
+	"some quick goat thinking",
+	"random tuna head",
+	"gravity assist",
+	"miscellaneous",
+	"peas and hominy",
+	"liquid banana",
+	"digital squirrel",
+	"live mice sit on us",
+	"fresh air is so sweet",
+	"so what if I sweat",
+	"air conditioning",
+	"keeping us all cool",
+	"those creamy white thighs",
+	"i must escape it",
+	"do not send me porn",
+	"you have been a fool",
+	"evil evil boy",
+	"more bunny justice",
+	"anonymous nub",
+	"nub technology",
+	"white cotton panties",
+	"exploding midget",
+	"walking in memphis",
+	"colostomy bag",
+	"rebel boat rocker",
+	"i have to call chuck"
+};
+
+void UTIL_MuzzleLight( Vector vecSrc, float flRadius, byte r, byte g, byte b, float flTime, float flDecay )
+{
+	MESSAGE_BEGIN( MSG_PVS, SVC_TEMPENTITY, vecSrc );
+		WRITE_BYTE( TE_DLIGHT );
+		WRITE_COORD( vecSrc.x );	// X
+		WRITE_COORD( vecSrc.y );	// Y
+		WRITE_COORD( vecSrc.z );	// Z
+		WRITE_BYTE( flRadius * 0.1f );	// radius * 0.1
+		WRITE_BYTE( r );		// r
+		WRITE_BYTE( g );		// g
+		WRITE_BYTE( b );		// b
+		WRITE_BYTE( flTime * 10.0f );	// time * 10
+		WRITE_BYTE( flDecay * 0.1f );	// decay * 0.1
+	MESSAGE_END();
+}
 
 float UTIL_WeaponTimeBase( void )
 {
@@ -1497,7 +1571,14 @@ void UTIL_Remove( CBaseEntity *pEntity )
 	if( !pEntity )
 		return;
 
+	// Call pre removal method.
+	pEntity->PreRemoval();
+
 	pEntity->UpdateOnRemove();
+
+	// Call post removal method.
+	pEntity->PostRemoval();
+
 	pEntity->pev->flags |= FL_KILLME;
 	pEntity->pev->targetname = 0;
 }
@@ -1511,6 +1592,8 @@ BOOL UTIL_IsValidEntity( edict_t *pent )
 
 void UTIL_PrecacheOther( const char *szClassname )
 {
+	HF_Breadcrumb( "precache %s", szClassname );
+
 	edict_t	*pent;
 
 	pent = CREATE_NAMED_ENTITY( MAKE_STRING( szClassname ) );
@@ -2483,4 +2566,46 @@ int CRestore::BufferCheckZString( const char *string )
 			return 1;
 	}
 	return 0;
+}
+
+void UTIL_CleanSpawnPoint( Vector origin, float dist )
+{
+	CBaseEntity *ent = NULL;
+	while( ( ent = UTIL_FindEntityInSphere( ent, origin, dist ) ) != NULL )
+	{
+		if( ent->IsPlayer() )
+		{
+			TraceResult tr;
+			UTIL_TraceHull( ent->pev->origin + Vector( 0, 0, 36 ), ent->pev->origin + Vector( RANDOM_FLOAT( -150, 150 ), RANDOM_FLOAT( -150, 150 ), 0 ), dont_ignore_monsters, human_hull, ent->edict(), &tr );
+			//UTIL_TraceModel( ent->pev->origin + Vector( 0, 0, 36 ), ent->pev->origin + Vector( RANDOM_FLOAT( -150, 150 ), RANDOM_FLOAT( -150, 150 ), 0 ), 0, ent->edict(), &tr );
+			if( !tr.fAllSolid )
+			UTIL_SetOrigin(ent->pev, tr.vecEndPos );
+		}
+	}
+}
+
+void UTIL_Haiku( void )
+{
+	char text[256];
+
+	sprintf( text, "%s\n%s\n%s", five[(int)floor( RANDOM_FLOAT( 0, ARRAYSIZE( five )))], seven[(int)floor( RANDOM_FLOAT( 0, ARRAYSIZE( seven )))], five[(int)floor( RANDOM_FLOAT( 0, ARRAYSIZE( five )))]);
+	MESSAGE_BEGIN( MSG_BROADCAST, SVC_TEMPENTITY );
+		WRITE_BYTE( TE_TEXTMESSAGE );
+		WRITE_BYTE( 0 );
+		WRITE_SHORT( FixedSigned16( -1, 1 << 13 ));
+		WRITE_SHORT( FixedSigned16( -1, 1 << 13 ));
+		WRITE_BYTE( 0 );
+		WRITE_BYTE( 128 );
+		WRITE_BYTE( 128 );
+		WRITE_BYTE( 128 );
+		WRITE_BYTE( 128 );
+		WRITE_BYTE( 255 );
+		WRITE_BYTE( 255 );
+		WRITE_BYTE( 255 );
+		WRITE_BYTE( 255 );
+		WRITE_SHORT( FixedUnsigned16( 1, 1 << 8 ));
+		WRITE_SHORT( FixedUnsigned16( 1, 1 << 8 ));
+		WRITE_SHORT( FixedUnsigned16( 1, 1 << 8 ));
+		WRITE_STRING( text );
+	MESSAGE_END();
 }

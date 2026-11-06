@@ -67,6 +67,21 @@ CHandGrenade g_HandGren;
 CSatchel g_Satchel;
 CTripmine g_Tripmine;
 CSqueak g_Snark;
+CDisplacer g_Displacer;
+CEagle g_Eagle;
+CDeagle g_Deagle;
+CGlauncher g_Glauncher;
+CM24 g_M24;
+CChaingun g_Chaingun;
+CHandGrenadeGas g_HandGrenGas;
+CKnife g_Knife;
+CM249 g_M249;
+CPenguin g_Penguin;
+CPipeWrench g_PipeWrench;
+CShockrifle g_Shock;
+CSniperrifle g_Sniper;
+CSporelauncher g_Spore;
+CBarnacleGrapple g_Grapple;
 
 /*
 ======================
@@ -620,6 +635,21 @@ void HUD_InitClientWeapons( void )
 	HUD_PrepEntity( &g_Satchel, &player );
 	HUD_PrepEntity( &g_Tripmine, &player );
 	HUD_PrepEntity( &g_Snark, &player );
+	HUD_PrepEntity( &g_Displacer, &player );
+	HUD_PrepEntity( &g_Eagle, &player );
+	HUD_PrepEntity( &g_Deagle, &player );
+	HUD_PrepEntity( &g_Glauncher, &player );
+	HUD_PrepEntity( &g_M24, &player );
+	HUD_PrepEntity( &g_Chaingun, &player );
+	HUD_PrepEntity( &g_HandGrenGas, &player );
+	HUD_PrepEntity( &g_Knife, &player );
+	HUD_PrepEntity( &g_M249, &player );
+	HUD_PrepEntity( &g_Penguin, &player );
+	HUD_PrepEntity( &g_PipeWrench, &player );
+	HUD_PrepEntity( &g_Shock, &player );
+	HUD_PrepEntity( &g_Sniper, &player );
+	HUD_PrepEntity( &g_Spore, &player );
+	HUD_PrepEntity( &g_Grapple, &player );
 }
 
 /*
@@ -724,6 +754,56 @@ void HUD_WeaponsPostThink( local_state_s *from, local_state_s *to, usercmd_t *cm
 			break;
 		case WEAPON_SNARK:
 			pWeapon = &g_Snark;
+			break;
+		case WEAPON_DISPLACER:
+			pWeapon = &g_Displacer;
+			break;
+		case WEAPON_EAGLE:
+			pWeapon = &g_Eagle;
+			break;
+
+		case WEAPON_DEAGLE:
+			pWeapon = &g_Deagle;
+			break;
+
+		case WEAPON_GLAUNCHER:
+			pWeapon = &g_Glauncher;
+			break;
+
+		case WEAPON_M24:
+			pWeapon = &g_M24;
+			break;
+
+		case WEAPON_CHAINGUN:
+			pWeapon = &g_Chaingun;
+			break;
+
+		case WEAPON_HANDGRENADEGAS:
+			pWeapon = &g_HandGrenGas;
+			break;
+		case WEAPON_KNIFE:
+			pWeapon = &g_Knife;
+			break;
+		case WEAPON_M249:
+			pWeapon = &g_M249;
+			break;
+		case WEAPON_PENGUIN:
+			pWeapon = &g_Penguin;
+			break;
+		case WEAPON_PIPEWRENCH:
+			pWeapon = &g_PipeWrench;
+			break;
+		case WEAPON_SHOCKRIFLE:
+			pWeapon = &g_Shock;
+			break;
+		case WEAPON_SNIPERRIFLE:
+			pWeapon = &g_Sniper;
+			break;
+		case WEAPON_SPORELAUNCHER:
+			pWeapon = &g_Spore;
+			break;
+		case WEAPON_GRAPPLE:
+			pWeapon = &g_Grapple;
 			break;
 	}
 
@@ -834,6 +914,31 @@ void HUD_WeaponsPostThink( local_state_s *from, local_state_s *to, usercmd_t *cm
 		( (CRpg *)player.m_pActiveItem )->m_fSpotActive = (int)from->client.vuser2[1];
 		( (CRpg *)player.m_pActiveItem )->m_cActiveRockets = (int)from->client.vuser2[2];
 	}
+	else if (player.m_pActiveItem->m_iId == WEAPON_EAGLE)
+	{
+		( (CEagle *)player.m_pActiveItem )->m_fEagleLaserActive = (int)from->client.vuser2[1];
+	}
+	if( player.m_pActiveItem->m_iId == WEAPON_PIPEWRENCH )
+	{
+		( (CPipeWrench *)player.m_pActiveItem )->m_iSwingMode = (int)from->client.vuser2[1];
+	}
+	else if( player.m_pActiveItem->m_iId == WEAPON_M249 )
+	{
+		player.ammo_556 = (int)from->client.vuser2[1];
+		( (CM249 *)player.m_pActiveItem )->m_iVisibleClip = (int)from->client.vuser2[2];
+	}
+	else if( player.m_pActiveItem->m_iId == WEAPON_SHOCKRIFLE )
+	{
+		player.ammo_shocks = (int)from->client.vuser2[1];
+	}
+	else if( player.m_pActiveItem->m_iId == WEAPON_SNIPERRIFLE )
+	{
+		player.ammo_762 = (int)from->client.vuser2[1];
+	}
+	else if( player.m_pActiveItem->m_iId == WEAPON_SPORELAUNCHER )
+	{
+		player.ammo_spores = (int)from->client.vuser2[1];
+	}
 
 	// Don't go firing anything if we have died.
 	// Or if we don't have a weapon model deployed
@@ -902,7 +1007,30 @@ void HUD_WeaponsPostThink( local_state_s *from, local_state_s *to, usercmd_t *cm
 		to->client.vuser2[1] = ( (CRpg *)player.m_pActiveItem)->m_fSpotActive;
 		to->client.vuser2[2] = ( (CRpg *)player.m_pActiveItem)->m_cActiveRockets;
 	}
-
+	else if ( player.m_pActiveItem->m_iId == WEAPON_EAGLE )
+	{
+		from->client.vuser2[1] = ( (CEagle *)player.m_pActiveItem )->m_fEagleLaserActive;;
+	}
+	else if( player.m_pActiveItem->m_iId == WEAPON_PIPEWRENCH )
+	{
+		from->client.vuser2[1] = ( (CPipeWrench *)player.m_pActiveItem )->m_iSwingMode;
+	}
+	else if( player.m_pActiveItem->m_iId == WEAPON_M249 )
+	{
+		from->client.vuser2[1] = player.ammo_556;
+	}
+	else if( player.m_pActiveItem->m_iId == WEAPON_SHOCKRIFLE )
+	{
+		from->client.vuser2[1] = player.ammo_shocks;
+	}
+	else if( player.m_pActiveItem->m_iId == WEAPON_SNIPERRIFLE )
+	{
+		from->client.vuser2[1] = player.ammo_762;
+	}
+	else if( player.m_pActiveItem->m_iId == WEAPON_SPORELAUNCHER )
+	{
+		from->client.vuser2[1] = player.ammo_spores;
+	}
 	// Make sure that weapon animation matches what the game .dll is telling us
 	//  over the wire ( fixes some animation glitches )
 	if( g_runfuncs && ( HUD_GetWeaponAnim() != to->client.weaponanim ) )
@@ -912,6 +1040,10 @@ void HUD_WeaponsPostThink( local_state_s *from, local_state_s *to, usercmd_t *cm
 		//Show laser sight/scope combo
 		if( pWeapon == &g_Python && bIsMultiplayer() )
 			 body = 1;
+
+		if (pWeapon == &g_M249) {
+			body = g_M249.BodyFromClip();
+		}
 
 		// Force a fixed anim down to viewmodel
 		HUD_SendWeaponAnim( to->client.weaponanim, body, 1 );

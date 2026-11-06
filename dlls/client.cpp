@@ -24,6 +24,7 @@
 */
 
 #include "extdll.h"
+#include "hf_log.h"
 #include "util.h"
 #include "cbase.h"
 #include "saverestore.h"
@@ -44,6 +45,8 @@ extern DLL_GLOBAL ULONG		g_ulModelIndexPlayer;
 extern DLL_GLOBAL BOOL		g_fGameOver;
 extern DLL_GLOBAL int		g_iSkillLevel;
 extern DLL_GLOBAL ULONG		g_ulFrameCount;
+
+const char *GetTeamName( int team );
 
 extern void CopyToBodyQue( entvars_t* pev );
 extern int giPrecacheGrunt;
@@ -191,6 +194,8 @@ void ClientPutInServer( edict_t *pEntity )
 	CBasePlayer *pPlayer;
 
 	entvars_t *pev = &pEntity->v;
+
+	HF_Log( "ClientPutInServer: jogador entrou (mapa %s)", STRING( gpGlobals->mapname ) );
 
 	pPlayer = GetClassPtr( (CBasePlayer *)pev );
 	pPlayer->SetCustomDecalFrames( -1 ); // Assume none;
@@ -556,6 +561,11 @@ void ClientCommand( edict_t *pEntity )
 	{
 		GetClassPtr( (CBasePlayer *)pev )->SelectLastItem();
 	}
+	else if( FStrEq( pcmd, "haiku" ))
+	{
+		if( !g_pGameRules->IsMultiplayer() )
+			UTIL_Haiku();
+	}
 	else if( FStrEq( pcmd, "spectate" ) ) // clients wants to become a spectator
 	{
 		CBasePlayer *pPlayer = GetClassPtr( (CBasePlayer *)pev );
@@ -704,6 +714,7 @@ static int g_serveractive = 0;
 void ServerDeactivate( void )
 {
 	//ALERT( at_console, "ServerDeactivate()\n" );
+	HF_Log( "ServerDeactivate" );
 
 	// It's possible that the engine will call this function more times than is necessary
 	//  Therefore, only run it one time for each call to ServerActivate 
@@ -724,6 +735,7 @@ void ServerActivate( edict_t *pEdictList, int edictCount, int clientMax )
 	CBaseEntity	*pClass;
 
 	//ALERT( at_console, "ServerActivate()\n" );
+	HF_Log( "ServerActivate: mapa=%s clientMax=%d edicts=%d", STRING( gpGlobals->mapname ), clientMax, edictCount );
 
 	// Every call to ServerActivate should be matched by a call to ServerDeactivate
 	g_serveractive = 1;
@@ -884,6 +896,7 @@ void ClientPrecache( void )
 	PRECACHE_SOUND( "player/pl_wade3.wav" );
 	PRECACHE_SOUND( "player/pl_wade4.wav" );
 
+
 	PRECACHE_SOUND( "debris/wood1.wav" );			// hit wood texture
 	PRECACHE_SOUND( "debris/wood2.wav" );
 	PRECACHE_SOUND( "debris/wood3.wav" );
@@ -930,6 +943,9 @@ void ClientPrecache( void )
 
 	if( giPrecacheGrunt )
 		UTIL_PrecacheOther( "monster_human_grunt" );
+
+	// Teleport sounds. Used by trigger_xen_return
+	PRECACHE_SOUND( "debris/beamstart7.wav" );
 }
 
 /*
@@ -1796,6 +1812,31 @@ void UpdateClientData( const struct edict_s *ent, int sendweapons, struct client
 					{
 						cd->vuser2.y = ( (CRpg *)pl->m_pActiveItem )->m_fSpotActive;
 						cd->vuser2.z = ( (CRpg *)pl->m_pActiveItem )->m_cActiveRockets;
+					}
+					else if( pl->m_pActiveItem->m_iId == WEAPON_EAGLE )
+					{
+						cd->vuser2.y = ( (CEagle *)pl->m_pActiveItem )->m_fEagleLaserActive;
+					}
+					else if( pl->m_pActiveItem->m_iId == WEAPON_PIPEWRENCH )
+					{
+						cd->vuser2.y = ( (CPipeWrench *)pl->m_pActiveItem )->m_iSwingMode;
+					}
+					else if( pl->m_pActiveItem->m_iId == WEAPON_M249 )
+					{
+						cd->vuser2.y = pl->ammo_556;
+						cd->vuser2.z = ( (CM249 *)pl->m_pActiveItem )->m_iVisibleClip;
+					}
+					else if( pl->m_pActiveItem->m_iId == WEAPON_SHOCKRIFLE )
+					{
+						cd->vuser2.y = pl->ammo_shocks;
+					}
+					else if( pl->m_pActiveItem->m_iId == WEAPON_SNIPERRIFLE )
+					{
+						cd->vuser2.y = pl->ammo_762;
+					}
+					else if( pl->m_pActiveItem->m_iId == WEAPON_SPORELAUNCHER )
+					{
+						cd->vuser2.y = pl->ammo_spores;
 					}
 				}
 			}
