@@ -16,4 +16,8 @@ void HF_Log( const char *fmt, ... );
 void HF_Breadcrumb( const char *fmt, ... );
 #endif
 
+// Marcadores permanentes (arquivos vazios na pasta de trabalho do Xash, ex.: /sdcard/xash/).
+int HF_FlagExists( const char *name );   // 1 se o marcador existe
+void HF_FlagSet( const char *name );     // cria o marcador
+
 #endif // HF_LOG_H

@@ -402,9 +402,33 @@ void HF_Log( const char *fmt, ... )
 	LogcatWrite( 4 /*ANDROID_LOG_INFO*/, "HF", line );
 }
 
+int HF_FlagExists( const char *name )
+{
+	if( !g_dir[0] )
+		FindDir();
+	if( !g_dir[0] )
+		return 0;
+
+	char path[300];
+	snprintf( path, sizeof( path ), "%s%s", g_dir, name );
+	return access( path, F_OK ) == 0;
+}
+
+void HF_FlagSet( const char *name )
+{
+	int fd = OpenFile( name );
+	if( fd >= 0 )
+	{
+		write( fd, "1\n", 2 );
+		close( fd );
+	}
+}
+
 #else // sem suporte (ex.: Windows): funcoes vazias
 
 void HF_Breadcrumb( const char *fmt, ... ) { (void)fmt; }
 void HF_Log( const char *fmt, ... ) { (void)fmt; }
+int HF_FlagExists( const char *name ) { (void)name; return 0; }
+void HF_FlagSet( const char *name ) { (void)name; }
 
 #endif
