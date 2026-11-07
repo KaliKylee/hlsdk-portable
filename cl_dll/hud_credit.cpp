@@ -13,6 +13,7 @@
 #include "cl_util.h"
 #include "parsemsg.h"
 #include "mobility_int.h"
+#include "hf_log.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -24,6 +25,7 @@
 #define HF_DISCORD_URL		"https://discord.gg/fUnXU4RZgn"
 #define HF_DISCORD_SHORT	"discord.gg/fUnXU4RZgn"
 #define HF_CREDIT_TEXT		"Port by Kali Kyle"
+#define HF_CREDIT_FLAG		"hf_credit_done.flag" // existe = o credito ja foi mostrado
 
 extern mobile_engfuncs_t *gMobileEngfuncs;
 
@@ -138,7 +140,10 @@ static bool HF_OpenUrl( const char *url )
 }
 #endif
 
-static float g_flCreditRestart = -1.0f; // set to 0 to make the credit show again
+static float g_flCreditRestart = -1.0f; // set to 0 to make the credit show again (comando "discord")
+static bool g_bCreditSeen = false;     // o credito ja apareceu alguma vez (arquivo) ou nesta execucao
+static bool g_bCreditForced = false;   // exibicao pedida pelo comando "discord"
+static bool g_bCreditActive = false;   // o credito esta na tela agora (nesta fase)
 
 static void HF_DiscordCmd( void )
 {
@@ -155,6 +160,7 @@ int CHudCredit::Init( void )
 {
 	m_iFlags |= HUD_ACTIVE | HUD_ALWAYSDRAW;
 	m_flStart = -1.0f;
+	g_bCreditSeen = HF_FlagExists( HF_CREDIT_FLAG ) != 0;
 
 	gEngfuncs.pfnAddCommand( "discord", HF_DiscordCmd );
 
@@ -166,6 +172,8 @@ int CHudCredit::VidInit( void )
 {
 	m_iFlags |= HUD_ACTIVE | HUD_ALWAYSDRAW;
 	m_flStart = -1.0f; // restart the timer on every level load
+	g_bCreditForced = false;
+	g_bCreditActive = false;
 	return 1;
 }
 
@@ -173,9 +181,15 @@ int CHudCredit::Draw( float flTime )
 {
 	if( g_flCreditRestart == 0.0f )
 	{
+		// pedido explicito (comando "discord"): mostra de novo mesmo que ja tenha aparecido antes
 		m_flStart = flTime;
 		g_flCreditRestart = -1.0f;
+		g_bCreditForced = true;
 	}
+
+	// Aparece UMA vez so (no primeiro "novo jogo"): depois de visto, nunca mais sozinho
+	if( g_bCreditSeen && !g_bCreditForced && !g_bCreditActive )
+		return 1;
 
 	if( m_flStart < 0.0f )
 		m_flStart = flTime;
@@ -185,8 +199,27 @@ int CHudCredit::Draw( float flTime )
 	const float flFade = 2.0f;
 	float t = flTime - m_flStart - flDelay;
 
-	if( t < 0.0f || t > flShow + flFade )
+	if( t < 0.0f )
 		return 1;
+
+	if( t > flShow + flFade )
+	{
+		g_bCreditForced = false; // terminou
+		g_bCreditActive = false;
+		return 1;
+	}
+
+	// ficou visivel: grava o marcador para nunca mais repetir (mesmo se o jogo fechar agora)
+	if( !g_bCreditActive )
+	{
+		g_bCreditActive = true;
+		if( !g_bCreditSeen )
+		{
+			g_bCreditSeen = true;
+			HF_FlagSet( HF_CREDIT_FLAG );
+			HF_Log( "credito exibido pela primeira vez (marcador %s criado)", HF_CREDIT_FLAG );
+		}
+	}
 
 	float a = 1.0f;
 	if( t > flShow )
