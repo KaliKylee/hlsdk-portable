@@ -15,19 +15,38 @@
 //=========================================================
 // skill.h - skill level concerns
 //=========================================================
-#pragma once
-#if !defined(SKILL_H)
+
+//MODDD - WHY NOT???
+#ifndef SKILL_H
 #define SKILL_H
+
+#define SKILL_EASY		1
+#define SKILL_MEDIUM	2
+#define SKILL_HARD		3
+
+
+extern DLL_GLOBAL int g_iSkillLevel;
+
+float GetSkillCvar(char* pName);
+float GetSkillCvarSingular(char* pName);
+
+
+
 
 struct skilldata_t
 {
-	int iSkillLevel; // game skill level
 
-	// Monster Health & Damage
+	//MODDD - removed.  What does this offer that g_iSkillLevel below  doesn't?
+	// Any mentions of this replaced with that.
+	//int iSkillLevel; // game skill level
+
+// Monster Health & Damage
 	float agruntHealth;
 	float agruntDmgPunch;
 
 	float apacheHealth;
+	
+	float barnacleHealth;
 
 	float barneyHealth;
 
@@ -47,6 +66,9 @@ struct skilldata_t
 	float gargantuaDmgStomp;
 
 	float hassassinHealth;
+	//MODDD - NEW.  Customizable damages like the player.
+	float hassassinDmgCrossbowClient;
+	float hassassinDmgCrossbowMonster;
 
 	float headcrabHealth;
 	float headcrabDmgBite;
@@ -55,6 +77,11 @@ struct skilldata_t
 	float hgruntDmgKick;
 	float hgruntShotgunPellets;
 	float hgruntGrenadeSpeed;
+
+	//MODDD - new.
+	float hassaultHealth;
+	float hassaultDmgMelee;
+	
 
 	float houndeyeHealth;
 	float houndeyeDmgBlast;
@@ -70,6 +97,18 @@ struct skilldata_t
 	float leechHealth;
 	float leechDmgBite;
 
+	//MODDD - new.
+	float stukaBatHealth;
+	float stukaBatDmgClaw;
+	float stukaBatDmgExplosion;
+	
+	//MODDD - new.
+	float panthereyeHealth;
+	float panthereyeDmgClaw;
+
+
+	
+
 	float controllerHealth;
 	float controllerDmgZap;
 	float controllerSpeedBall;
@@ -79,6 +118,22 @@ struct skilldata_t
 	float nihilanthZap;
 
 	float scientistHealth;
+	//MODDD - NEW!
+	float scientistDmgPunch;
+	
+	//MODDD - new!
+	float chumtoadHealth;
+
+
+
+	//MODDD TODO MAJOR - new NPCs.
+	//snapbug
+	//archer
+	//flyer?
+
+
+
+
 
 	float snarkHealth;
 	float snarkDmgBite;
@@ -87,12 +142,39 @@ struct skilldata_t
 	float zombieHealth;
 	float zombieDmgOneSlash;
 	float zombieDmgBothSlash;
+	//MODDD - extra zombie feature
+	float zombieBulletResistance;
+	float zombieBulletPushback;
+
+
+	
+	//MODDD - several new NPC's
+	//Archer
+	float archerHealth;
+
+	//(here comes dat) Boid (oh shit waddup)
+	float boidHealth;
+
+	//Floater
+	float floaterHealth;
+
+	//Friendly
+	float friendlyHealth;
+
+	//Kingpin
+	float kingpinHealth;
+
+
+
+
+
 
 	float turretHealth;
 	float miniturretHealth;
 	float sentryHealth;
 
-	// Player Weapons
+
+// Player Weapons
 	float plrDmgCrowbar;
 	float plrDmg9MM;
 	float plrDmg357;
@@ -110,40 +192,95 @@ struct skilldata_t
 	float plrDmgSatchel;
 	float plrDmgTripmine;
 	
-	// weapons shared by monsters
+// weapons shared by monsters
 	float monDmg9MM;
 	float monDmgMP5;
 	float monDmg12MM;
 	float monDmgHornet;
+	//MODDD
+	float monHealthHornet;
 
-	// health/suit charge
+// health/suit charge
 	float suitchargerCapacity;
 	float batteryCapacity;
 	float healthchargerCapacity;
 	float healthkitCapacity;
 	float scientistHeal;
 
-	// monster damage adj
+// monster damage adj
 	float monHead;
 	float monChest;
 	float monStomach;
 	float monLeg;
 	float monArm;
 
-	// player damage adj
+// player damage adj
 	float plrHead;
 	float plrChest;
 	float plrStomach;
 	float plrLeg;
 	float plrArm;
+
+
+	//MODDD - NEW BELOW!
+	//////////////////////////////////////////////////
+
+	// glock/mp5
+	float player_ammomax_9mm;
+	float player_ammomax_mp5_grenade;
+	float player_ammomax_revolver;
+	float player_ammomax_shotgun;
+	float player_ammomax_crossbow;
+	float player_ammomax_rpg;
+	// gauss/egon
+	float player_ammomax_uranium;
+	float player_ammomax_handgrenade;
+	float player_ammomax_satchel;
+	float player_ammomax_tripmine;
+	float player_ammomax_hornet;
+	float player_ammomax_snark;
+	float player_ammomax_chumtoad;
+
+
+
+	float player_revive_health;
+	float scientist_can_heal;
+	float npc_drop_weapon;
+
+
+	float tdmg_buddha;
+	float tdmg_playerbuddha;
+
+
+	float tdmg_paralyze_duration;
+
+	float tdmg_nervegas_duration;
+	float tdmg_nervegas_damage;
+
+	float tdmg_poison_duration;
+	float tdmg_poison_damage;
+
+	float tdmg_radiation_duration;
+	float tdmg_radiation_damage;
+
+	float tdmg_acid_duration;
+	float tdmg_acid_damage;
+
+	float tdmg_slowburn_duration;
+	float tdmg_slowburn_damage;
+
+	float tdmg_slowfreeze_duration;
+	float tdmg_slowfreeze_damage;
+
+	float tdmg_bleeding_duration;
+	float tdmg_bleeding_damage;
+
+
+
 };
 
-extern	DLL_GLOBAL	skilldata_t	gSkillData;
-float GetSkillCvar( const char *pName );
 
-extern DLL_GLOBAL int		g_iSkillLevel;
 
-#define SKILL_EASY		1
-#define SKILL_MEDIUM	2
-#define SKILL_HARD		3
-#endif // SKILL_H
+extern DLL_GLOBAL skilldata_t gSkillData;
+
+#endif //END OF #ifdef SKILL_H

@@ -12,13 +12,20 @@
 *   use or distribution of this code by or to any unlicensed person is illegal.
 *
 ****/
-#if !defined(DEFAULTAI_H)
+#ifndef DEFAULTAI_H
 #define DEFAULTAI_H
+
+extern Schedule_t slWaitForSequence[];
+extern Schedule_t slWaitForReviveSequence[];
 
 //=========================================================
 // Failed
 //=========================================================
 extern Schedule_t	slFail[];
+extern Schedule_t	slFailQuick[];
+
+extern Schedule_t slPathfindStumped[];
+
 
 //=========================================================
 //	Idle Schedules
@@ -35,7 +42,8 @@ extern Schedule_t slWakeAngry[];
 //=========================================================
 // AlertTurn Schedules
 //=========================================================
-extern Schedule_t	slAlertFace[];
+extern Schedule_t slAlertFace[];
+extern Schedule_t slAlertFaceIfVisible[];
 
 //=========================================================
 // AlertIdle Schedules
@@ -51,6 +59,12 @@ extern Schedule_t	slCombatStand[];
 // CombatFace Schedule
 //=========================================================
 extern Schedule_t	slCombatFace[];
+extern Schedule_t slCombatFaceNoStump[];
+extern Schedule_t slCombatFaceSound[];
+extern Schedule_t slCombatLook[];
+
+//MODDD - new
+extern Schedule_t slWaitForEnemyToEnterWater[];
 
 //=========================================================
 // reload schedule
@@ -66,11 +80,19 @@ extern Schedule_t	slRangeAttack2[];
 
 extern Schedule_t	slTakeCoverFromBestSound[];
 
-// primary melee attack
-extern Schedule_t	slMeleeAttack[];
 
+
+// primary melee attack
+//MODDD - WARNING - even in the as-is script, this seems to be out of date. There are now two melee attack schedules, and neither is called just this.
+//extern Schedule_t	slMeleeAttack[];
+extern Schedule_t slPrimaryMeleeAttack[];
+extern Schedule_t slSecondaryMeleeAttack[];
+
+	 
 // Chase enemy schedule
 extern Schedule_t slChaseEnemy[];
+extern Schedule_t slChaseEnemySmart[];
+extern Schedule_t slChaseEnemySmart_StopSight[];
 
 //=========================================================
 // small flinch, used when a relatively minor bit of damage
@@ -82,6 +104,9 @@ extern Schedule_t slSmallFlinch[];
 // Die!
 //=========================================================
 extern Schedule_t slDie[];
+extern Schedule_t slDieLoop[];
+extern Schedule_t slDieFallLoop[];
+extern Schedule_t slDieWaterFloat[];
 
 //=========================================================
 //	Universal Error Schedule
@@ -94,5 +119,10 @@ extern Schedule_t slError[];
 extern Schedule_t slWalkToScript[];
 extern Schedule_t slRunToScript[];
 extern Schedule_t slWaitScript[];
+
+
+//MODDD - new
+extern Schedule_t slMoveFromOrigin[];
+extern Schedule_t slRandomWander[];
 
 #endif		// DEFAULTAI_H

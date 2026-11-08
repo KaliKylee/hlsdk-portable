@@ -15,29 +15,50 @@
 //=========================================================
 // skill.cpp - code for skill level concerns
 //=========================================================
-#include	"extdll.h"
-#include	"util.h"
-#include	"skill.h"
+#include "extdll.h"
+#include "util.h"
+#include "skill.h"
+
 
 skilldata_t gSkillData;
+
 
 //=========================================================
 // take the name of a cvar, tack a digit for the skill level
 // on, and return the value.of that Cvar 
 //=========================================================
-float GetSkillCvar( const char *pName )
+float GetSkillCvar( char *pName )
+{
+	int	iCount;
+	float flValue;
+	char szBuffer[ 64 ];
+	
+	//MODDD - 'gSkillData.iSkillLevel' replaced with 'g_iSkillLevel
+	iCount = sprintf( szBuffer, "%s%d",pName, g_iSkillLevel );
+
+	flValue = CVAR_GET_FLOAT ( szBuffer );
+
+	//MODDD - no longer send a message on 0 values, these are valid for some now.
+	//if ( flValue <= 0 )
+	//{
+	//	ALERT ( at_console, "\n\n** GetSkillCVar Got a zero for %s **\n\n", szBuffer );
+	//}
+
+	return flValue;
+}
+
+// MODDD - NEW.
+// No difficulty number after expected.  Pretty plain.
+float GetSkillCvarSingular(char* pName)
 {
 	float flValue;
-	char szBuffer[64];
+	flValue = CVAR_GET_FLOAT(pName);
 
-	sprintf( szBuffer, "%s%d",pName, gSkillData.iSkillLevel );
-
-	flValue = CVAR_GET_FLOAT( szBuffer );
-
-	if( flValue <= 0 )
-	{
-		ALERT( at_console, "\n\n** GetSkillCVar Got a zero for %s **\n\n", szBuffer );
-	}
+	//MODDD - no longer send a message on 0 values, these are valid for some now.
+	//if (flValue <= 0)
+	//{
+	//	ALERT(at_console, "\n\n** GetSkillCVar Got a zero for %s **\n\n", pName);
+	//}
 
 	return flValue;
 }

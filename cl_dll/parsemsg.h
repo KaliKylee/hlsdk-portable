@@ -15,11 +15,12 @@
 //
 //  parsemsg.h
 //
-#pragma once
-#if !defined(PARSEMSG_H)
-#define PARSEMSG_H
 
-#define ASSERT( x )
+//MODDD - why was this sitting here dummying out ASSERT when elsewhere defines it to mean something?
+// ...removing it completely causes something in cl_dlls/custom_message.cpp to complain, MsgFunc_ResetHUD.
+// Clearly that was meant to be a dummied call.  So eh.  Just going with that.  RENAME.
+//#define ASSERT( x )
+#define ASSERT_DUMMY( x )
 
 void BEGIN_READ( void *buf, int size );
 int READ_CHAR( void );
@@ -33,7 +34,6 @@ float READ_COORD( void );
 float READ_ANGLE( void );
 float READ_HIRESANGLE( void );
 
-#endif // PARSEMSG_H
 
 
 

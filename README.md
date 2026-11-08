@@ -1,461 +1,78 @@
-# Half-Life SDK for GoldSource and Xash3D [![Build Status](https://github.com/FWGS/hlsdk-portable/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/FWGS/hlsdk-portable/actions/workflows/build.yml) [![Windows Build Status](https://ci.appveyor.com/api/projects/status/github/FWGS/hlsdk-portable?svg=true)](https://ci.appveyor.com/project/a1batross/hlsdk-portable)
+# Half-Life: Absolute Zero — Android / Xash3D FWGS
 
-Half-Life SDK for GoldSource & Xash3D with some bugfixes.
+Código do mod **Half-Life: Absolute Zero** integrado à infraestrutura do
+[hlsdk-portable](https://github.com/FWGS/hlsdk-portable) (FWGS) e ao
+[FreeVGUI](https://github.com/FWGS/FreeVGUI), para rodar no
+[Xash3D FWGS](https://github.com/FWGS/xash3d-fwgs) em Android (e outras plataformas não-x86).
 
-<details><summary>Changelog</summary>
-<p>
+O gameplay vem do código original do mod (pastas `dlls/`, `cl_dll/`, `game_shared/`, `pm_shared/`, `common/`,
+`engine/`, `config/`). Do hlsdk-portable vêm o sistema de build (CMake), o esquema de nomes de bibliotecas do
+Xash3D, a API mobile e o FreeVGUI (VGUI1 de código aberto: placar, menus de time, painel de espectador).
 
-- Fixed an occasional bug when houndeyes stuck unable to do anything. Technical detail: now monster's `Activity` is set before the call to `SetYawSpeed`. [Patch](https://github.com/FWGS/hlsdk-portable/commit/467899b99aa225a95d90222137f18c141c929c86)
-- Monsters now play idle sounds as it's supposed by the code. Technical detail: the problem was a check for a wrong variable. [Patch](https://github.com/FWGS/hlsdk-portable/commit/9fc712da019a1ca646171e912209a993e7c43976)
-- Fixed a bug that caused talk monsters (scientists and security guards) to face a wrong direction during scripted sequence sometimes. [Patch](https://github.com/FWGS/hlsdk-portable/commit/3e2808de62e479e83068c075cb88b4f177f9acc7)
-- Fixed squad member removal. This bug affected houndeye attacks as their attack depends on percieved number of squad members. [Patch](https://github.com/FWGS/hlsdk-portable/commit/b4502f71336a08f3f2c72b7b061b2838a149a11b)
-- Scientists now react to smells. [Patch](https://github.com/FWGS/hlsdk-portable/commit/2de4e7ab003d5b1674d12525f5aefb1e57a49fa3)
-- Fixed scientists selecting a wrong voice pitch. [Patch](https://github.com/FWGS/hlsdk-portable/commit/b69d37e30e0d6a16f07f5beff8aad5606f86b17a)
-- Tau-cannon (gauss) plays idle animations.
-- Tau-cannon (gauss) beam color depends on the charge as it was before the prediction code was introduced in Half-Life. [Patch](https://github.com/FWGS/hlsdk-portable/commit/0a29ec49c8183ebb8da22a6d2ef395eae9c3dffe)
-- Brought back gluon flare in singleplayer. [Patch](https://github.com/FWGS/hlsdk-portable/commit/9d7ab6acf46a8b71ef119d9c252767865522d21d)
-- Hand grenades don't stay primed after holster, preventing detonation after weapon switch. [Patch](https://github.com/FWGS/hlsdk-portable/commit/6e1059026faa90c5bfe5e3b3f4f58fde398d4524)
-- Fixed flashlight battery appearing as depleted on restore.
-- Fixed a potential overflow when reading sentences.txt. [Patch](https://github.com/FWGS/hlsdk-portable/commit/cb51d2aa179f1eb622e08c1c07b053ccd49e40a5)
-- Fixed beam attachment invalidated on restore (that led to visual bugs). [Patch](https://github.com/FWGS/hlsdk-portable/commit/74b5543c83c5cdcb88e9254bacab08bc63c4c896)
-- Fixed alien controllers facing wrong direction in non-combat state. [Patch](https://github.com/FWGS/hlsdk-portable/commit/e51878c45b618f9b3920b46357545cbb47befeda)
-- Fixed weapon deploy animations not playing sometimes on fast switching between weapons. [Patch](https://github.com/FWGS/hlsdk-portable/commit/ed676a5413c2d26b2982e5b014e0731f0eda6a0d) [Patch2](https://github.com/FWGS/hlsdk-portable/commit/4053dca7a9cf999391cbd77224144da207e4540b)
-- Fixed tripmine sometimes having wrong body on pickup [Patch](https://github.com/FWGS/hlsdk-portable/commit/abf08e4520e3b6cd12a40f269f4a256cf8496227)
-- Fixed human grunts dropping their weapon again if player has save-loaded during the human grunt's death animation. [Patch](https://github.com/FWGS/hlsdk-portable/commit/8d337020b515f54e10554b72347d94f7bcab898f)
-- Prevented `game_zone_player` from transitioning across levels. [Patch](https://github.com/FWGS/hlsdk-portable/commit/1a29908ead4d76c57896c53cb1b9376edfdd4347)
-- Fixed possible crash in `game_score`. [Patch](https://github.com/FWGS/hlsdk-portable/commit/35f1388bd79ddc000076f8a9b16a42b916015ac8)
-- Fixed timed-base damage effect getting removed upon save-load or level transition. [Patch](https://github.com/FWGS/hlsdk-portable/commit/3dfd9dc059a8c593dbb2c990453262260e245717)
-- Fixed crowbar applying breakable glass decals to unbreakable `func_pushable`. [Patch](https://github.com/FWGS/hlsdk-portable/commit/75b38fcdfffaf5b0da1b56893a9825c6a4ea069b)
-- Fixed the damage took by player becoming negative due to the integer overflow on very high damage values. [Patch](https://github.com/FWGS/hlsdk-portable/commit/e53009991a48cce8eea8bacc474ef886c4b70db5)
-- Fixed the tracer effect end positions when something hits the `monster_alien_grunt` armor. [Patch](https://github.com/FWGS/hlsdk-portable/commit/588e56acfdde9a5cb30288e1f6dbc216b7c7c709)
-- Fixed geiger sounds not playing when `hud_draw` is set to 0. [Patch](https://github.com/FWGS/hlsdk-portable/commit/bff949217ddd723bd321cca6735488595249f4e2)
-- Fixed integer underflow/overflow on high and low explosion damages which led to incorrect fireball and smoke visuals. [Patch](https://github.com/FWGS/hlsdk-portable/commit/7c785489f9fcf9e6d375da9a9ab1f42f3fca6e66)
-- Fixed `monster_ichthyosaur` using the wrong formula to probe the environment before selecting a steering vector. [Patch](https://github.com/FWGS/hlsdk-portable/commit/43f0111470d012149def1e7f75ffd0576952930d)
-- Fixed `monster_apache` and `monster_osprey` not finishing their crash sequence if they land on another monster or a `func_pushable`. [Patch](https://github.com/FWGS/hlsdk-portable/commit/5142f7fb15030a87fbc6a5cae1a8fe3894bf774c)
-- Fixed the client drawing zoom crosshairs if `default_fov` is less than 90. [Patch](https://github.com/FWGS/hlsdk-portable/commit/526028f515bc9bb85f160c6dbd15792601cb7518)
-- Fixed corpses released from barnacle being resurrected if barnacle has died while he had a victim which also died. [Patch](https://github.com/FWGS/hlsdk-portable/commit/f27ee56ffdfc5e87f20a1e079c2683254d011caf)
-- Fixed the player getting wrong view entity (and thus an incorrect PVS) if the restart or map change is initiated while the `trigger_camera` is active. [Patch](https://github.com/FWGS/hlsdk-portable/commit/9de0f8a72476d837e0c459f9d2c97d32f1c5e6e0)
-- Fixed the player getting wrong view entity (and thus an incorrect PVS) if the `trigger_camera` was still active during the changelevel. [Patch](https://github.com/FWGS/hlsdk-portable/commit/eaf14167e329874e87c6ff79115b3320fc08c2e4)
+> A pasta `cl_dlls` do mod original passou a se chamar `cl_dll` (padrão do hlsdk-portable). O diretório de instalação
+> dentro do gamedir continua `cl_dlls` (`CLIENT_INSTALL_DIR` em `mod_options.txt`). O `_docs/AZ_readme.txt` é o readme antigo.
 
-Bugfix-related macros that can be enabled during the compilation:
+## Saída do build
 
-- **CROWBAR_DELAY_FIX** fixes a bug when crowbar has a longer delay after the first hit.
-- **CROWBAR_FIX_RAPID_CROWBAR** fixes a "rapid crowbar" bug when hitting corpses of killed monsters.
-- **GAUSS_OVERCHARGE_FIX** fixes tau-cannon (gauss) charge sound not stopping after the overcharge.
-- **CROWBAR_IDLE_ANIM** makes crowbar play idle animations.
-- **TRIPMINE_BEAM_DUPLICATION_FIX** fixes tripmine's beam duplication on level transition.
-- **HANDGRENADE_DEPLOY_FIX** makes handgrenade play draw animation after finishing a throw.
-- **WEAPONS_ANIMATION_TIMES_FIX** fixes deploy and idle animation times of some weapons.
+| Plataforma | Server | Client |
+|---|---|---|
+| Android arm64 | `libaz_android_arm64.so` | `libclient_android_arm64.so` |
+| Android 32 bits | `libaz_android_armv7l.so` | `libclient_android_armv7l.so` |
 
-HL25-related macros that can be enabled during the compilation:
+Os nomes são gerados por `cmake/LibraryNaming.cmake` (padrão do Xash3D). O `az` vem de `SERVER_LIBRARY_NAME`
+em `mod_options.txt` e é o nome do `gamedll` do mod. As libs ficam em `lib/<abi>/` do APK (o Xash3D carrega por nome).
 
-- **SATCHEL_OLD_BEHAVIOUR** old pre-HL 25th satchel's behaviour.
-- **SPEAKABLE_TARGETS** makes speakable cycler and func_button(and breaks amxmodx plugins).
+## Como compilar
 
-Bugfix-related server cvars:
+### Pelo GitHub (recomendado)
+O workflow `.github/workflows/android.yml` roda a cada push e gera os artefatos:
 
-- **satchelfix**: if set to 1, doors won't get blocked by satchels. Fixes an infamous exploit on `crossfire` map.
-- **explosionfix**: if set to 1, explosion damage won't propagate through thin bruses.
-- **selfgauss**: if set to 0, players won't hurt themselves with secondary attack when shooting thick brushes.
+- **AbsoluteZero-apk** — APK do launcher já com as libs dentro (instale este).
+- **az-android-libs** — só as libs (`arm64-v8a/` e `armeabi-v7a/`), sem símbolos.
+- **az-libs-unstripped-arm64-v8a / -armeabi-v7a** — libs com símbolos, só para depuração (`addr2line`).
+- **build-log** — só se o build falhar (o resumo dos erros também aparece na página da execução).
 
-*Note*: the macros and cvars were adjusted in [hlfixed](https://github.com/FWGS/hlsdk-portable/tree/hlfixed) branch (for further information read [this](https://github.com/FWGS/hlsdk-portable/wiki/HL-Fixed)). The bugfix macros are kept turned off in `master` branch to maintain the compatibility with vanilla servers and clients.
-
-Other server cvars:
-
-- **mp_bhopcap**: if set to 0, disable bunny-hop restriction.
-- **chargerfix**: if set to 1, wall-mounted health and battery chargers will play reject sounds if player has the full health or armor.
-- **corpsephysics**: if set to 1, corpses of killed monsters will fly a bit from an impact. It's a cut feature from Half-Life.
-
-New client cvars:
-
-- **cl_motd_vgui**: if set to 0, the old MOTD interface is used instead of the VGUI one.
-- **cl_scoreboard_vgui**: if set to 0, the old scoreboard interface is used instead of the VGUI one.
-- **cl_scoreboard_bg**: whether to draw a dark background for non-VGUI scoreboard.
-
-</p>
-</details>
-
-<details><summary>Support for mods</summary>
-<p>
-
-This repository contains (re-)implementations of some mods as separate branches derived from `master`. The list of supported mods can be found [here](https://github.com/FWGS/hlsdk-portable/wiki/Mods). Note that some branches are unstable and incomplete.
-
-To get the mod branch locally run the following git command:
-
-```
-git fetch origin asheep:asheep
-```
-
-This is considering that you have set **FWGS/hlsdk-portable** as an `origin` remote and want to fetch `asheep` branch.
-
-</p>
-</details>
-
-# Obtaining source code
-
-Either clone the repository via [git](`https://git-scm.com/downloads`) or just download ZIP via **Code** button on github. The first option is more preferable as it also allows you to search through the repo history, switch between branches and clone the vgui submodule.
-
-To clone the repository with git type in Git Bash (on Windows) or in terminal (on Unix-like operating systems):
-
-```
-git clone --recursive https://github.com/FWGS/hlsdk-portable
-```
-
-# CI Builds
-
-Fresh builds is always available in [artifacts](https://github.com/FWGS/hlsdk-portable/actions) for most common platforms and you can download it if you logged in to github.
-
-Builds for all branches and more platforms eventually updates into [hlsdk-mega-build](https://github.com/FWGS/hlsdk-mega-build/releases/tag/continuous) repository.
-
-# Build Instructions
-
-## Windows x86.
-
-### Prerequisites
-
-Install and run [Visual Studio Installer](https://visualstudio.microsoft.com/downloads/). The installer allows you to choose specific components. Select `Desktop development with C++`. You can untick everything you don't need in Installation details, but you must keep `MSVC` and corresponding Windows SDK (e.g. Windows 10 SDK or Windows 11 SDK) ticked. You may also keep `C++ CMake tools for Windows` ticked as you'll need **cmake**. Alternatively you can install **cmake** from the [cmake.org](https://cmake.org/download/) and during installation tick *Add to the PATH...*.
-
-### Opening command prompt
-
-If **cmake** was installed with Visual Studio Installer, you'll need to run `Developer command prompt for VS` via Windows `Start` menu. If **cmake** was installed with cmake installer, you can run the regular Windows `cmd`.
-
-Inside the prompt navigate to the hlsdk directory, using `cd` command, e.g.
-```
-cd C:\Users\username\projects\hlsdk-portable
-```
-
-Note: if hlsdk-portable is unpacked on another disk, nagivate there first:
-```
-D:
-cd projects\hlsdk-portable
-```
-
-### Building
-
-Сonfigure the project:
-```
-cmake -A Win32 -B build
-```
-Note that you must repeat the configuration step if you modify `CMakeLists.txt` files or want to reconfigure the project with different parameters.
-
-The next step is to compile the libraries:
-```
-cmake --build build --config Release
-```
-`hl.dll` and `client.dll` will appear in the `build/dlls/Release` and `build/cl_dll/Release` directories.
-
-If you have a mod and want to automatically install libraries to the mod directory, set **GAMEDIR** variable to the directory name and **CMAKE_INSTALL_PREFIX** to your Half-Life or Xash3D installation path:
-```
-cmake -A Win32 -B build -DGAMEDIR=mod -DCMAKE_INSTALL_PREFIX="C:\Program Files (x86)\Steam\steamapps\common\Half-Life"
-```
-Then call `cmake` with `--target install` parameter:
-```
-cmake --build build --config Release --target install
-```
-
-#### Choosing Visual Studio version
-
-You can explicitly choose a Visual Studio version on the configuration step by specifying cmake generator:
-```
-cmake -G "Visual Studio 16 2019" -A Win32 -B build
-```
-
-### Editing code in Visual Studio
-
-After the configuration step, `HLSDK-PORTABLE.sln` should appear in the `build` directory. You can open this solution in Visual Studio and continue developing there.
-
-## Linux x86. Portable steam-compatible build using Steam Runtime in chroot
-
-### Prerequisites
-
-The official way to build Steam compatible games for Linux is through steam-runtime.
-
-*Note*: For RHEL-based distros you may be need to use system chroot or docker.
-
-Install schroot. On Ubuntu or Debian:
-
-```
-sudo apt install schroot
-```
-
-Clone https://github.com/ValveSoftware/steam-runtime and follow instructions: [download](https://github.com/ValveSoftware/steam-runtime/blob/e014a74f60b45a861d38a867b1c81efe8484f77a/README.md#downloading-a-steam-runtime) and [setup](https://github.com/ValveSoftware/steam-runtime/blob/e014a74f60b45a861d38a867b1c81efe8484f77a/README.md#using-schroot) the chroot.
-
-```
-sudo ./setup_chroot.sh --i386 --tarball ./com.valvesoftware.SteamRuntime.Sdk-i386-scout-sysroot.tar.gz
-```
-
-### Building
-
-Now you can use cmake and make prepending the commands with `schroot --chroot steamrt_scout_i386 --`:
-```
-schroot --chroot steamrt_scout_i386 -- cmake -DCMAKE_BUILD_TYPE=Release -B build-in-steamrt -S .
-schroot --chroot steamrt_scout_i386 -- cmake --build build-in-steamrt
-```
-
-## Linux x86. Portable steam-compatible build without Steam Runtime
-
-### Prerequisites
-
-Install C++ compilers, cmake and x86 development libraries for C, C++ and SDL2.
-
-#### Ubuntu/Debian:
-```
-sudo apt install cmake build-essential gcc-multilib g++-multilib libsdl2-dev:i386
-```
-
-#### RedHat/Fedora/CentOS:
-```
-sudo dnf install cmake gcc gcc-c++ glibc-devel.i686 SDL2-devel.i686
-```
-
-### Building
-
-```
-cmake -DCMAKE_BUILD_TYPE=Release -B build -S .
+### Na mão (Linux / Termux / NDK)
+```sh
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
+  -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-21 -DANDROID_STL=c++_static
 cmake --build build
+# resultado em build/out/arm64-v8a/
 ```
+Em outras plataformas o CMake gera server e client normalmente (`cmake -S . -B build && cmake --build build`).
+**waf não é suportado** neste fork: o código legado não passa nas flags `-Werror` do waf.
 
-Note that the libraries built this way might be not compatible with Steam Half-Life. If you have such issue you can configure it to build statically with c++ and gcc libraries:
-```
-cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS} -static-libstdc++ -static-libgcc" -B build -S .
-cmake --build build
-```
+## Opções (`mod_options.txt`)
 
-Alternatively, you can avoid libstdc++/libgcc_s linking using small libsupc++ library and optimization build flags instead(Really just set Release build type and set C compiler as C++ compiler):
-```
-cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=cc -B build -S .
-cmake --build build
-```
-To ensure portability it's still better to build using Steam Runtime or another chroot of some older distro.
+| Opção | Padrão | O que faz |
+|---|---|---|
+| `AZ_NO_VGUI` | OFF | Compila o client sem VGUI (placar, menus de time e painel de espectador ficam desligados) |
+| `AZ_CRASH_HANDLER` | ON | Grava `az_crash.log` (pilha de chamadas) quando as libs crasham, e no logcat (tag `AZ_CRASH`) |
+| `AZ_NO_STRIP` | OFF | Não remove símbolos em Release (o CI usa para gerar os artefatos de depuração) |
+| `CLIENT_WEAPONS` | ON | Predição de armas no client |
 
-## Linux x86. Portable steam-compatible build in your own chroot
+## Launcher
 
-### Prerequisites
+`launcher/` é o app Android "Absolute Zero" (projeto Gradle). Ele só inicia o Xash3D FWGS com o gamedir
+`AbsoluteZero`; as libs do mod vão dentro do APK (`launcher/app/src/main/jniLibs/<abi>/`, copiadas pelo workflow).
+O pacote do app é `su.xash.az` e o gamedir fica em `launcher/app/src/main/java/su/xash/az/MainActivity.java`.
 
-Use the most suitable way for you to create an old distro 32-bit chroot. E.g. on Ubuntu/Debian you can use debootstrap.
+## Diferenças em relação ao código original do mod
 
-```
-sudo apt install debootstrap schroot
-sudo mkdir -p /var/choots
-sudo debootstrap --arch=i386 jessie /var/chroots/jessie-i386 # On Ubuntu type trusty instead of jessie
-sudo chroot /var/chroots/jessie-i386
-```
+- **Compat Windows → POSIX** (`public/az_compat.h`, incluído em todos os arquivos): `itoa`, `strupr`, `min/max`,
+  `__declspec`, `BOOLEAN`, `_rotr`...
+- **`-fsigned-char`**: o código assume `char` com sinal (a tabela de rotas dos NPCs dependia disso).
+- **64 bits**: `MAKE_STRING`, save/restore de ponteiros de função e de arrays de ponteiros, `mstudioseqgroup_t`,
+  versão do grafo de nós (`.nod`) por tamanho de ponteiro, lista temporária `m_pLink`.
+- **Server browser removido** (`hud_servers.cpp` usa winsock; no Windows continua sendo compilado).
+- **Entrada em POSIX** (`cl_dll/input_unix.cpp`): mouse via engine; toque e gamepad ficam com o engine.
+- **Crash handler** (`public/az_crash_handler.cpp`).
 
-```
-# inside chroot
-apt install cmake build-essential gcc-multilib g++-multilib libsdl2-dev
-exit
-```
+## Créditos e licenças
 
-Create and adapt the following config in /etc/schroot/chroot.d/jessie.conf (you can choose a different name):
-
-```
-[jessie]
-type=directory
-description=Debian jessie i386
-directory=/var/chroots/jessie-i386/
-users=yourusername
-groups=adm
-root-groups=root
-preserve-environment=true
-personality=linux32
-```
-
-Insert your actual user name in place of `yourusername`.
-
-### Building
-
-Prepend any make or cmake call with `schroot -c jessie --`:
-```
-schroot --chroot jessie -- cmake -DCMAKE_BUILD_TYPE=Release -B build-in-chroot -S .
-schroot --chroot jessie -- cmake --build build-in-chroot
-```
-
-## Android
-1. Set up [Android Studio/Android SDK](https://developer.android.com/studio).
-
-### Android Studio
-Open the project located in the `android` folder and build.
-
-### Command-line
-```
-cd android
-./gradlew assembleRelease
-```
-
-### Customizing the build
-settings.gradle:
-* **rootProject.name** - project name displayed in Android Studio (optional).
-
-app/build.gradle:
-* **android->namespace** and **android->defaultConfig->applicationId** - set both to desired package name.
-* **getBuildNum** function - set **releaseDate** variable as desired.
-
-app/java/su/xash/hlsdk/MainActivity.java:
-* **.putExtra("gamedir", ...)** - set desired gamedir.
-
-src/main/AndroidManifest.xml:
-* **application->android:label** - set desired application name.
-* **su.xash.engine.gamedir** value - set to same as above.
-
-## Nintendo Switch
-
-### Prerequisites
-
-1. Set up [`dkp-pacman`](https://devkitpro.org/wiki/devkitPro_pacman).
-2. Install dependency packages:
-```
-sudo dkp-pacman -S switch-dev dkp-toolchain-vars switch-mesa switch-libdrm_nouveau switch-sdl2
-```
-3. Make sure the `DEVKITPRO` environment variable is set to the devkitPro SDK root:
-```
-export DEVKITPRO=/opt/devkitpro
-```
-4. Install libsolder:
-```
-source $DEVKITPRO/switchvars.sh
-git clone https://github.com/fgsfdsfgs/libsolder.git
-make -C libsolder install
-```
-
-### Building using CMake
-```
-mkdir build && cd build
-aarch64-none-elf-cmake -G"Unix Makefiles" -DCMAKE_PROJECT_HLSDK-PORTABLE_INCLUDE="$DEVKITPRO/portlibs/switch/share/SolderShim.cmake" ..
-make -j
-```
-
-### Building using waf
-```
-./waf configure -T release --nswitch
-./waf build
-```
-
-## PlayStation Vita
-
-### Prerequisites
-
-1. Set up [VitaSDK](https://vitasdk.org/).
-2. Install [vita-rtld](https://github.com/fgsfdsfgs/vita-rtld):
-   ```
-   git clone https://github.com/fgsfdsfgs/vita-rtld.git && cd vita-rtld
-   mkdir build && cd build
-   cmake -DCMAKE_BUILD_TYPE=Release ..
-   make -j2 install
-   ```
-
-### Building with waf:
-```
-./waf configure -T release --psvita
-./waf build
-```
-
-### Building with CMake:
-```
-mkdir build && cd build
-cmake -G"Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE="$VITASDK/share/vita.toolchain.cmake" -DCMAKE_PROJECT_HLSDK-PORTABLE_INCLUDE="$VITASDK/share/vrtld_shim.cmake" ..
-make -j
-```
-
-## PlayStation 4
-
-### Prerequisites
-
-1. Install LLVM/Clang 18 with lld (OpenOrbis libraries are built with LLVM 18, newer versions don't work).
-
-#### Ubuntu/Debian:
-```
-sudo apt install clang-18 lld-18 llvm-18
-```
-#### RedHat/Fedora/CentOS:
-```
-sudo dnf install clang18 lld18 llvm18
-```
-2. Download [OpenOrbis PS4 Toolchain](https://github.com/OpenOrbis/OpenOrbis-PS4-Toolchain) built for LLVM 18 and unpack it.
-
-The compilers and the path to the `PS4Toolchain` directory are given at the configuration stage.
-
-### Building with waf
-```
-OO_PS4_TOOLCHAIN=/path/to/OpenOrbis/PS4Toolchain CC=clang-18 CXX=clang++-18 ./waf configure -T release --ps4
-./waf build
-./waf install --destdir=<your installation path>
-```
-The toolchain can be passed with `--ps4-toolchain=/path/to/OpenOrbis/PS4Toolchain` as well.
-
-### Building with CMake
-```
-OO_PS4_TOOLCHAIN=/path/to/OpenOrbis/PS4Toolchain CC=clang-18 CXX=clang++-18 cmake -DCMAKE_TOOLCHAIN_FILE=cmake/PS4Toolchain.cmake -DCMAKE_BUILD_TYPE=Release -B build -S .
-cmake --build build
-cmake --install build --prefix <your installation path>
-```
-
-Libraries are converted to `.prx` modules, and `<gamedir>` with `cl_dlls` and `dlls` in the installation path have the result.
-Every `.prx` has a `.prx.sym` file next to it with names of the functions, which the engine needs to load saved games.
-
-### Installing on the console
-
-Copy the modules and their `.sym` files to the game directory with [GoldHEN FTP](https://github.com/GoldHEN/GoldHEN) (port 2121).
-```
-curl --ftp-create-dirs -T <gamedir>/cl_dlls/client_ps4_amd64.prx ftp://<console IP>:2121/data/xash/<gamedir>/cl_dlls/
-curl --ftp-create-dirs -T <gamedir>/cl_dlls/client_ps4_amd64.prx.sym ftp://<console IP>:2121/data/xash/<gamedir>/cl_dlls/
-curl --ftp-create-dirs -T <gamedir>/dlls/hl_ps4_amd64.prx ftp://<console IP>:2121/data/xash/<gamedir>/dlls/
-curl --ftp-create-dirs -T <gamedir>/dlls/hl_ps4_amd64.prx.sym ftp://<console IP>:2121/data/xash/<gamedir>/dlls/
-```
-
-## Other platforms
-
-Building on other architectures (e.g. x86_64 or arm) and POSIX-compliant OSes (e.g. FreeBSD) is supported.
-
-### Prerequisites
-
-Install C and C++ compilers (like gcc or clang), cmake and make.
-
-### Building
-
-```
-cmake -DCMAKE_BUILD_TYPE=Release -B build -S .
-cmake --build build
-```
-
-Force 64-bit build:
-```
-cmake -DCMAKE_BUILD_TYPE=Release -D64BIT=1 -B build -S .
-cmake --build build
-```
-
-### Building with waf
-
-To use waf, you need to install python (2.7 minimum)
-
-```
-./waf configure -T release
-./waf
-```
-
-Force 64-bit build:
-```
-./waf configure -T release -8
-./waf
-```
-
-## Build options
-
-Some useful build options that can be set during the cmake step.
-
-* **GOLDSOURCE_SUPPORT** - allows to turn off/on the support for GoldSource input. Set to **ON** by default on x86 Windows and x86 Linux, **OFF** on other platforms.
-* **64BIT** - allows to turn off/on 64-bit build. Set to **OFF** by default on x86_64 Windows, x86_64 Linux and 32-bit platforms, **ON** on other 64-bit platforms.
-
-This list is incomplete. Look at `mod_options.txt` to see all available options and their default values.
-
-Prepend option names with `-D` when passing to cmake. Boolean options can take values **OFF** and **ON**. Example:
-
-```
-cmake .. -DGOLDSOURCE_SUPPORT=ON -DCROWBAR_IDLE_ANIM=ON -DCROWBAR_FIX_RAPID_CROWBAR=ON
-```
-
-To add new build options for your mod, you can add them to `mod_options.txt` file in the following format:
-```
-<definition name>=<definition value> # <description>
-```
-If `definition value` set to `OFF` or `ON`, it will be considered as a boolean value. Otherwise it will be a string. Nor `definition name` nor `definition value` can have whitespace characters.
+- Half-Life: Absolute Zero — autor(es) do mod (código derivado do Half-Life SDK; alterações marcadas como `MODDD` no código). Veja `_docs/`.
+- [hlsdk-portable](https://github.com/FWGS/hlsdk-portable) — FWGS. README original em `_docs/hlsdk-portable-README.md`.
+- [FreeVGUI](https://github.com/FWGS/FreeVGUI) — Nagist, Valve, Alibek Omarov (licença em `freevgui/LICENSE`).
+- Half-Life SDK — Valve Corp. Veja `LICENSE` (distribuição apenas gratuita).
+- Port Android e launcher: Kali Kylee.

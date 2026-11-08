@@ -28,22 +28,30 @@ set (CLDLL_LIBRARY client)
 add_definitions(-DCLIENT_DLL)
 
 if(NOT MSVC)
-	add_compile_options(-fno-exceptions) # GCC/Clang flag
-	add_compile_options(-fno-rtti) # GCC/Clang flag
-	add_compile_options(-fvisibility=hidden) # GCC/Clang flag
-	add_definitions(-D_LINUX -DLINUX) # It seems enough for all non-Win32 systems
+	# Absolute Zero usa try/catch (util.cpp) e o resto do mod nao foi escrito para -fno-exceptions/-fno-rtti.
+	# Os simbolos NAO ficam ocultos (-fvisibility=hidden): o AZ declara EXPORT vazio fora do Windows.
+	add_compile_options(-fsigned-char) # o codigo assume char COM sinal (x86/MSVC); no ARM o padrao e sem sinal
+	add_compile_options(-fno-strict-aliasing)
+	add_compile_options(-fms-extensions) # "extra qualification" etc. (aceito pelo MSVC)
+	add_compile_options(-Wno-invalid-offsetof)
+	add_compile_options(-w) # codigo de 2000-2005: silencia warnings para o log ficar legivel
+	add_definitions(-D_LINUX -DLINUX -DPOSIX) # It seems enough for all non-Win32 systems
 	add_definitions(-Dstricmp=strcasecmp -Dstrnicmp=strncasecmp)
 	if(NOT MINGW)
 		add_definitions(-D_snprintf=snprintf -D_vsnprintf=vsnprintf)
 	endif()
-	if(CMAKE_BUILD_TYPE MATCHES "Release"
-		OR (CMAKE_BUILD_TYPE MATCHES "RelWithDebInfo"
-		AND CMAKE_SYSTEM_NAME STREQUAL "Android"))
-		add_compile_options(-fno-unwind-tables -fno-asynchronous-unwind-tables) # GCC/Clang flag
-		add_compile_options(-fomit-frame-pointer) # GCC/Clang flag
-		add_compile_options(-ftree-vectorize) # GCC/Clang flag
-		add_compile_options(-funsafe-math-optimizations) # GCC/Clang flag
+	if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+		add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-Wno-c++11-narrowing>)
+		add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-Wno-address-of-temporary>) # (float*)&Vector(0,0,0)
+		add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-Wno-non-pod-varargs>)
+		add_compile_options($<$<COMPILE_LANGUAGE:C>:-Wno-implicit-function-declaration>)
+		add_compile_options($<$<COMPILE_LANGUAGE:C>:-Wno-incompatible-pointer-types>)
+		add_compile_options($<$<COMPILE_LANGUAGE:C>:-Wno-int-conversion>)
 	endif()
+	# compat Win32 -> POSIX (itoa, min/max, __declspec, BOOLEAN, ...) forcada em todos os arquivos
+	add_compile_options("SHELL:-include ${CMAKE_SOURCE_DIR}/public/az_compat.h")
+	# tri.cpp/cl_util.cpp: caminho "port" (neblina via triapi do engine, FOV padrao 80, sem GL direto)
+	add_definitions(-DAZ_ANDROID)
 else()
 	add_definitions(-D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_DEPRECATE)
 endif()
@@ -52,90 +60,86 @@ if (GOLDSOURCE_SUPPORT)
 	add_definitions(-DGOLDSOURCE_SUPPORT)
 endif()
 
-if (USE_STATIC_FREEVGUI)
+if (AZ_NO_VGUI)
+	add_definitions(-DNO_VGUI)
+elseif (USE_STATIC_FREEVGUI)
 	add_definitions(-DINTERNAL_VGUI_SUPPORT)
 endif()
 
 set (CLDLL_SOURCES
-	../dlls/crossbow.cpp
-	../dlls/crowbar.cpp
-	../dlls/egon.cpp
-	../dlls/gauss.cpp
-	../dlls/handgrenade.cpp
-	../dlls/hornetgun.cpp
-	../dlls/mp5.cpp
-	../dlls/python.cpp
-	../dlls/rpg.cpp
-	../dlls/satchel.cpp
-	../dlls/shotgun.cpp
-	../dlls/squeakgrenade.cpp
-	../dlls/tripmine.cpp
-	../dlls/glock.cpp
+	../common/vector.cpp
+	../config/external_lib_include.cpp
+	../dlls/weapon/chumtoadweapon.cpp
+	../dlls/weapon/crossbow.cpp
+	../dlls/weapon/crowbar.cpp
+	../dlls/weapon/egon.cpp
+	../dlls/weapon/gauss.cpp
+	../dlls/weapon/glock.cpp
+	../dlls/weapon/handgrenade.cpp
+	../dlls/weapon/hornetgun.cpp
+	../dlls/weapon/mp5.cpp
+	../dlls/weapon/python.cpp
+	../dlls/weapon/rpg.cpp
+	../dlls/weapon/satchel.cpp
+	../dlls/weapon/shotgun.cpp
+	../dlls/weapon/squeak.cpp
+	../dlls/weapon/tripmine.cpp
+	../game_shared/util/util_entity.cpp
+	../game_shared/util/util_printout.cpp
+	../game_shared/util/util_shared.cpp
+	../game_shared/util/util_version.cpp
+	../game_shared/voice_banmgr.cpp
+	../pm_shared/pm_debug.c
+	../pm_shared/pm_math.c
+	../pm_shared/pm_printout.c
+	../pm_shared/pm_shared.c
+	cdll_int.cpp
+	cl_util.cpp
+	custom_message.cpp
+	demo.cpp
+	entity.cpp
+	events.cpp
+	ev_common.cpp
 	ev_hldm.cpp
+	GameStudioModelRenderer.cpp
+	hl/cl_player.cpp
+	hl/cl_weapons.cpp
 	hl/hl_baseentity.cpp
 	hl/hl_events.cpp
 	hl/hl_objects.cpp
 	hl/hl_weapons.cpp
-	ammo.cpp
-	ammo_secondary.cpp
-	ammohistory.cpp
-	battery.cpp
-	cdll_int.cpp
-	com_weapons.cpp
-	death.cpp
-	demo.cpp
-	entity.cpp
-	ev_common.cpp
-	events.cpp
-	flashlight.cpp
-	GameStudioModelRenderer.cpp
-	geiger.cpp
-	health.cpp
 	hud.cpp
-	hud_msg.cpp
+	hud/ammo.cpp
+	hud/ammohistory.cpp
+	hud/ammo_secondary.cpp
+	hud/battery.cpp
+	hud/death.cpp
+	hud/flashlight.cpp
+	hud/geiger.cpp
+	hud/health.cpp
+	hud/hud_spectator.cpp
+	hud/menu.cpp
+	hud/message.cpp
+	hud/pain.cpp
+	hud/saytext.cpp
+	hud/statusbar.cpp
+	hud/status_icons.cpp
+	hud/text_message.cpp
+	hud/train.cpp
 	hud_redraw.cpp
-	hud_spectator.cpp
 	hud_update.cpp
-	in_camera.cpp
 	input.cpp
-	input_goldsource.cpp
-	input_mouse.cpp
-	input_xash3d.cpp
-	interpolation.cpp
-	menu.cpp
-	message.cpp
-	MOTD.cpp
+	in_camera.cpp
 	parsemsg.cpp
-	../pm_shared/pm_debug.c
-	../pm_shared/pm_math.c
-	../pm_shared/pm_shared.c
-	saytext.cpp
-	scoreboard.cpp
-	status_icons.cpp
-	statusbar.cpp
-	studio_util.cpp
 	StudioModelRenderer.cpp
-	text_message.cpp
-	train.cpp
+	studio_util.cpp
 	tri.cpp
-	util.cpp
 	view.cpp
-	../public/safe_snprintf.c
+	weapons_resource.cpp
 )
 
-list(APPEND CLDLL_SOURCES
-	vgui_int.cpp
-	vgui_ClassMenu.cpp
-	vgui_ConsolePanel.cpp
-	vgui_ControlConfigPanel.cpp
-	vgui_CustomObjects.cpp
-	vgui_MOTDWindow.cpp
-	vgui_SchemeManager.cpp
-	vgui_ScorePanel.cpp
-	vgui_TeamFortressViewport.cpp
-	vgui_SpectatorPanel.cpp
-	vgui_teammenu.cpp
-	voice_status.cpp
+# --- VGUI (FreeVGUI em plataformas nao-x86) ---
+set (CLDLL_VGUI_SOURCES
 	../game_shared/vgui_checkbutton2.cpp
 	../game_shared/vgui_grid.cpp
 	../game_shared/vgui_helpers.cpp
@@ -143,40 +147,62 @@ list(APPEND CLDLL_SOURCES
 	../game_shared/vgui_loadtga.cpp
 	../game_shared/vgui_scrollbar2.cpp
 	../game_shared/vgui_slider2.cpp
-	../game_shared/voice_banmgr.cpp
+	../game_shared/voice_status.cpp
+	vgui_ClassMenu.cpp
+	vgui_ConsolePanel.cpp
+	vgui_ControlConfigPanel.cpp
+	vgui_CustomObjects.cpp
+	vgui_int.cpp
+	vgui_MOTDWindow.cpp
+	vgui_SchemeManager.cpp
+	vgui_ScorePanel.cpp
+	vgui_SpectatorPanel.cpp
+	vgui_TeamFortressViewport.cpp
+	vgui_teammenu.cpp
 )
 
-if (HAVE_STRLCPY)
-	add_definitions(-DHAVE_STRLCPY)
+if (AZ_NO_VGUI)
+	# sem VGUI: stubs em vgui_stub.h / voice_status_stub.h (placar, menus de time e spectator ficam desligados)
 else()
-	list(APPEND CLDLL_SOURCES
-		../external/openbsd/strlcpy.c)
+	list(APPEND CLDLL_SOURCES ${CLDLL_VGUI_SOURCES})
 endif()
 
-if (HAVE_STRLCAT)
-	add_definitions(-DHAVE_STRLCAT)
+# --- plataforma ---
+if (WIN32)
+	list(APPEND CLDLL_SOURCES inputw32.cpp hud_servers.cpp)
 else()
-	list(APPEND CLDLL_SOURCES
-		../external/openbsd/strlcat.c)
+	list(APPEND CLDLL_SOURCES input_unix.cpp hud_servers_stub.cpp)
 endif()
 
-include_directories (. hl/ ../dlls ../dlls/wpn_shared ../common ../engine ../pm_shared ../game_shared ../public)
+if (AZ_CRASH_HANDLER AND NOT WIN32)
+	list(APPEND CLDLL_SOURCES ../public/az_crash_handler.cpp)
+endif()
+
+include_directories (. hl hud ../dlls ../dlls/entity ../dlls/weapon ../common ../engine ../pm_shared ../game_shared ../game_shared/util ../config ../utils/common ../public ..)
 
 if (GOLDSOURCE_SUPPORT)
 	include_directories (../external/)
 endif()
-
 
 include_directories(../utils/vgui/include)
 
 add_library (${CLDLL_LIBRARY} SHARED ${CLDLL_SOURCES})
 target_link_libraries(${CLDLL_LIBRARY} vcs_info)
 
-if (GOLDSOURCE_SUPPORT)
+if (NOT WIN32)
 	target_link_libraries( ${CLDLL_LIBRARY} ${CMAKE_DL_LIBS} )
 endif()
+if (ANDROID)
+	target_link_libraries( ${CLDLL_LIBRARY} log )
+endif()
+# o mesmo simbolo (vec3_origin, vJumpOrigin...) e definido em mais de um arquivo do mod original
+if (NOT MSVC)
+	set_property(TARGET ${CLDLL_LIBRARY} APPEND_STRING PROPERTY LINK_FLAGS " -Wl,--allow-multiple-definition")
+endif()
 
-target_link_libraries(${CLDLL_LIBRARY} vgui)
+if (NOT AZ_NO_VGUI)
+	target_link_libraries(${CLDLL_LIBRARY} vgui)
+endif()
 
 if(WIN32)
 	target_link_libraries( ${CLDLL_LIBRARY} user32.lib )
@@ -187,12 +213,14 @@ endif()
 
 set_target_properties (${CLDLL_LIBRARY} PROPERTIES
 	POSITION_INDEPENDENT_CODE 1)
+if (ANDROID)
+	set_target_properties (${CLDLL_LIBRARY} PROPERTIES
+		LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/out/${ANDROID_ABI})
+endif()
 
 set_target_postfix(${CLDLL_LIBRARY})
 
-if(HAVE_LTO)
-	set_property(TARGET ${CLDLL_LIBRARY} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-endif()
+# LTO desligado de proposito: o mod tem simbolos duplicados (--allow-multiple-definition) e codigo legado que o LTO pode agravar.
 
 if(XASH_PS4)
 	# signed module and names of its functions, see cmake/PS4.cmake
@@ -206,7 +234,7 @@ else()
 			WORLD_READ WORLD_EXECUTE)
 endif()
 
-if(CMAKE_BUILD_TYPE MATCHES "Release" AND NOT WIN32 AND NOT XASH_PS4)
+if(CMAKE_BUILD_TYPE MATCHES "Release" AND NOT WIN32 AND NOT XASH_PS4 AND NOT AZ_NO_STRIP)
 	if(APPLE)
 		# Apple strip treats -s as a symbol list file, -x keeps exported symbols
 		set(STRIP_FLAGS -x)

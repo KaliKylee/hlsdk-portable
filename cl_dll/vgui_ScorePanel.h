@@ -1,4 +1,4 @@
-//========= Copyright (c) 1996-2002, Valve LLC, All rights reserved. ============
+//========= Copyright © 1996-2002, Valve LLC, All rights reserved. ============
 //
 // Purpose: 
 //
@@ -9,10 +9,12 @@
 #define SCOREPANEL_H
 
 #include<VGUI_Panel.h>
+#include<VGUI_TablePanel.h>
+#include<VGUI_HeaderPanel.h>
+#include<VGUI_TextGrid.h>
 #include<VGUI_Label.h>
 #include<VGUI_TextImage.h>
 #include "../game_shared/vgui_listbox.h"
-#include "cl_util.h"
 
 #include <ctype.h>
 
@@ -22,7 +24,8 @@
 // Scoreboard cells
 #define COLUMN_TRACKER	0
 #define COLUMN_NAME		1
-#define COLUMN_CLASS	2
+//MODDD - no.
+//#define COLUMN_CLASS	2
 #define COLUMN_KILLS	3
 #define COLUMN_DEATHS	4
 #define COLUMN_LATENCY	5
@@ -60,7 +63,7 @@ public:
 		_image[1]->getTextSize(w2, t2);
 
 		wide = w1 + w2;
-		tall = Q_max(t1, t2);
+		tall = max(t1, t2);
 		setSize(wide, tall);
 	}
 
@@ -233,7 +236,7 @@ private:
 	class HitTestPanel : public Panel
 	{
 	public:
-		virtual void	internalMousePressed(MouseCode code);
+		virtual void internalMousePressed(MouseCode code);
 	};
 
 
@@ -252,7 +255,7 @@ private:
 	CGrid			m_HeaderGrid;
 	CLabelHeader	m_HeaderLabels[NUM_COLUMNS];			// Labels above the 
 	CLabelHeader	*m_pCurrentHighlightLabel;
-	int				m_iHighlightRow;
+	int			m_iHighlightRow;
 	
 	vgui::CListBox	m_PlayerList;
 	CGrid			m_PlayerGrids[NUM_ROWS];				// The grid with player and team info. 
@@ -263,10 +266,17 @@ private:
 	CLabelHeader*	GetPlayerEntry(int x, int y)	{return &m_PlayerEntries[x][y];}
 
 public:
-	int				m_iRows;
-	int				m_iSortedRows[NUM_ROWS];
-	int				m_iIsATeam[NUM_ROWS];
+	
+	int			m_iNumTeams;
+	int			m_iPlayerNum;
+	int			m_iShowscoresHeld;
+
+	int			m_iRows;
+	int			m_iSortedRows[NUM_ROWS];
+	int			m_iIsATeam[NUM_ROWS];
 	bool			m_bHasBeenSorted[MAX_PLAYERS];
+	int			m_iLastKilledBy;
+	int			m_fLastKillTime;
 
 
 public:
@@ -277,8 +287,11 @@ public:
 
 	void SortTeams( void );
 	void SortPlayers( int iTeam, char *team );
+	void RebuildTeams( void );
 
 	void FillGrid();
+
+	void DeathMsg( int killer, int victim );
 
 	void Initialize( void );
 
@@ -292,7 +305,7 @@ public:
 	virtual void mousePressed(MouseCode code, Panel* panel);
 	virtual void cursorMoved(int x, int y, Panel *panel);
 
-	friend class CLabelHeader;
+	friend CLabelHeader;
 };
 
 #endif

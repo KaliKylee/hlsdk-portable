@@ -12,9 +12,10 @@
 *   without written permission from Valve LLC.
 *
 ****/
-#pragma once
-#if !defined(ACTIVITY_H)
-#define	ACTIVITY_H
+
+#ifndef	ACTIVITY_H
+#define ACTIVITY_H
+
 
 typedef enum {
 	ACT_RESET = 0,		// Set m_Activity to this invalid value to force a reset to m_IdealActivity
@@ -44,7 +45,7 @@ typedef enum {
 	ACT_TWITCH,
 	ACT_COWER,
 	ACT_SMALL_FLINCH,
-	ACT_BIG_FLINCH,
+	ACT_BIG_FLINCH,			//MODDD NOTE - is this effective?
 	ACT_RANGE_ATTACK1,
 	ACT_RANGE_ATTACK2,
 	ACT_MELEE_ATTACK1,
@@ -56,7 +57,7 @@ typedef enum {
 	ACT_DIESIMPLE,
 	ACT_DIEBACKWARD,
 	ACT_DIEFORWARD,
-	ACT_DIEVIOLENT,
+	ACT_DIEVIOLENT,         //MODDD NOTE TODO - waitasec. Is this even ever called? GetDeathActivity in combat.cpp never mentions this!
 	ACT_BARNACLE_HIT,		// barnacle tongue hits a monster
 	ACT_BARNACLE_PULL,		// barnacle is lifting the monster ( loop )
 	ACT_BARNACLE_CHOMP,		// barnacle latches on to the monster
@@ -93,14 +94,16 @@ typedef enum {
 	ACT_FLINCH_LEFTARM,
 	ACT_FLINCH_RIGHTARM,
 	ACT_FLINCH_LEFTLEG,
-	ACT_FLINCH_RIGHTLEG
+	ACT_FLINCH_RIGHTLEG,
 } Activity;
 
-typedef struct
-{
+
+typedef struct {
 	int type;
-	const char *name;
+	char *name;
 } activity_map_t;
 
 extern activity_map_t activity_map[];
+
+
 #endif	//ACTIVITY_H

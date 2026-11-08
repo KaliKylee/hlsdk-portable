@@ -1,4 +1,4 @@
-//========= Copyright (c) 1996-2002, Valve LLC, All rights reserved. ============
+//========= Copyright © 1996-2002, Valve LLC, All rights reserved. ============
 //
 // Purpose: 
 //
@@ -12,19 +12,113 @@
 
 // Triangle rendering apis are in gEngfuncs.pTriAPI
 
+#include "external_lib_include.h"
 #include "const.h"
 #include "entity_state.h"
 #include "cl_entity.h"
 #include "triangleapi.h"
 
+//MODDD - yea.
+//#include "windows.h"
+#ifndef AZ_ANDROID
+#include "glInclude.h"
+#endif
+
+EASY_CVAR_EXTERN_CLIENTONLY_DEBUGONLY(fogNear)
+EASY_CVAR_EXTERN_CLIENTONLY_DEBUGONLY(fogFar)
+EASY_CVAR_EXTERN_CLIENTONLY_DEBUGONLY(fogTest)
+
+//EASY_CVAR_EXTERN_CLIENT_MASS
+
+
+
 extern "C"
 {
 	void DLLEXPORT HUD_DrawNormalTriangles( void );
 	void DLLEXPORT HUD_DrawTransparentTriangles( void );
+};
+
+
+
+// Triangle rendering apis are in gEngfuncs.pTriAPI
+
+
+float fogColor[3];
+float nextFogColorChange = -1;
+
+//THANK YOU SPIRIT OF HALF LIFE 1.9!!!
+void RenderFog ( float currentTime )
+{
+	//float g_fFogColor[4] = { FogColor.x, FogColor.y, FogColor.z, 1.0 };
+	//bool bFog = g_iWaterLevel < 2 && g_fStartDist > 0 && g_fEndDist > 0;
+	float fogTestVar = EASY_CVAR_GET_CLIENTONLY_DEBUGONLY(fogTest);
+
+	//easyPrintLine("CURRENTTIMEZ %.2f %,2f", currentTime, nextFogColorChange);
+
+	if(fogTestVar == 1){
+		
+		fogColor[0] = 0.2f;
+		fogColor[1] = 0.8f;
+		fogColor[2] = 0.2f;
+	}else if(fogTestVar == 2){
+
+		BOOL canChangecolor = FALSE;
+		if(currentTime > -1){
+			canChangecolor = (currentTime >= nextFogColorChange);
+		}else{
+			canChangecolor = TRUE;
+		}
+		if(canChangecolor){
+			generateColorDec(fogColor);
+
+			//easyPrintLine("MY COLOR: %.2f %.2f %.2f", fogColor[0], fogColor[1], fogColor[2]);
+
+			if(currentTime > -1){
+				nextFogColorChange = currentTime + 0.37;
+			}
+		}
+		
+	}else{
+		//no fog for you.
+		return;
+	}
+
+
+	float g_fFogColor[4] = { fogColor[0], fogColor[1], fogColor[2], 1.0 };
+
+#ifdef AZ_ANDROID
+	// Android: usa a triapi do engine (Xash3D) em vez de OpenGL direto
+	gEngfuncs.pTriAPI->Fog(fogColor, EASY_CVAR_GET_CLIENTONLY_DEBUGONLY(fogNear), EASY_CVAR_GET_CLIENTONLY_DEBUGONLY(fogFar), 1);
+#else
+	if (TRUE)
+	{
+		glEnable(GL_FOG);
+		//glFogf(GL_FOG_DENSITY, 0.0025);
+		glFogi(GL_FOG_MODE, GL_LINEAR);
+		glFogfv(GL_FOG_COLOR, g_fFogColor );
+		glFogf(GL_FOG_START, EASY_CVAR_GET_CLIENTONLY_DEBUGONLY(fogNear));
+		glFogf(GL_FOG_END, EASY_CVAR_GET_CLIENTONLY_DEBUGONLY(fogFar));
+		glHint(GL_FOG_HINT, GL_NICEST);
+	}
+#endif
+	
+	/*
+    glClear(GL_FOG_BIT);
+	glClearColor(0.8f, 0.8f, 1.0f, 1.0f);
+    glClear(GL_FOG_BIT);
+	glClearColor(0.8f, 0.8f, 1.0f, 1.0f);
+	*/
+
+
+}
+void RenderFog(){
+	RenderFog(-1);
 }
 
-//#define TEST_IT	1
-#if TEST_IT
+
+
+//#define TEST_IT
+#if defined( TEST_IT )
 
 /*
 =================
@@ -40,7 +134,7 @@ void Draw_Triangles( void )
 
 	// Load it up with some bogus data
 	player = gEngfuncs.GetLocalPlayer();
-	if( !player )
+	if ( !player )
 		return;
 
 	org = player->origin;
@@ -48,16 +142,18 @@ void Draw_Triangles( void )
 	org.x += 50;
 	org.y += 50;
 
-	if( gHUD.m_hsprCursor == 0 )
+	if (gHUD.m_hsprCursor == 0)
 	{
-		gHUD.m_hsprCursor = SPR_Load( "sprites/cursor.spr" );
+		char sz[256];
+		sprintf( sz, "sprites/cursor.spr" );
+		gHUD.m_hsprCursor = SPR_Load( sz );
 	}
 
-	if( !gEngfuncs.pTriAPI->SpriteTexture( (struct model_s *)gEngfuncs.GetSpritePointer( gHUD.m_hsprCursor ), 0 ) )
+	if ( !gEngfuncs.pTriAPI->SpriteTexture( (struct model_s *)gEngfuncs.GetSpritePointer( gHUD.m_hsprCursor ), 0 ))
 	{
 		return;
 	}
-
+	
 	// Create a triangle, sigh
 	gEngfuncs.pTriAPI->RenderMode( kRenderNormal );
 	gEngfuncs.pTriAPI->CullFace( TRI_NONE );
@@ -84,6 +180,7 @@ void Draw_Triangles( void )
 	gEngfuncs.pTriAPI->End();
 	gEngfuncs.pTriAPI->RenderMode( kRenderNormal );
 }
+
 #endif
 
 /*
@@ -95,8 +192,10 @@ Non-transparent triangles-- add them here
 */
 void DLLEXPORT HUD_DrawNormalTriangles( void )
 {
+
 	gHUD.m_Spectator.DrawOverview();
-#if TEST_IT
+	
+#if defined( TEST_IT )
 //	Draw_Triangles();
 #endif
 }
@@ -110,7 +209,8 @@ Render any triangles with transparent rendermode needs here
 */
 void DLLEXPORT HUD_DrawTransparentTriangles( void )
 {
-#if TEST_IT
+
+#if defined( TEST_IT )
 //	Draw_Triangles();
 #endif
 }

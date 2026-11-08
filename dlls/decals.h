@@ -12,15 +12,13 @@
 *   without written permission from Valve LLC.
 *
 ****/
-#pragma once
-#if !defined(DECALS_H)
+#ifndef DECALS_H
 #define DECALS_H
 
 //
 // Dynamic Decals
 //
-enum decal_e 
-{	
+enum decal_e {	
 	DECAL_GUNSHOT1 = 0, 
 	DECAL_GUNSHOT2,
 	DECAL_GUNSHOT3,
@@ -62,14 +60,28 @@ enum decal_e
 	DECAL_SMALLSCORCH2,	// Small scorch mark
 	DECAL_SMALLSCORCH3,	// Small scorch mark
 	DECAL_MOMMABIRTH,	// Big momma birth splatter
-	DECAL_MOMMASPLAT
+	DECAL_MOMMASPLAT,
+	DECAL_OIL1, //MODDD - these are new.
+	DECAL_OIL2,
+	DECAL_GBLOOD1,
+	DECAL_GBLOOD2,
+	DECAL_GBLOOD3,
+	DECAL_GBLOOD4,
+	DECAL_GBLOOD5,
+	DECAL_GBLOOD6,
+	DECAL_GBLOOD7,
+	DECAL_GBLOOD8,
+	DLL_DECALLIST_SIZE   //Leave this at the end. Conveniently acts as a count of this list. Still, keep it in sync with decals.cpp's array, minus this _SIZE entry.
 };
 
 typedef struct 
 {
-	const char *name;
+	char *name;
 	int index;
 } DLL_DECALLIST;
 
+
 extern DLL_DECALLIST gDecals[];
-#endif //DECALS_H
+
+
+#endif	// DECALS_H

@@ -215,7 +215,9 @@ add_subdirectory(game_shared)
 if(BUILD_CLIENT)
 	message(STATUS "Building client enabled")
 
-	add_subdirectory(freevgui)
+	if(NOT AZ_NO_VGUI)
+		add_subdirectory(freevgui)
+	endif()
 	add_subdirectory(cl_dll)
 endif()
 

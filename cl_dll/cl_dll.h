@@ -25,38 +25,21 @@
 //		- Drawing the HUD graphics every frame
 //		- Handling the custum HUD-update packets
 //
-#pragma once
-#if !defined(CL_DLL_H)
-#define CL_DLL_H
-#include "build.h"
-typedef unsigned char byte;
-typedef unsigned short word;
-typedef float vec_t;
-// redefine
-//typedef int ( *pfnUserMsgHook )( const char *pszName, int iSize, void *pbuf );
 
-#include "util_vector.h"
+#ifndef CL_DLL_H
+#define CL_DLL_H
+
+//MODDD - some typedef's moved to const.h
+#include "const.h"
+#include "vector.h"  //MODDD - used to be util_vector.h. Now the shared version.
+
+//MODDD - Removed. Another case where the EXPORT define is completely ineffective, removed or derived to garbage.
+//#define EXPORT	_declspec( dllexport )
 
 #include "../engine/cdll_int.h"
 #include "../dlls/cdll_dll.h"
 
-#if !XASH_WIN32
-#define _cdecl
-#endif
-#include "exportdef.h"
-#include <string.h>
-#include "safe_snprintf.h"
-#ifndef __restrict
-#define __restrict
-#endif
-#if !HAVE_STRLCPY
-extern "C" size_t strlcpy(char * __restrict dst, const char * __restrict src, size_t dsize);
-#endif
-#if !HAVE_STRLCAT
-extern "C" size_t strlcat(char * __restrict dst, const char * __restrict src, size_t dsize);
-#endif
-#include <math.h>
 extern cl_enginefunc_t gEngfuncs;
-#include "../engine/mobility_int.h"
-extern mobile_engfuncs_t *gMobileEngfuncs;
-#endif
+
+
+#endif //END OF CL_DLL_H

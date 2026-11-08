@@ -15,27 +15,44 @@
 //=========================================================
 // GameRules
 //=========================================================
-#pragma once
-#if !defined(GAMERULES_H)
+
+
+#ifndef GAMERULES_H
 #define GAMERULES_H
+
+#include "build_settings.h"
+
 //#include "weapons.h"
 //#include "items.h"
+class CBaseMonster;
 class CBasePlayerItem;
 class CBasePlayer;
 class CItem;
 class CBasePlayerAmmo;
+class CPickupWalker;  //NEW
+
+class DLL_GLOBAL CGameRules;
+
+
+
+extern DLL_GLOBAL CGameRules* g_pGameRules;
+
+
+
+extern int g_teamplay;
+
 
 // weapon respawning return codes
 enum
 {	
 	GR_NONE = 0,
-
+	
 	GR_WEAPON_RESPAWN_YES,
 	GR_WEAPON_RESPAWN_NO,
-
+	
 	GR_AMMO_RESPAWN_YES,
 	GR_AMMO_RESPAWN_NO,
-
+	
 	GR_ITEM_RESPAWN_YES,
 	GR_ITEM_RESPAWN_NO,
 
@@ -45,7 +62,7 @@ enum
 
 	GR_PLR_DROP_AMMO_ALL,
 	GR_PLR_DROP_AMMO_ACTIVE,
-	GR_PLR_DROP_AMMO_NO
+	GR_PLR_DROP_AMMO_NO,
 };
 
 // Player relationship return codes
@@ -55,14 +72,12 @@ enum
 	GR_TEAMMATE,
 	GR_ENEMY,
 	GR_ALLY,
-	GR_NEUTRAL
+	GR_NEUTRAL,
 };
 
 class CGameRules
 {
 public:
-	virtual ~CGameRules(){}
-
 	virtual void RefreshSkillData( void );// fill skill data struct with proper values
 	virtual void Think( void ) = 0;// GR_Think - runs every server frame, should handle any timer tasks, periodic events, etc.
 	virtual BOOL IsAllowedToSpawn( CBaseEntity *pEntity ) = 0;  // Can this item spawn (eg monsters don't spawn in deathmatch).
@@ -71,25 +86,25 @@ public:
 	virtual BOOL FShouldSwitchWeapon( CBasePlayer *pPlayer, CBasePlayerItem *pWeapon ) = 0;// should the player switch to this weapon?
 	virtual BOOL GetNextBestWeapon( CBasePlayer *pPlayer, CBasePlayerItem *pCurrentWeapon ) = 0;// I can't use this weapon anymore, get me the next best one.
 
-	// Functions to verify the single/multiplayer status of a game
+// Functions to verify the single/multiplayer status of a game
 	virtual BOOL IsMultiplayer( void ) = 0;// is this a multiplayer game? (either coop or deathmatch)
 	virtual BOOL IsDeathmatch( void ) = 0;//is this a deathmatch game?
 	virtual BOOL IsTeamplay( void ) { return FALSE; };// is this deathmatch game being played with team rules?
 	virtual BOOL IsCoOp( void ) = 0;// is this a coop game?
-	virtual const char *GetGameDescription( void ) { return "Half-Life"; }  // this is the game name that gets seen in the server browser
+	virtual const char *GetGameDescription( void ) { return GAME_NORMAL_DESCRIPTION; }  // this is the game name that gets seen in the server browser
 	
-	// Client connection/disconnection
-	virtual BOOL ClientConnected( edict_t *pEntity, const char *pszName, const char *pszAddress, char szRejectReason[128] ) = 0;// a client just connected to the server (player hasn't spawned yet)
+// Client connection/disconnection
+	virtual BOOL ClientConnected( edict_t *pEntity, const char *pszName, const char *pszAddress, char szRejectReason[ 128 ] ) = 0;// a client just connected to the server (player hasn't spawned yet)
 	virtual void InitHUD( CBasePlayer *pl ) = 0;		// the client dll is ready for updating
 	virtual void ClientDisconnected( edict_t *pClient ) = 0;// a client just disconnected from the server
 	virtual void UpdateGameMode( CBasePlayer *pPlayer ) {}  // the client needs to be informed of the current game mode
 
-	// Client damage rules
+// Client damage rules
 	virtual float FlPlayerFallDamage( CBasePlayer *pPlayer ) = 0;// this client just hit the ground after a fall. How much damage?
-	virtual BOOL FPlayerCanTakeDamage( CBasePlayer *pPlayer, CBaseEntity *pAttacker ) {return TRUE;};// can this player take damage from this attacker?
+	virtual BOOL  FPlayerCanTakeDamage( CBasePlayer *pPlayer, CBaseEntity *pAttacker ) {return TRUE;};// can this player take damage from this attacker?
 	virtual BOOL ShouldAutoAim( CBasePlayer *pPlayer, edict_t *target ) { return TRUE; }
 
-	// Client spawn/respawn control
+// Client spawn/respawn control
 	virtual void PlayerSpawn( CBasePlayer *pPlayer ) = 0;// called by CBasePlayer::Spawn just before releasing player into the game
 	virtual void PlayerThink( CBasePlayer *pPlayer ) = 0; // called by CBasePlayer::PreThink every frame, before physics are run and after keys are accepted
 	virtual BOOL FPlayerCanRespawn( CBasePlayer *pPlayer ) = 0;// is this player allowed to respawn now?
@@ -98,53 +113,70 @@ public:
 
 	virtual BOOL AllowAutoTargetCrosshair( void ) { return TRUE; };
 	virtual BOOL ClientCommand( CBasePlayer *pPlayer, const char *pcmd ) { return FALSE; };  // handles the user commands;  returns TRUE if command handled properly
-	virtual void ClientUserInfoChanged( CBasePlayer *pPlayer, char *infobuffer );		// the player has changed userinfo;  can change it now
+	virtual void ClientUserInfoChanged( CBasePlayer *pPlayer, char *infobuffer ) {}		// the player has changed userinfo;  can change it now
 
-	// Client kills/scoring
+// Client kills/scoring
 	virtual int IPointsForKill( CBasePlayer *pAttacker, CBasePlayer *pKilled ) = 0;// how many points do I award whoever kills this player?
 	virtual void PlayerKilled( CBasePlayer *pVictim, entvars_t *pKiller, entvars_t *pInflictor ) = 0;// Called each time a player dies
 	virtual void DeathNotice( CBasePlayer *pVictim, entvars_t *pKiller, entvars_t *pInflictor )=  0;// Call this from within a GameRules class to report an obituary.
-
-	// Weapon retrieval
+// Weapon retrieval
 	virtual BOOL CanHavePlayerItem( CBasePlayer *pPlayer, CBasePlayerItem *pWeapon );// The player is touching an CBasePlayerItem, do I give it to him?
+	//MODDD - new
+	virtual BOOL CanHavePlayerItem( CBasePlayer *pPlayer, const char* arg_classname, const char* arg_ammoName, int arg_itemSlot, int arg_maxAmmo );
+
 	virtual void PlayerGotWeapon( CBasePlayer *pPlayer, CBasePlayerItem *pWeapon ) = 0;// Called each time a player picks up a weapon from the ground
 
-	// Weapon spawn/respawn control
+// Weapon spawn/respawn control
 	virtual int WeaponShouldRespawn( CBasePlayerItem *pWeapon ) = 0;// should this weapon respawn?
 	virtual float FlWeaponRespawnTime( CBasePlayerItem *pWeapon ) = 0;// when may this weapon respawn?
 	virtual float FlWeaponTryRespawn( CBasePlayerItem *pWeapon ) = 0; // can i respawn now,  and if not, when should i try again?
 	virtual Vector VecWeaponRespawnSpot( CBasePlayerItem *pWeapon ) = 0;// where in the world should this weapon respawn?
 
-	// Item retrieval
+//MODDD - NEW. Methods for pickupwalkers.
+	virtual int PickupWalkerShouldRespawn(CPickupWalker* pWeapon) = 0;
+	virtual float FlPickupWalkerRespawnTime(CPickupWalker* pWeapon) = 0;
+	virtual float FlPickupWalkerTryRespawn(CPickupWalker* pWeapon) = 0;
+	virtual Vector VecPickupWalkerRespawnSpot(CPickupWalker* pWeapon) = 0;
+
+	virtual float FlMonsterRespawnTime(CBaseMonster* pWeapon) = 0;
+	virtual float FlMonsterTryRespawn(CBaseMonster* pWeapon) = 0;
+	virtual Vector VecMonsterRespawnSpot(CBaseMonster* pWeapon, const Vector& arg_respawnSuggestionSpot) = 0;
+	virtual int MonsterShouldRespawn(CBaseMonster* pWeapon) = 0;
+
+
+// Item retrieval
 	virtual BOOL CanHaveItem( CBasePlayer *pPlayer, CItem *pItem ) = 0;// is this player allowed to take this item?
 	virtual void PlayerGotItem( CBasePlayer *pPlayer, CItem *pItem ) = 0;// call each time a player picks up an item (battery, healthkit, longjump)
 
-	// Item spawn/respawn control
+// Item spawn/respawn control
 	virtual int ItemShouldRespawn( CItem *pItem ) = 0;// Should this item respawn?
 	virtual float FlItemRespawnTime( CItem *pItem ) = 0;// when may this item respawn?
 	virtual Vector VecItemRespawnSpot( CItem *pItem ) = 0;// where in the world should this item respawn?
 
-	// Ammo retrieval
+// Ammo retrieval
 	virtual BOOL CanHaveAmmo( CBasePlayer *pPlayer, const char *pszAmmoName, int iMaxCarry );// can this player take more of this ammo?
+	//MODDD - new version
+	virtual BOOL CanHaveAmmo(CBasePlayer* pPlayer, int iAmmoTypeId, int iMaxCarry);
+
 	virtual void PlayerGotAmmo( CBasePlayer *pPlayer, char *szName, int iCount ) = 0;// called each time a player picks up some ammo in the world
 
-	// Ammo spawn/respawn control
+// Ammo spawn/respawn control
 	virtual int AmmoShouldRespawn( CBasePlayerAmmo *pAmmo ) = 0;// should this ammo item respawn?
 	virtual float FlAmmoRespawnTime( CBasePlayerAmmo *pAmmo ) = 0;// when should this ammo item respawn?
 	virtual Vector VecAmmoRespawnSpot( CBasePlayerAmmo *pAmmo ) = 0;// where in the world should this ammo item respawn?
-									// by default, everything spawns
+																			// by default, everything spawns
 
-	// Healthcharger respawn control
+// Healthcharger respawn control
 	virtual float FlHealthChargerRechargeTime( void ) = 0;// how long until a depleted HealthCharger recharges itself?
 	virtual float FlHEVChargerRechargeTime( void ) { return 0; }// how long until a depleted HealthCharger recharges itself?
 
-	// What happens to a dead player's weapons
+// What happens to a dead player's weapons
 	virtual int DeadPlayerWeapons( CBasePlayer *pPlayer ) = 0;// what do I do with a player's weapons when he's killed?
 
-	// What happens to a dead player's ammo	
+// What happens to a dead player's ammo	
 	virtual int DeadPlayerAmmo( CBasePlayer *pPlayer ) = 0;// Do I drop ammo when the player dies? How much?
 
-	// Teamplay stuff
+// Teamplay stuff
 	virtual const char *GetTeamID( CBaseEntity *pEntity ) = 0;// what team is this entity on?
 	virtual int PlayerRelationship( CBaseEntity *pPlayer, CBaseEntity *pTarget ) = 0;// What is the player's relationship with this entity?
 	virtual int GetTeamIndex( const char *pTeamName ) { return -1; }
@@ -153,20 +185,20 @@ public:
 	virtual void ChangePlayerTeam( CBasePlayer *pPlayer, const char *pTeamName, BOOL bKill, BOOL bGib ) {}
 	virtual const char *SetDefaultPlayerTeam( CBasePlayer *pPlayer ) { return ""; }
 
-	// Sounds
+// Sounds
 	virtual BOOL PlayTextureSounds( void ) { return TRUE; }
 	virtual BOOL PlayFootstepSounds( CBasePlayer *pl, float fvol ) { return TRUE; }
 
-	// Monsters
+// Monsters
+	//MODDD - note.  Why the HELL are there null virtual-methods in here at all?  What's wrong with a default empty method through " {} " brackets?
 	virtual BOOL FAllowMonsters( void ) = 0;//are monsters allowed
 
 	// Immediately end a multiplayer game
 	virtual void EndMultiplayerGame( void ) {}
-	virtual BOOL IsBustingGame( void ){ return FALSE; };
 };
 
 extern CGameRules *InstallGameRules( void );
-BOOL HLGetNextBestWeapon( CBasePlayer *pPlayer, CBasePlayerItem *pCurrentWeapon );
+
 
 //=========================================================
 // CHalfLifeRules - rules for the single player Half-Life 
@@ -177,28 +209,28 @@ class CHalfLifeRules : public CGameRules
 public:
 	CHalfLifeRules ( void );
 
-	// GR_Think
+// GR_Think
 	virtual void Think( void );
 	virtual BOOL IsAllowedToSpawn( CBaseEntity *pEntity );
 	virtual BOOL FAllowFlashlight( void ) { return TRUE; };
 
 	virtual BOOL FShouldSwitchWeapon( CBasePlayer *pPlayer, CBasePlayerItem *pWeapon );
 	virtual BOOL GetNextBestWeapon( CBasePlayer *pPlayer, CBasePlayerItem *pCurrentWeapon );
-
-	// Functions to verify the single/multiplayer status of a game
+	
+// Functions to verify the single/multiplayer status of a game
 	virtual BOOL IsMultiplayer( void );
 	virtual BOOL IsDeathmatch( void );
 	virtual BOOL IsCoOp( void );
 
-	// Client connection/disconnection
+// Client connection/disconnection
 	virtual BOOL ClientConnected( edict_t *pEntity, const char *pszName, const char *pszAddress, char szRejectReason[ 128 ] );
 	virtual void InitHUD( CBasePlayer *pl );		// the client dll is ready for updating
 	virtual void ClientDisconnected( edict_t *pClient );
 
-	// Client damage rules
+// Client damage rules
 	virtual float FlPlayerFallDamage( CBasePlayer *pPlayer );
-
-	// Client spawn/respawn control
+	
+// Client spawn/respawn control
 	virtual void PlayerSpawn( CBasePlayer *pPlayer );
 	virtual void PlayerThink( CBasePlayer *pPlayer );
 	virtual BOOL FPlayerCanRespawn( CBasePlayer *pPlayer );
@@ -206,50 +238,64 @@ public:
 
 	virtual BOOL AllowAutoTargetCrosshair( void );
 
-	// Client kills/scoring
+// Client kills/scoring
 	virtual int IPointsForKill( CBasePlayer *pAttacker, CBasePlayer *pKilled );
 	virtual void PlayerKilled( CBasePlayer *pVictim, entvars_t *pKiller, entvars_t *pInflictor );
 	virtual void DeathNotice( CBasePlayer *pVictim, entvars_t *pKiller, entvars_t *pInflictor );
 
-	// Weapon retrieval
+// Weapon retrieval
 	virtual void PlayerGotWeapon( CBasePlayer *pPlayer, CBasePlayerItem *pWeapon );
 
-	// Weapon spawn/respawn control
+// Weapon spawn/respawn control
 	virtual int WeaponShouldRespawn( CBasePlayerItem *pWeapon );
 	virtual float FlWeaponRespawnTime( CBasePlayerItem *pWeapon );
 	virtual float FlWeaponTryRespawn( CBasePlayerItem *pWeapon );
 	virtual Vector VecWeaponRespawnSpot( CBasePlayerItem *pWeapon );
 
-	// Item retrieval
+//MODDD
+	virtual int PickupWalkerShouldRespawn(CPickupWalker* pWeapon);
+	virtual float FlPickupWalkerRespawnTime(CPickupWalker* pWeapon);
+	virtual float FlPickupWalkerTryRespawn(CPickupWalker* pWeapon);
+	virtual Vector VecPickupWalkerRespawnSpot(CPickupWalker* pWeapon);
+
+//MODDD
+	float FlMonsterRespawnTime(CBaseMonster* pWeapon);
+	float FlMonsterTryRespawn(CBaseMonster* pWeapon);
+	Vector VecMonsterRespawnSpot(CBaseMonster* pWeapon, const Vector& arg_respawnSuggestionSpot);
+	int MonsterShouldRespawn(CBaseMonster* pWeapon);
+
+
+
+// Item retrieval
 	virtual BOOL CanHaveItem( CBasePlayer *pPlayer, CItem *pItem );
 	virtual void PlayerGotItem( CBasePlayer *pPlayer, CItem *pItem );
 
-	// Item spawn/respawn control
+// Item spawn/respawn control
 	virtual int ItemShouldRespawn( CItem *pItem );
 	virtual float FlItemRespawnTime( CItem *pItem );
 	virtual Vector VecItemRespawnSpot( CItem *pItem );
 
-	// Ammo retrieval
+// Ammo retrieval
 	virtual void PlayerGotAmmo( CBasePlayer *pPlayer, char *szName, int iCount );
 
-	// Ammo spawn/respawn control
+// Ammo spawn/respawn control
 	virtual int AmmoShouldRespawn( CBasePlayerAmmo *pAmmo );
 	virtual float FlAmmoRespawnTime( CBasePlayerAmmo *pAmmo );
 	virtual Vector VecAmmoRespawnSpot( CBasePlayerAmmo *pAmmo );
 
-	// Healthcharger respawn control
+// Healthcharger respawn control
 	virtual float FlHealthChargerRechargeTime( void );
 
-	// What happens to a dead player's weapons
+// What happens to a dead player's weapons
 	virtual int DeadPlayerWeapons( CBasePlayer *pPlayer );
 
-	// What happens to a dead player's ammo	
+// What happens to a dead player's ammo	
 	virtual int DeadPlayerAmmo( CBasePlayer *pPlayer );
 
-	// Monsters
+// Monsters
 	virtual BOOL FAllowMonsters( void );
 
-	// Teamplay stuff	
+// Teamplay stuff	
 	virtual const char *GetTeamID( CBaseEntity *pEntity ) {return "";};
 	virtual int PlayerRelationship( CBaseEntity *pPlayer, CBaseEntity *pTarget );
 };
@@ -261,9 +307,13 @@ public:
 class CHalfLifeMultiplay : public CGameRules
 {
 public:
+	float m_flIntermissionEndTime;
+	BOOL m_iEndIntermissionButtonHit;
+
+
 	CHalfLifeMultiplay();
 
-	// GR_Think
+// GR_Think
 	virtual void Think( void );
 	virtual void RefreshSkillData( void );
 	virtual BOOL IsAllowedToSpawn( CBaseEntity *pEntity );
@@ -272,25 +322,25 @@ public:
 	virtual BOOL FShouldSwitchWeapon( CBasePlayer *pPlayer, CBasePlayerItem *pWeapon );
 	virtual BOOL GetNextBestWeapon( CBasePlayer *pPlayer, CBasePlayerItem *pCurrentWeapon );
 
-	// Functions to verify the single/multiplayer status of a game
+// Functions to verify the single/multiplayer status of a game
 	virtual BOOL IsMultiplayer( void );
 	virtual BOOL IsDeathmatch( void );
 	virtual BOOL IsCoOp( void );
 
-	// Client connection/disconnection
+// Client connection/disconnection
 	// If ClientConnected returns FALSE, the connection is rejected and the user is provided the reason specified in
 	//  svRejectReason
 	// Only the client's name and remote address are provided to the dll for verification.
-	virtual BOOL ClientConnected( edict_t *pEntity, const char *pszName, const char *pszAddress, char szRejectReason[128] );
+	virtual BOOL ClientConnected( edict_t *pEntity, const char *pszName, const char *pszAddress, char szRejectReason[ 128 ] );
 	virtual void InitHUD( CBasePlayer *pl );		// the client dll is ready for updating
 	virtual void ClientDisconnected( edict_t *pClient );
 	virtual void UpdateGameMode( CBasePlayer *pPlayer );  // the client needs to be informed of the current game mode
 
-	// Client damage rules
+// Client damage rules
 	virtual float FlPlayerFallDamage( CBasePlayer *pPlayer );
 	virtual BOOL  FPlayerCanTakeDamage( CBasePlayer *pPlayer, CBaseEntity *pAttacker );
 
-	// Client spawn/respawn control
+// Client spawn/respawn control
 	virtual void PlayerSpawn( CBasePlayer *pPlayer );
 	virtual void PlayerThink( CBasePlayer *pPlayer );
 	virtual BOOL FPlayerCanRespawn( CBasePlayer *pPlayer );
@@ -300,93 +350,80 @@ public:
 	virtual BOOL AllowAutoTargetCrosshair( void );
 	virtual BOOL ClientCommand( CBasePlayer *pPlayer, const char *pcmd );
 
-	// Client kills/scoring
+// Client kills/scoring
 	virtual int IPointsForKill( CBasePlayer *pAttacker, CBasePlayer *pKilled );
 	virtual void PlayerKilled( CBasePlayer *pVictim, entvars_t *pKiller, entvars_t *pInflictor );
 	virtual void DeathNotice( CBasePlayer *pVictim, entvars_t *pKiller, entvars_t *pInflictor );
 
-	// Weapon retrieval
+// Weapon retrieval
 	virtual void PlayerGotWeapon( CBasePlayer *pPlayer, CBasePlayerItem *pWeapon );
 	virtual BOOL CanHavePlayerItem( CBasePlayer *pPlayer, CBasePlayerItem *pWeapon );// The player is touching an CBasePlayerItem, do I give it to him?
 
-	// Weapon spawn/respawn control
+// Weapon spawn/respawn control
 	virtual int WeaponShouldRespawn( CBasePlayerItem *pWeapon );
 	virtual float FlWeaponRespawnTime( CBasePlayerItem *pWeapon );
 	virtual float FlWeaponTryRespawn( CBasePlayerItem *pWeapon );
 	virtual Vector VecWeaponRespawnSpot( CBasePlayerItem *pWeapon );
 
-	// Item retrieval
+//MODDD
+	virtual int PickupWalkerShouldRespawn(CPickupWalker* pWeapon);
+	virtual float FlPickupWalkerRespawnTime(CPickupWalker* pWeapon);
+	virtual float FlPickupWalkerTryRespawn(CPickupWalker* pWeapon);
+	virtual Vector VecPickupWalkerRespawnSpot(CPickupWalker* pWeapon);
+
+//MODDD
+	float FlMonsterRespawnTime(CBaseMonster* pWeapon);
+	float FlMonsterTryRespawn(CBaseMonster* pWeapon);
+	Vector VecMonsterRespawnSpot(CBaseMonster* pWeapon, const Vector& arg_respawnSuggestionSpot);
+	int MonsterShouldRespawn(CBaseMonster* pWeapon);
+
+
+// Item retrieval
 	virtual BOOL CanHaveItem( CBasePlayer *pPlayer, CItem *pItem );
 	virtual void PlayerGotItem( CBasePlayer *pPlayer, CItem *pItem );
 
-	// Item spawn/respawn control
+// Item spawn/respawn control
 	virtual int ItemShouldRespawn( CItem *pItem );
 	virtual float FlItemRespawnTime( CItem *pItem );
 	virtual Vector VecItemRespawnSpot( CItem *pItem );
 
-	// Ammo retrieval
+// Ammo retrieval
 	virtual void PlayerGotAmmo( CBasePlayer *pPlayer, char *szName, int iCount );
 
-	// Ammo spawn/respawn control
+// Ammo spawn/respawn control
 	virtual int AmmoShouldRespawn( CBasePlayerAmmo *pAmmo );
 	virtual float FlAmmoRespawnTime( CBasePlayerAmmo *pAmmo );
 	virtual Vector VecAmmoRespawnSpot( CBasePlayerAmmo *pAmmo );
 
-	// Healthcharger respawn control
+// Healthcharger respawn control
 	virtual float FlHealthChargerRechargeTime( void );
 	virtual float FlHEVChargerRechargeTime( void );
 
-	// What happens to a dead player's weapons
+// What happens to a dead player's weapons
 	virtual int DeadPlayerWeapons( CBasePlayer *pPlayer );
 
-	// What happens to a dead player's ammo	
+// What happens to a dead player's ammo	
 	virtual int DeadPlayerAmmo( CBasePlayer *pPlayer );
 
-	// Teamplay stuff	
+// Teamplay stuff	
 	virtual const char *GetTeamID( CBaseEntity *pEntity ) {return "";}
 	virtual int PlayerRelationship( CBaseEntity *pPlayer, CBaseEntity *pTarget );
 
 	virtual BOOL PlayTextureSounds( void ) { return FALSE; }
 	virtual BOOL PlayFootstepSounds( CBasePlayer *pl, float fvol );
 
-	// Monsters
+// Monsters
 	virtual BOOL FAllowMonsters( void );
 
 	// Immediately end a multiplayer game
 	virtual void EndMultiplayerGame( void ) { GoToIntermission(); }
 
-protected:
+//MODDD - 'protected'?   bah who needs that
+//protected:
 	virtual void ChangeLevel( void );
 	virtual void GoToIntermission( void );
-	float m_flIntermissionEndTime;
-	BOOL m_iEndIntermissionButtonHit;
-	void SendMOTDToClient( edict_t *client );
+	void SendMOTDToClient( edict_t *pClient );
 };
 
-bool IsPlayerBusting( CBaseEntity *pPlayer );
-BOOL BustingCanHaveItem( CBasePlayer *pPlayer, CBaseEntity *pItem );
 
-class CMultiplayBusters : public CHalfLifeMultiplay
-{
-public:
-	CMultiplayBusters();
-	void Think();
-	void PlayerSpawn( CBasePlayer *pPlayer );
-	void ClientUserInfoChanged( CBasePlayer *pPlayer, char *infobuffer );
-	int IPointsForKill( CBasePlayer *pAttacker, CBasePlayer *pKilled );
-	void PlayerKilled( CBasePlayer *pVictim, entvars_t *pKiller, entvars_t *pInflictor );
-	void DeathNotice( CBasePlayer *pVictim, entvars_t *pKiller, entvars_t *pevInflictor );
-	BOOL CanHavePlayerItem( CBasePlayer *pPlayer, CBasePlayerItem *pItem );
-	void PlayerGotWeapon( CBasePlayer *pPlayer, CBasePlayerItem *pWeapon );
-	int WeaponShouldRespawn( CBasePlayerItem *pWeapon );
-	BOOL CanHaveItem( CBasePlayer *pPlayer, CItem *pItem );
-	void CheckForEgons();
-	void SetPlayerModel( CBasePlayer *pPlayer, BOOL bKnownBuster );
-	BOOL IsBustingGame( void ){ return TRUE; };
-
-protected:
-	float m_flEgonBustingCheckTime;
-};
-
-extern DLL_GLOBAL CGameRules *g_pGameRules;
-#endif // GAMERULES_H
+#endif //GAMERULES_H

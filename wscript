@@ -66,6 +66,7 @@ def options(opt):
 	opt.add_subproject('cl_dll dlls')
 
 def configure(conf):
+	conf.fatal("waf nao e suportado neste fork do Absolute Zero (o codigo legado nao passa nas flags -Werror do waf). Use CMake: veja o README.md.")
 	conf.env.EXPORT_DEFINES_LIST = []
 	conf.load('fwgslib reconfigure compiler_optimizations')
 	if conf.options.ALLOW64:

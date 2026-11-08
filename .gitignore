@@ -43,3 +43,15 @@ local.properties
 #Finder cache
 .DS_Store
 *.log
+
+# Absolute Zero (build Android / launcher)
+/build*/
+/jniLibs/
+/symbols/
+/dist/
+/build.log
+.gradle/
+local.properties
+launcher/app/build/
+launcher/build/
+launcher/app/src/main/jniLibs/

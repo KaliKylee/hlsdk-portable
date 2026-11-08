@@ -12,22 +12,61 @@
 *   without written permission from Valve LLC.
 *
 ****/
-#pragma once
-#if !defined(ENGINECALLBACK_H)
+#ifndef ENGINECALLBACK_H
 #define ENGINECALLBACK_H
+#pragma once
+
+// is this a good idea?
+#include "external_lib_include.h"
+
+#include "eiface.h"
 
 #include "event_flags.h"
-
-// Fix warning in MSVC8
-#undef SERVER_EXECUTE
+#include "util_entity.h"
 
 // Must be provided by user of this code
 extern enginefuncs_t g_engfuncs;
 
+
 // The actual engine callbacks
 #define GETPLAYERUSERID (*g_engfuncs.pfnGetPlayerUserId)
-#define PRECACHE_MODEL	(*g_engfuncs.pfnPrecacheModel)
-#define PRECACHE_SOUND	(*g_engfuncs.pfnPrecacheSound)
+#define PRECACHE_MODEL (*g_engfuncs.pfnPrecacheModel)
+
+
+
+//MODDD - precache intervention. Sound precaches go through the soundsentencesave system, which means,
+// if that CVar is on, some sounds may not get precached to save on a precache limit shared by several
+// other things.
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//ORIGINAL:
+//#define PRECACHE_SOUND	(*g_engfuncs.pfnPrecacheSound)
+
+//#define PRECACHE_SOUND	UTIL_PRECACHESOUND
+
+/*
+void UTIL_PRECACHESOUND(char* path){
+
+	if(EASY_CVAR_GET(soundSentenceSave) == 0){
+		PRECACHE_SOUND(path);
+	}
+
+}
+*/
+extern void UTIL_PRECACHESOUND(char* path);
+extern void UTIL_PRECACHESOUND(char* path, BOOL skipSave);
+
+#define PRECACHE_SOUND UTIL_PRECACHESOUND
+#define PRECACHE_SOUND_REAL (*g_engfuncs.pfnPrecacheSound)
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
 #define PRECACHE_GENERIC	(*g_engfuncs.pfnPrecacheGeneric)
 #define SET_MODEL		(*g_engfuncs.pfnSetModel)
 #define MODEL_INDEX		(*g_engfuncs.pfnModelIndex)
@@ -58,7 +97,10 @@ extern enginefuncs_t g_engfuncs;
 #define TRACE_HULL		(*g_engfuncs.pfnTraceHull)
 #define GET_AIM_VECTOR	(*g_engfuncs.pfnGetAimVector)
 #define SERVER_COMMAND	(*g_engfuncs.pfnServerCommand)
-#define SERVER_EXECUTE	(*g_engfuncs.pfnServerExecute)
+
+//MODDD - renamed, conflict with some windows call.
+#define GOLDSRC_SERVER_EXECUTE	(*g_engfuncs.pfnServerExecute)
+
 #define CLIENT_COMMAND	(*g_engfuncs.pfnClientCommand)
 #define PARTICLE_EFFECT	(*g_engfuncs.pfnParticleEffect)
 #define LIGHT_STYLE		(*g_engfuncs.pfnLightStyle)
@@ -72,44 +114,30 @@ extern enginefuncs_t g_engfuncs;
 #define RANDOM_FLOAT	(*g_engfuncs.pfnRandomFloat)
 #define GETPLAYERAUTHID	(*g_engfuncs.pfnGetPlayerAuthId)
 
-inline void MESSAGE_BEGIN( int msg_dest, int msg_type, const float *pOrigin = NULL, edict_t *ed = NULL )
-{
-	(*g_engfuncs.pfnMessageBegin)(msg_dest, msg_type, pOrigin, ed);
-}
-#define MESSAGE_END		(*g_engfuncs.pfnMessageEnd)
-#define WRITE_BYTE		(*g_engfuncs.pfnWriteByte)
-#define WRITE_CHAR		(*g_engfuncs.pfnWriteChar)
-#define WRITE_SHORT		(*g_engfuncs.pfnWriteShort)
-#define WRITE_LONG		(*g_engfuncs.pfnWriteLong)
-#define WRITE_ANGLE		(*g_engfuncs.pfnWriteAngle)
-#define WRITE_COORD		(*g_engfuncs.pfnWriteCoord)
-#define WRITE_STRING	(*g_engfuncs.pfnWriteString)
-#define WRITE_ENTITY	(*g_engfuncs.pfnWriteEntity)
-#define CVAR_REGISTER	(*g_engfuncs.pfnCVarRegister)
-#define CVAR_GET_FLOAT	(*g_engfuncs.pfnCVarGetFloat)
-#define CVAR_GET_STRING	(*g_engfuncs.pfnCVarGetString)
-#define CVAR_SET_FLOAT	(*g_engfuncs.pfnCVarSetFloat)
-#define CVAR_SET_STRING	(*g_engfuncs.pfnCVarSetString)
-#define CVAR_GET_POINTER (*g_engfuncs.pfnCVarGetPointer)
+
+//CVar constants moved to util_shared.
+
+
+
 #define ALERT			(*g_engfuncs.pfnAlertMessage)
 #define ENGINE_FPRINTF	(*g_engfuncs.pfnEngineFprintf)
 #define ALLOC_PRIVATE	(*g_engfuncs.pfnPvAllocEntPrivateData)
 
-inline void *GET_PRIVATE( edict_t *pent )
-{
-	if( pent )
-		return pent->pvPrivateData;
-	return NULL;
-}
-
 #define FREE_PRIVATE	(*g_engfuncs.pfnFreeEntPrivateData)
+
+//MODDD - this was found commented out as-is.  So 'pfnSzFromIndex' went completely unused
 //#define STRING			(*g_engfuncs.pfnSzFromIndex)
+
 #define ALLOC_STRING	(*g_engfuncs.pfnAllocString)
 #define FIND_ENTITY_BY_STRING	(*g_engfuncs.pfnFindEntityByString)
 #define GETENTITYILLUM	(*g_engfuncs.pfnGetEntityIllum)
 #define FIND_ENTITY_IN_SPHERE		(*g_engfuncs.pfnFindEntityInSphere)
 #define FIND_CLIENT_IN_PVS			(*g_engfuncs.pfnFindClientInPVS)
-#define EMIT_AMBIENT_SOUND			(*g_engfuncs.pfnEmitAmbientSound)
+
+//MODDD - used to be EMIT_AMBIENT_SOUND, changed to resemble EMIT_SOUND_DYN
+// (engine call was the one with a '2', plain one was a normal method that still did some processing first)
+#define EMIT_AMBIENT_SOUND2			(*g_engfuncs.pfnEmitAmbientSound)
+
 #define GET_MODEL_PTR				(*g_engfuncs.pfnGetModelPtr)
 #define REG_USER_MSG				(*g_engfuncs.pfnRegUserMsg)
 #define GET_BONE_POSITION			(*g_engfuncs.pfnGetBonePosition)
@@ -142,22 +170,57 @@ inline void *GET_PRIVATE( edict_t *pent )
 #define DELTA_SET				( *g_engfuncs.pfnDeltaSetField )
 #define DELTA_UNSET				( *g_engfuncs.pfnDeltaUnsetField )
 #define DELTA_ADDENCODER		( *g_engfuncs.pfnDeltaAddEncoder )
-#define ENGINE_CURRENT_PLAYER   ( *g_engfuncs.pfnGetCurrentPlayer )
 
-#define	ENGINE_CANSKIP			( *g_engfuncs.pfnCanSkipPlayer )
+#define ENGINE_CURRENT_PLAYER   ( *g_engfuncs.pfnGetCurrentPlayer )
+#define ENGINE_CANSKIP			( *g_engfuncs.pfnCanSkipPlayer )
 
 #define DELTA_FINDFIELD			( *g_engfuncs.pfnDeltaFindField )
 #define DELTA_SETBYINDEX		( *g_engfuncs.pfnDeltaSetFieldByIndex )
 #define DELTA_UNSETBYINDEX		( *g_engfuncs.pfnDeltaUnsetFieldByIndex )
 
 #define ENGINE_GETPHYSINFO		( *g_engfuncs.pfnGetPhysicsInfoString )
-
 #define ENGINE_SETGROUPMASK		( *g_engfuncs.pfnSetGroupMask )
-
 #define ENGINE_INSTANCE_BASELINE ( *g_engfuncs.pfnCreateInstancedBaseline )
-
 #define ENGINE_FORCE_UNMODIFIED	( *g_engfuncs.pfnForceUnmodified )
-
 #define PLAYER_CNX_STATS		( *g_engfuncs.pfnGetPlayerStats )
+
+
+
+// from util.h
+inline void MESSAGE_BEGIN(int msg_dest, int msg_type, const float* pOrigin, entvars_t* ent) {
+	(*g_engfuncs.pfnMessageBegin)(msg_dest, msg_type, pOrigin, ENT(ent));
+}
+// from enginecallback.h
+inline void MESSAGE_BEGIN(int msg_dest, int msg_type, const float* pOrigin = NULL, edict_t* ed = NULL) {
+	(*g_engfuncs.pfnMessageBegin)(msg_dest, msg_type, pOrigin, ed);
+}
+
+
+// below was in enginecallback.h
+
+#define MESSAGE_END		(*g_engfuncs.pfnMessageEnd)
+#define WRITE_BYTE		(*g_engfuncs.pfnWriteByte)
+#define WRITE_CHAR		(*g_engfuncs.pfnWriteChar)
+#define WRITE_SHORT		(*g_engfuncs.pfnWriteShort)
+#define WRITE_LONG		(*g_engfuncs.pfnWriteLong)
+#define WRITE_ANGLE		(*g_engfuncs.pfnWriteAngle)
+#define WRITE_COORD		(*g_engfuncs.pfnWriteCoord)
+#define WRITE_STRING	(*g_engfuncs.pfnWriteString)
+#define WRITE_ENTITY	(*g_engfuncs.pfnWriteEntity)
+
+
+inline void *GET_PRIVATE( edict_t *pent )
+{
+	if ( pent )
+		return pent->pvPrivateData;
+	return NULL;
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
 
 #endif		//ENGINECALLBACK_H

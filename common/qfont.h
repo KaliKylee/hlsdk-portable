@@ -12,27 +12,29 @@
 *   without written permission from Valve LLC.
 *
 ****/
+#if !defined( QFONTH )
+#define QFONTH
+#ifdef _WIN32
 #pragma once
-#if !defined(QFONT_H)
-#define QFONT_H
+#endif
 
 // Font stuff
 
-#define NUM_GLYPHS		256
+#define NUM_GLYPHS 256
 
 typedef struct
 {
-	short	startoffset;
-	short	charwidth;
+	short startoffset;
+	short charwidth;
 } charinfo;
 
 typedef struct qfont_s
 {
-	int	width, height;
-	int	rowcount;
-	int	rowheight;
-	charinfo	fontinfo[NUM_GLYPHS];
-	byte	data[4];
+	int		width, height;
+	int		rowcount;
+	int		rowheight;
+	charinfo	fontinfo[ NUM_GLYPHS ];
+	byte		data[4];
 } qfont_t;
 
-#endif//QFONT_H
+#endif // qfont.h

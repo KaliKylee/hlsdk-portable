@@ -18,34 +18,122 @@
 // this implementation handles the linking of the engine to the DLL
 //
 
+// ??
+#include <string.h>
+
+
 #include "hud.h"
 #include "cl_util.h"
 #include "netadr.h"
-#include "parsemsg.h"
-
-#include "vgui_int.h"
-#include "vgui_TeamFortressViewport.h"
+#ifdef NO_VGUI
+#include "vgui_stub.h"
+#endif
+#ifndef NO_VGUI
+#include "vgui_SchemeManager.h"
+#endif
 
 extern "C"
 {
 #include "pm_shared.h"
 }
 
-#include <string.h>
-#include "vcs_info.h"
+#include "hud_servers.h"
+#ifndef NO_VGUI
+#include "vgui_int.h"
+#endif
+#include "interface.h"
 
-cl_enginefunc_t gEngfuncs;
-CHud gHUD;
-TeamFortressViewport *gViewPort = NULL;
+//MODD - show me what ya got.
+#ifndef NO_VGUI
+#include "VGUI_Panel.h"
+#endif
+
+#include "hl/hl_weapons.h"
+
+#include "cvar_custom_info.h"
+#include "cvar_custom_list.h"
+
+#include "StudioModelRenderer.h"
+#include "GameStudioModelRenderer.h"
+
+#include "mobility_int.h"
+
+// API mobile do Xash3D FWGS (vibracao etc.).  O engine entrega o ponteiro em HUD_MobilityInterface.
 mobile_engfuncs_t *gMobileEngfuncs = NULL;
 
 #if defined( INTERNAL_VGUI_SUPPORT )
-// declare InitVGUISupportAPI so that linker doesn't remove it because nothing references it
+// FreeVGUI esta linkado estaticamente no client: o engine procura InitVGUISupportAPI nesta lib.
+// Declaramos aqui e guardamos uma referencia para o linker nao descartar a funcao.
 extern "C" void InitVGUISupportAPI( void *api );
 void *g_pKeepVGUISupport = (void *)InitVGUISupportAPI;
 #endif
 
-void InitInput( void );
+
+EASY_CVAR_EXTERN_CLIENTONLY_DEBUGONLY(drawHUD);
+
+
+
+// NOTICE - the as-is descriptions of the init methods are kinda out of touch with how they really work it seems.
+
+// Initialize - very first event, called on booting the game up only (so much as the menu shown).  Never twice, I think.
+// HUD_Init - called shortly after Initialize.  Also likely never twice.
+// HUD_VidInit - Unsure if it's actually called on changing display modes (game just seems to crash but remember settings
+// between runs anyway),   but this method reall runs anytime the player goes ingame.  New game, loaded game, or created/
+// joined server.
+
+
+
+
+extern BOOL g_cl_HUD_Frame_ran;
+extern BOOL g_cl_HUD_UpdateClientData_ran;
+extern BOOL g_HUD_Redraw_ran;
+extern int g_currentanim;
+extern int g_cl_frameCount;
+extern BOOL resetNormalRefDefVars;
+extern float sp_ClientPreviousTime;
+
+extern double ary_g_prevTime[1024];
+extern float ary_g_prevFrame[1024];
+extern double ary_g_LastEventCheck[1024];
+extern double ary_g_LastEventCheckEXACT[1024];
+
+extern BOOL g_cl_egonEffectCreatedYet;
+extern int g_framesSinceRestore;
+extern BOOL g_cl_queueSharedPrecache;
+extern BOOL g_cl_firstSendoffSinceMapLoad;
+
+extern CGameStudioModelRenderer g_StudioRenderer;
+extern float g_cl_mapStartTime;
+
+
+
+
+cl_enginefunc_t gEngfuncs;
+CHud gHUD;
+
+// Someday...
+//vgui::Panel* gViewPort = NULL;
+#ifdef NO_VGUI
+// Android: o viewport e um stub sem estado. Criado ja na carga da lib para que acessos a gViewPort
+// (inclusive os sem checagem de NULL) nunca encontrem ponteiro nulo, mesmo antes do VGui_Startup().
+static TeamFortressViewport g_viewPortStub;
+TeamFortressViewport* gViewPort = &g_viewPortStub;
+#else
+TeamFortressViewport* gViewPort = NULL;
+#endif
+
+
+
+BOOL hasAutoMus = FALSE;
+float globalPSEUDO_drawHUDMem = -1;
+
+// Var from the mp5, used in the 'ancient SDK'.
+// (renamed from m_flNextAnimTime; no longer in mp5.cpp)
+float g_cl_mp5_NextAnimTime;
+
+
+
+void InitInput (void);
 void EV_HookEvents( void );
 void IN_Commands( void );
 
@@ -56,23 +144,22 @@ void IN_Commands( void );
 Called when the DLL is first loaded.
 ==========================
 */
-extern "C" 
+extern "C"
 {
-int		DLLEXPORT Initialize( cl_enginefunc_t *pEnginefuncs, int iVersion );
-int		DLLEXPORT HUD_VidInit( void );
-void	DLLEXPORT HUD_Init( void );
-int		DLLEXPORT HUD_Redraw( float flTime, int intermission );
-int		DLLEXPORT HUD_UpdateClientData( client_data_t *cdata, float flTime );
-void	DLLEXPORT HUD_Reset ( void );
-void	DLLEXPORT HUD_PlayerMove( struct playermove_s *ppmove, int server );
-void	DLLEXPORT HUD_PlayerMoveInit( struct playermove_s *ppmove );
-char	DLLEXPORT HUD_PlayerMoveTexture( char *name );
-int		DLLEXPORT HUD_ConnectionlessPacket( const struct netadr_s *net_from, const char *args, char *response_buffer, int *response_buffer_size );
-int		DLLEXPORT HUD_GetHullBounds( int hullnumber, float *mins, float *maxs );
-void	DLLEXPORT HUD_Frame( double time );
-void	DLLEXPORT HUD_VoiceStatus(int entindex, qboolean bTalking);
-void	DLLEXPORT HUD_DirectorMessage( int iSize, void *pbuf );
-int DLLEXPORT HUD_MobilityInterface( mobile_engfuncs_t *gpMobileEngfuncs );
+int	DLLEXPORT Initialize( cl_enginefunc_t *pEnginefuncs, int iVersion );
+int	DLLEXPORT HUD_VidInit( void );
+void DLLEXPORT HUD_Init( void );
+int	DLLEXPORT HUD_Redraw( float flTime, int intermission );
+int	DLLEXPORT HUD_UpdateClientData( client_data_t *cdata, float flTime );
+void DLLEXPORT HUD_Reset ( void );
+void DLLEXPORT HUD_PlayerMove( struct playermove_s *ppmove, int server );
+void DLLEXPORT HUD_PlayerMoveInit( struct playermove_s *ppmove );
+char DLLEXPORT HUD_PlayerMoveTexture( char *name );
+int	DLLEXPORT HUD_ConnectionlessPacket( const struct netadr_s *net_from, const char *args, char *response_buffer, int *response_buffer_size );
+int	DLLEXPORT HUD_GetHullBounds( int hullnumber, float *mins, float *maxs );
+void DLLEXPORT HUD_Frame( double time );
+void DLLEXPORT HUD_VoiceStatus(int entindex, qboolean bTalking);
+void DLLEXPORT HUD_DirectorMessage( int iSize, void *pbuf );
 }
 
 /*
@@ -86,21 +173,21 @@ int DLLEXPORT HUD_GetHullBounds( int hullnumber, float *mins, float *maxs )
 {
 	int iret = 0;
 
-	switch( hullnumber )
+	switch ( hullnumber )
 	{
 	case 0:				// Normal player
-		Vector( -16, -16, -36 ).CopyToArray(mins);
-		Vector( 16, 16, 36 ).CopyToArray(maxs);
+		mins = Vector(-16, -16, -36);
+		maxs = Vector(16, 16, 36);
 		iret = 1;
 		break;
 	case 1:				// Crouched player
-		Vector( -16, -16, -18 ).CopyToArray(mins);
-		Vector( 16, 16, 18 ).CopyToArray(maxs);
+		mins = Vector(-16, -16, -18 );
+		maxs = Vector(16, 16, 18 );
 		iret = 1;
 		break;
 	case 2:				// Point based hull
-		Vector( 0, 0, 0 ).CopyToArray(mins);
-		Vector( 0, 0, 0 ).CopyToArray(maxs);
+		mins = Vector( 0, 0, 0 );
+		maxs = Vector( 0, 0, 0 );
 		iret = 1;
 		break;
 	}
@@ -119,7 +206,7 @@ HUD_ConnectionlessPacket
 int DLLEXPORT HUD_ConnectionlessPacket( const struct netadr_s *net_from, const char *args, char *response_buffer, int *response_buffer_size )
 {
 	// Parse stuff from args
-	// int max_buffer_size = *response_buffer_size;
+	int max_buffer_size = *response_buffer_size;
 
 	// Zero it out since we aren't going to respond.
 	// If we wanted to response, we'd write data into response_buffer
@@ -149,47 +236,20 @@ int DLLEXPORT Initialize( cl_enginefunc_t *pEnginefuncs, int iVersion )
 {
 	gEngfuncs = *pEnginefuncs;
 
-	if( iVersion != CLDLL_INTERFACE_VERSION )
+	if (iVersion != CLDLL_INTERFACE_VERSION)
 		return 0;
 
-	// for now filterstuffcmd is last in the engine interface
-	memcpy( &gEngfuncs, pEnginefuncs, sizeof(cl_enginefunc_t) - sizeof( void * ) );
-
-	if( gEngfuncs.pfnGetCvarPointer( "cl_filterstuffcmd" ) == 0 )
-	{
-		gEngfuncs.pfnFilteredClientCmd = gEngfuncs.pfnClientCmd;
-	}
-	else
-	{
-		gEngfuncs.pfnFilteredClientCmd = pEnginefuncs->pfnFilteredClientCmd;
-	}
+	memcpy(&gEngfuncs, pEnginefuncs, sizeof(cl_enginefunc_t));
 
 	EV_HookEvents();
-
-	gEngfuncs.pfnRegisterVariable( "cl_game_build_commit", g_VCSInfo_Commit, 0 );
-	gEngfuncs.pfnRegisterVariable( "cl_game_build_branch", g_VCSInfo_Branch, 0 );
 
 	return 1;
 }
 
-/*
-=================
-HUD_GetRect
 
-VGui stub
-=================
-*/
-int *HUD_GetRect( void )
-{
-	static int extent[4];
-
-	extent[0] = gEngfuncs.GetWindowCenterX() - ScreenWidth / 2;
-	extent[1] = gEngfuncs.GetWindowCenterY() - ScreenHeight / 2;
-	extent[2] = gEngfuncs.GetWindowCenterX() + ScreenWidth / 2;
-	extent[3] = gEngfuncs.GetWindowCenterY() + ScreenHeight / 2;
-
-	return extent;
-}
+//#include "GameStudioModelRenderer.h"
+//#include "r_studioint.h"
+//extern engine_studio_api_t IEngineStudio;
 
 /*
 ==========================
@@ -200,9 +260,101 @@ and whenever the vid_mode is changed
 so the HUD can reinitialize itself.
 ==========================
 */
-
 int DLLEXPORT HUD_VidInit( void )
 {
+	// safety
+	g_cl_HUD_Frame_ran = FALSE;
+	g_cl_HUD_UpdateClientData_ran = FALSE;
+	g_HUD_Redraw_ran = FALSE;
+
+	// clientside only variable.
+	reloadBlocker = FALSE;
+
+	// TEST.
+	blockUntilModelChange = FALSE;
+	oldModel = -1;
+	queuedBlockedModelAnim = -1;
+
+	forgetBlockUntilModelChangeTime = -1;
+	resistTime = -1;
+
+	seqPlayDelay = -1;
+	seqPlay = 0;
+	queuecall_lastinv = FALSE;
+	g_currentanim = -1;
+
+	sp_ClientPreviousTime = -1;
+	g_cl_frameCount = 0;
+
+	// safety?
+	g_cl_egonEffectCreatedYet = FALSE;
+
+	// NOTE - can't really differentiate between a whole new map-load, saved game restore,
+	// or taking a transition but it isn't too important.
+	g_framesSinceRestore = 0;
+
+	// is this safe?
+	// No.
+	//g_cl_mapStartTime = g_StudioRenderer.m_clTime;
+	// Wait uh.  What's the difference between g_engfuncs.pfnTime() and gEngfuncs.GetClientTime() ?
+	// Most stuff clientside looks to use the latter.
+
+	// OOooookay, both of these don't get the updated time since loading a game, fantastic
+
+	// Nowhere uses pfnTime().  It's NULL clientside and never even given a reference to replace that
+	// in hl_weapons.cpp (HUD_InitClientWeapons) like a few other engine methods for g_engfuncs.
+	//float test1 = g_engfuncs.pfnTime();
+	// And, GetClientTime() always reports 0 at this point, even if the time of the current game doesn't
+	// begin at 0 (loaded game or coming from a transition to a previously run map with a remembered time).
+	// Seems the best idea is to set a queued var for HUD_InitClientWeapons to see and set the map's first
+	// time to GetClientTime() then.  For now, force the time var to -1 so that rendering that sees it extra
+	// early at least knows 'oh, it's been really soon since loading the map' which is the point.
+	// In fact, going to let the queue-first-frame piggyback off g_cl_queueSharedPrecache, it is the exact
+	// same time/place it would've been checked anyway
+	//float test2 = gEngfuncs.GetClientTime();
+
+	/*
+	// Nope, no difference
+	int dummy1;
+	double test3;
+	double dummy2;
+	IEngineStudio.GetTimes(&dummy1, &test3, &dummy2);
+	*/
+
+	g_cl_mapStartTime = -1;	
+	g_StudioRenderer.m_nCachedFrameCount = -1;
+
+	g_cl_mp5_NextAnimTime = -1;
+
+
+
+	//extern CGameStudioModelRenderer g_StudioRenderer;
+	//MODDD - from studioModelRenderer.cpp, initialize to the current game global time.
+	// ...nope, always still 0.    ugh.
+	for (int i = 0; i < MAX_ENTITY_CONSTANT_THAT_PLEASES_THE_DARK_GODS; i++) {
+		// NOTE - gpGlobals->time is unavailable, has to be dummied and routinely set to gEngfuncs.GetClientTime().
+		// So get it from the source then.
+		ary_g_prevTime[i] = 0; //g_StudioRenderer.m_clTime; //gEngfuncs.GetClientTime();
+		ary_g_prevFrame[i] = 0;
+		ary_g_LastEventCheck[i] = 0; //g_StudioRenderer.m_clTime; //gEngfuncs.GetClientTime();
+		ary_g_LastEventCheckEXACT[i] = 0;
+	}
+
+
+	//MODDD
+	resetNormalRefDefVars = TRUE;  //does this work
+
+	// should be fine then.
+	// NNNNNNNNNNnnnnnnnnnnnoooooooooooppppppppppppppppeeeeeeeeeee-PUH.
+	// It does appear that precaches done this early will always find a model of '0', not do anything.
+	// Let this be queued to run very soon when HUD_InitClientWeapons in hl_weapons.cpp (yes it gets called again)
+	// sees this.
+	//PrecacheShared();
+	g_cl_queueSharedPrecache = TRUE;
+
+	g_cl_firstSendoffSinceMapLoad = TRUE;
+
+
 	gHUD.VidInit();
 
 	VGui_Startup();
@@ -219,13 +371,42 @@ to a server.  Reinitializes all
 the hud variables.
 ==========================
 */
+EASY_CVAR_EXTERN_MASS
+EASY_CVAR_DECLARE_HASH_ARRAY
 
 void DLLEXPORT HUD_Init( void )
 {
+	// Is this a good idea?
+	// No, gpGlobals->time has not even been establiched.  Look in hl_weapons.cpp.
+	//if (sp_ClientPreviousTime == -1){sp_ClientPreviousTime = gpGlobals->time;}
+	
+	
+	EASY_CVAR_HASH_MASS
+
+
+	InitShared();
+	
+	
+
+	determineHiddenMemPath();
+	
+	hasAutoMus = checkSubFileExistence("media/AutoMus.mp3");
+
+	loadHiddenCVars();
+
+	// nope, this call will happen before starting any game (game startup to the menu), which isn't the place to call lateCVarInit.
+	//lateCVarInit();
+
+	//MODDD - see if we need to make any special printouts in the future.
+	//testForHelpFile();
+
 	InitInput();
 	gHUD.Init();
+#ifndef NO_VGUI
 	Scheme_Init();
+#endif
 }
+
 
 /*
 ==========================
@@ -236,12 +417,31 @@ redraw the HUD.
 ===========================
 */
 
+
 int DLLEXPORT HUD_Redraw( float time, int intermission )
 {
+	g_HUD_Redraw_ran = TRUE;
+
+	if(globalPSEUDO_drawHUDMem != EASY_CVAR_GET_CLIENTONLY_DEBUGONLY(drawHUD)){
+		gHUD.m_Ammo.updateCrosshair();
+		globalPSEUDO_drawHUDMem = EASY_CVAR_GET_CLIENTONLY_DEBUGONLY(drawHUD);
+	}
+
+
+	//MODDD - the ultamite blocker!
+	if(EASY_CVAR_GET_CLIENTONLY_DEBUGONLY(drawHUD) != 1 && EASY_CVAR_GET_CLIENTONLY_DEBUGONLY(drawHUD) != 2){
+		return 1;
+	}
+
+
+	//MODDD - for things that can not access time ordinarily.
+	gHUD.recentTime = time;
+
 	gHUD.Redraw( time, intermission );
 
 	return 1;
 }
+
 
 /*
 ==========================
@@ -256,11 +456,12 @@ returns 1 if anything has been changed, 0 otherwise.
 ==========================
 */
 
-int DLLEXPORT HUD_UpdateClientData( client_data_t *pcldata, float flTime )
+int DLLEXPORT HUD_UpdateClientData(client_data_t *pcldata, float flTime )
 {
 	IN_Commands();
+	g_cl_HUD_UpdateClientData_ran = TRUE;
 
-	return gHUD.UpdateClientData( pcldata, flTime );
+	return gHUD.UpdateClientData(pcldata, flTime );
 }
 
 /*
@@ -276,6 +477,7 @@ void DLLEXPORT HUD_Reset( void )
 	gHUD.VidInit();
 }
 
+
 /*
 ==========================
 HUD_Frame
@@ -286,8 +488,12 @@ Called by engine every frame that client .dll is loaded
 
 void DLLEXPORT HUD_Frame( double time )
 {
+	ServersThink( time );
+	g_cl_HUD_Frame_ran = TRUE;
+
 	GetClientVoiceMgr()->Frame(time);
 }
+
 
 /*
 ==========================
@@ -297,7 +503,7 @@ Called when a player starts or stops talking.
 ==========================
 */
 
-void DLLEXPORT HUD_VoiceStatus( int entindex, qboolean bTalking )
+void DLLEXPORT HUD_VoiceStatus(int entindex, qboolean bTalking)
 {
 	GetClientVoiceMgr()->UpdateSpeakerStatus(entindex, bTalking);
 }
@@ -315,30 +521,10 @@ void DLLEXPORT HUD_DirectorMessage( int iSize, void *pbuf )
 	 gHUD.m_Spectator.DirectorMessage( iSize, pbuf );
 }
 
-int DLLEXPORT HUD_MobilityInterface( mobile_engfuncs_t *gpMobileEngfuncs )
+extern "C" int DLLEXPORT HUD_MobilityInterface( mobile_engfuncs_t *gpMobileEngfuncs )
 {
 	if( gpMobileEngfuncs->version != MOBILITY_API_VERSION )
 		return 1;
 	gMobileEngfuncs = gpMobileEngfuncs;
 	return 0;
-}
-
-bool HUD_MessageBox( const char *msg )
-{
-	gEngfuncs.Con_Printf( msg ); // just in case
-
-	if( IsXashFWGS() )
-	{
-		gMobileEngfuncs->pfnSys_Warn( msg );
-		return true;
-	}
-
-	// TODO: Load SDL2 and call ShowSimpleMessageBox
-
-	return false;
-}
-
-bool IsXashFWGS()
-{
-	return gMobileEngfuncs != NULL;
 }

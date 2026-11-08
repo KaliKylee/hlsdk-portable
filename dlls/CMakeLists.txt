@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2015 Pavlo Lavrenenko
+# Copyright (c) 2016 Alibek Omarov
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -25,159 +25,190 @@ project (SVDLL)
 
 set (SVDLL_LIBRARY server)
 
+add_definitions(-DVALVE_DLL -DQUIVER -DVOXEL -DQUAKE2)
+
 if(NOT MSVC)
-	add_compile_options(-fno-exceptions) # GCC/Clang flag
-	add_compile_options(-fno-rtti) # GCC/Clang flag
-	add_compile_options(-Wno-invalid-offsetof) # GCC/Clang flag
-	add_compile_options(-fvisibility=hidden) # GCC/Clang flag
-	add_definitions(-D_LINUX) # It seems enough for all non-Win32 systems
+	# Veja cl_dll/CMakeLists.txt: sem -fno-exceptions (util.cpp usa try/catch).
+	# Os simbolos tambem NAO ficam ocultos: o save/restore resolve os ponteiros de funcao das entidades
+	# por NOME (NameForFunction / FunctionFromName do engine), entao os metodos precisam estar exportados.
+	add_compile_options(-fsigned-char)
+	add_compile_options(-fno-strict-aliasing)
+	add_compile_options(-fms-extensions)
+	add_compile_options(-Wno-invalid-offsetof)
+	add_compile_options(-w)
+	add_definitions(-D_LINUX -DLINUX -DPOSIX)
 	add_definitions(-Dstricmp=strcasecmp -Dstrnicmp=strncasecmp -D_snprintf=snprintf -D_vsnprintf=vsnprintf )
-	if(CMAKE_BUILD_TYPE MATCHES "Release"
-		OR (CMAKE_BUILD_TYPE MATCHES "RelWithDebInfo"
-		AND CMAKE_SYSTEM_NAME STREQUAL "Android"))
-		add_compile_options(-fno-unwind-tables -fno-asynchronous-unwind-tables) # GCC/Clang flag
-		add_compile_options(-fomit-frame-pointer) # GCC/Clang flag
-		add_compile_options(-ftree-vectorize) # GCC/Clang flag
-		add_compile_options(-funsafe-math-optimizations) # GCC/Clang flag
+	if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+		add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-Wno-c++11-narrowing>)
+		add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-Wno-address-of-temporary>)
+		add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-Wno-non-pod-varargs>)
+		add_compile_options($<$<COMPILE_LANGUAGE:C>:-Wno-implicit-function-declaration>)
+		add_compile_options($<$<COMPILE_LANGUAGE:C>:-Wno-incompatible-pointer-types>)
+		add_compile_options($<$<COMPILE_LANGUAGE:C>:-Wno-int-conversion>)
 	endif()
+	add_compile_options("SHELL:-include ${CMAKE_SOURCE_DIR}/public/az_compat.h")
+	add_definitions(-DAZ_ANDROID)
 else()
 	add_definitions(-D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_DEPRECATE)
 endif()
 
 set (SVDLL_SOURCES
-	agrunt.cpp
-	airtank.cpp
-	aflock.cpp
-	animating.cpp
-	animation.cpp
-	apache.cpp
-	barnacle.cpp
-	barney.cpp
-	bigmomma.cpp
-	bloater.cpp
-	bmodels.cpp
-	bullsquid.cpp
-	buttons.cpp
-	cbase.cpp
-	client.cpp
-	combat.cpp
-	controller.cpp
-	crossbow.cpp
-	crowbar.cpp
-	defaultai.cpp
-	doors.cpp
-	effects.cpp
-	egon.cpp
-	explode.cpp
-	flyingmonster.cpp
-	func_break.cpp
-	func_tank.cpp
-	game.cpp
-	gamerules.cpp
-	gargantua.cpp
-	gauss.cpp
-	genericmonster.cpp
-	ggrenade.cpp
-	globals.cpp
-	glock.cpp
-	gman.cpp
-	h_ai.cpp
-	h_battery.cpp
-	h_cine.cpp
-	h_cycler.cpp
-	h_export.cpp
-	handgrenade.cpp
-	hassassin.cpp
-	headcrab.cpp
-	healthkit.cpp
-	hgrunt.cpp
-	hornet.cpp
-	hornetgun.cpp
-	houndeye.cpp
-	ichthyosaur.cpp
-	islave.cpp
-	items.cpp
-	leech.cpp
-	lights.cpp
-	maprules.cpp
-	monstermaker.cpp
-	monsters.cpp
-	monsterstate.cpp
-	mortar.cpp
-	mp5.cpp
-	multiplay_gamerules.cpp
-	nihilanth.cpp
-	nodes.cpp
-	observer.cpp
-	osprey.cpp
-	pathcorner.cpp
-	plane.cpp
-	plats.cpp
-	player.cpp
-	playermonster.cpp
-	python.cpp
-	rat.cpp
-	roach.cpp
-	rpg.cpp
-	satchel.cpp
-	schedule.cpp
-	scientist.cpp
-	scripted.cpp
-	shotgun.cpp
-	singleplay_gamerules.cpp
-	skill.cpp
-	sound.cpp
-	soundent.cpp
-	spectator.cpp
-	squadmonster.cpp
-	squeakgrenade.cpp
-	subs.cpp
-	talkmonster.cpp
-	teamplay_gamerules.cpp
-	tempmonster.cpp
-	tentacle.cpp
-	triggers.cpp
-	tripmine.cpp
-	turret.cpp
-	util.cpp
-	vehicle.cpp
-	weapons.cpp
-	world.cpp
-	xen.cpp
-	zombie.cpp
+	../config/external_lib_include.cpp
+	../common/vector.cpp
+	../game_shared/util/util_entity.cpp
+	../game_shared/util/util_printout.cpp
+	../game_shared/util/util_shared.cpp
+	../game_shared/util/util_version.cpp
 	../game_shared/voice_gamemgr.cpp
 	../pm_shared/pm_debug.c
 	../pm_shared/pm_math.c
+	../pm_shared/pm_printout.c
 	../pm_shared/pm_shared.c
-	../public/safe_snprintf.c
+	basemonster.cpp
+	cbase.cpp
+	client.cpp
+	client_message.cpp
+	combat.cpp
+	decals.cpp
+	defaultai.cpp
+	entity/aflock.cpp
+	entity/agrunt.cpp
+	entity/airtank.cpp
+	entity/animating.cpp
+	entity/apache.cpp
+	entity/archer.cpp
+	entity/archer_ball.cpp
+	entity/barnacle.cpp
+	entity/barney.cpp
+	entity/bigmomma.cpp
+	entity/bmodels.cpp
+	entity/bullsquid.cpp
+	entity/buttons.cpp
+	entity/chumtoad.cpp
+	entity/controller.cpp
+	entity/controller_head_ball.cpp
+	entity/controller_zap_ball.cpp
+	entity/crossbowbolt.cpp
+	entity/doors.cpp
+	entity/effects.cpp
+	entity/explode.cpp
+	entity/floater.cpp
+	entity/flyingmonster.cpp
+	entity/friendly.cpp
+	entity/func_break.cpp
+	entity/func_door_health.cpp
+	entity/func_tank.cpp
+	entity/gargantua.cpp
+	entity/genericmonster.cpp
+	entity/ggrenade.cpp
+	entity/gib.cpp
+	entity/gman.cpp
+	entity/hassassin.cpp
+	entity/hassault.cpp
+	entity/headcrab.cpp
+	entity/healthkit.cpp
+	entity/hgrunt.cpp
+	entity/hornet.cpp
+	entity/hornet_kingpin.cpp
+	entity/houndeye.cpp
+	entity/h_battery.cpp
+	entity/h_cine.cpp
+	entity/h_cycler.cpp
+	entity/ichthyosaur.cpp
+	entity/islave.cpp
+	entity/items.cpp
+	entity/kingpin.cpp
+	entity/kingpin_ball.cpp
+	entity/leech.cpp
+	entity/lights.cpp
+	entity/maprules.cpp
+	entity/monstermaker.cpp
+	entity/mortar.cpp
+	entity/nihilanth.cpp
+	entity/nodes.cpp
+	entity/osprey.cpp
+	entity/panthereye.cpp
+	entity/pathcorner.cpp
+	entity/pickupwalker.cpp
+	entity/plats.cpp
+	entity/player.cpp
+	entity/player_extra.cpp
+	entity/rat.cpp
+	entity/roach.cpp
+	entity/scientist.cpp
+	entity/scripted.cpp
+	entity/snapbug.cpp
+	entity/sound.cpp
+	entity/soundent.cpp
+	entity/spectator.cpp
+	entity/squadmonster.cpp
+	entity/squidspit.cpp
+	entity/stukabat.cpp
+	entity/subs.cpp
+	entity/talkmonster.cpp
+	entity/tentacle.cpp
+	entity/triggers.cpp
+	entity/turret.cpp
+	entity/world.cpp
+	entity/xen.cpp
+	entity/zombie.cpp
+	game.cpp
+	gamerules.cpp
+	gamerules_multiplay.cpp
+	gamerules_singleplay.cpp
+	gamerules_teamplay.cpp
+	globals.cpp
+	healthmodule.cpp
+	h_export.cpp
+	monstersavestate.cpp
+	monsterstate.cpp
+	plane.cpp
+	schedule.cpp
+	skill.cpp
+	util.cpp
+	util_debugdraw.cpp
+	util_model.cpp
+	weapons.cpp
+	weapon/chumtoadweapon.cpp
+	weapon/crossbow.cpp
+	weapon/crowbar.cpp
+	weapon/egon.cpp
+	weapon/gauss.cpp
+	weapon/glock.cpp
+	weapon/handgrenade.cpp
+	weapon/hornetgun.cpp
+	weapon/mp5.cpp
+	weapon/python.cpp
+	weapon/rpg.cpp
+	weapon/satchel.cpp
+	weapon/shotgun.cpp
+	weapon/squeak.cpp
+	weapon/tripmine.cpp
 )
 
-if (HAVE_STRLCPY)
-	add_definitions(-DHAVE_STRLCPY)
-else()
-	list(APPEND SVDLL_SOURCES
-		../external/openbsd/strlcpy.c)
+if (AZ_CRASH_HANDLER AND NOT WIN32)
+	list(APPEND SVDLL_SOURCES ../public/az_crash_handler.cpp)
 endif()
 
-if (HAVE_STRLCAT)
-	add_definitions(-DHAVE_STRLCAT)
-else()
-	list(APPEND SVDLL_SOURCES
-		../external/openbsd/strlcat.c)
-endif()
-
-include_directories (. wpn_shared ../common ../engine ../pm_shared ../game_shared ../public)
-
-if(MSVC)
-	set(SVDLL_SOURCES
-		${SVDLL_SOURCES}
-		hl.def)
-endif()
+include_directories (. entity weapon ../common ../engine ../pm_shared ../game_shared ../game_shared/util ../config ../utils/common ../public ..)
 
 add_library (${SVDLL_LIBRARY} SHARED ${SVDLL_SOURCES})
 target_link_libraries(${SVDLL_LIBRARY} vcs_info)
+if (NOT WIN32)
+	target_link_libraries(${SVDLL_LIBRARY} ${CMAKE_DL_LIBS})
+endif()
+if (ANDROID)
+	target_link_libraries(${SVDLL_LIBRARY} log)
+endif()
+if (NOT MSVC)
+	set_property(TARGET ${SVDLL_LIBRARY} APPEND_STRING PROPERTY LINK_FLAGS " -Wl,--allow-multiple-definition")
+endif()
 
 set_target_properties (${SVDLL_LIBRARY} PROPERTIES POSITION_INDEPENDENT_CODE 1)
+if (ANDROID)
+	set_target_properties (${SVDLL_LIBRARY} PROPERTIES
+		LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/out/${ANDROID_ABI})
+endif()
 
 if(APPLE AND NOT "${SERVER_LIBRARY_NAME_OSX}" STREQUAL "")
 	# on Apple platforms we always use gamedll_osx liblist/gameinfo key, if it's set
@@ -192,9 +223,7 @@ endif()
 
 set_target_postfix_with_name(${SVDLL_LIBRARY} ${SVDLL_NAME})
 
-if(HAVE_LTO)
-	set_property(TARGET ${SVDLL_LIBRARY} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-endif()
+# LTO desligado de proposito: o mod tem simbolos duplicados (--allow-multiple-definition) e codigo legado que o LTO pode agravar.
 
 if(XASH_PS4)
 	# signed module and names of its functions, see cmake/PS4.cmake
@@ -208,7 +237,7 @@ else()
 			WORLD_READ WORLD_EXECUTE)
 endif()
 
-if(CMAKE_BUILD_TYPE MATCHES "Release" AND NOT WIN32 AND NOT XASH_PS4)
+if(CMAKE_BUILD_TYPE MATCHES "Release" AND NOT WIN32 AND NOT XASH_PS4 AND NOT AZ_NO_STRIP)
 	if(APPLE)
 		# Apple strip treats -s as a symbol list file, -x keeps exported symbols
 		set(STRIP_FLAGS -x)

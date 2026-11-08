@@ -1,0 +1,6 @@
+/build
+/app/build
+.gradle
+local.properties
+# libs nativas: geradas pelo CI e copiadas para ca antes do build do APK
+/app/src/main/jniLibs/

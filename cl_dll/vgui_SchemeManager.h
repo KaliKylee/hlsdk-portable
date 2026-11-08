@@ -1,4 +1,4 @@
-//========= Copyright (c) 1996-2002, Valve LLC, All rights reserved. ============
+//========= Copyright © 1996-2002, Valve LLC, All rights reserved. ============
 //
 // Purpose: 
 //
@@ -7,11 +7,14 @@
 
 #include <VGUI_Font.h>
 
+
 // handle to an individual scheme
 typedef int SchemeHandle_t;
 
+
 // Register console variables, etc..
 void Scheme_Init();
+
 
 //-----------------------------------------------------------------------------
 // Purpose: Handles the loading of text scheme description from disk
@@ -43,8 +46,9 @@ private:
 	int m_iNumSchemes;
 
 	// Resolution we were initted at.
-	int		m_xRes;
+	int	m_xRes;
 
 	CScheme *getSafeScheme( SchemeHandle_t schemeHandle );
 };
+
 
