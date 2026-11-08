@@ -15,7 +15,7 @@
 #include "camera.h"
 #include "in_defs.h"
 
-#if XASH_WIN32
+#if _WIN32
 #define WIN32_LEAN_AND_MEAN		// Exclude rarely-used stuff from Windows headers
 #define WIN32_EXTRA_LEAN
 #define HSPRITE WINDOWS_HSPRITE
@@ -400,11 +400,11 @@ void DLLEXPORT CAM_Think( void )
 			pnt[i] += -dist * camForward[i];
 
 		// check line from r_refdef.vieworg to pnt
-		memset( &clip, 0, sizeof(moveclip_t) );
+/*		memset( &clip, 0, sizeof(moveclip_t) );
 		ext[0] = ext[1] = ext[2] = 0.0f;
 		clip.trace = SV_ClipMoveToEntity( sv.edicts, r_refdef.vieworg, ext, ext, pnt );
 		if( clip.trace.fraction != 1.0f )
-			return;
+*/			return;
 	}
 #endif
 	cam_ofs[0] = camAngles[0];

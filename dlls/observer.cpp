@@ -21,7 +21,6 @@
 #include	"player.h"
 #include	"weapons.h"
 #include	"pm_shared.h"
-#include	"gamerules.h"
 
 extern int gmsgCurWeapon;
 extern int gmsgSetFOV;
@@ -279,7 +278,6 @@ void CBasePlayer::StopObserver()
 	m_iHideHUD = 0;
 
 	GetClassPtr( (CBasePlayer *)pev )->Spawn();
-	g_pGameRules->SetDefaultPlayerTeam( this );
 	pev->nextthink = -1;
 
 	// Update Team Status

@@ -19,10 +19,6 @@ public:
 	virtual void IN_Commands( void ) = 0;
 	virtual void IN_Shutdown( void ) = 0;
 	virtual void IN_Init( void ) = 0;
-	virtual void IN_ResetMouse( void ) = 0;
-	virtual void Joy_AdvancedUpdate( void ) = 0;
-	virtual void IgnoreNextMouseDelta() = 0;
-	virtual void IN_SetVisibleMouse( bool visible ) = 0;
 };
 
 class FWGSInput : public AbstractInput
@@ -39,10 +35,6 @@ public:
 	virtual void IN_Commands( void );
 	virtual void IN_Shutdown( void );
 	virtual void IN_Init( void );
-	virtual void IN_ResetMouse( void ) {}
-	virtual void Joy_AdvancedUpdate( void ) {}
-	virtual void IgnoreNextMouseDelta() {}
-	virtual void IN_SetVisibleMouse( bool visible ) {}
 
 protected:
 	float ac_forwardmove;
@@ -53,10 +45,10 @@ protected:
 };
 
 // No need for goldsource input support on the platforms that are not supported by GoldSource.
-#if GOLDSOURCE_SUPPORT && ( XASH_WIN32 || ( XASH_LINUX && !XASH_ANDROID ) || XASH_APPLE ) && XASH_X86
+#if GOLDSOURCE_SUPPORT && (_WIN32 || __linux__ || __APPLE__) && (__i386 || _M_IX86)
 #define SUPPORT_GOLDSOURCE_INPUT	1
 
-#if XASH_WIN32
+#if _WIN32
 #define HSPRITE WINDOWS_HSPRITE
 #include <windows.h>
 #undef HSPRITE
@@ -84,19 +76,11 @@ public:
 	virtual void IN_Commands( void );
 	virtual void IN_Shutdown( void );
 	virtual void IN_Init( void );
-	virtual void IN_ResetMouse( void );
-	virtual void Joy_AdvancedUpdate( void );
-	virtual void IgnoreNextMouseDelta();
-	virtual void IN_SetVisibleMouse( bool visible );
 
 protected:
 	void IN_GetMouseDelta( int *pOutX, int *pOutY);
 	void IN_MouseMove ( float frametime, usercmd_t *cmd);
 	void IN_StartupMouse (void);
-	void IN_StartupJoystick (void);
-	int IN_ReadJoystick (void);
-	void IN_JoyMove ( float frametime, usercmd_t *cmd );
-	bool UseSDL2Joystick();
 
 	int         mouse_buttons;
 	int         mouse_oldbuttonstate;
@@ -104,10 +88,7 @@ protected:
 	int         old_mouse_x, old_mouse_y, mx_accum, my_accum;
 	int         mouseinitialized;
 	void* sdl2Lib;
-	bool ignoreNextDelta;
 };
 #endif
-
-AbstractInput* CurrentMouseInput();
 
 #endif

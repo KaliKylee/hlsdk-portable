@@ -203,6 +203,7 @@ void COsprey::CommandUse( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYP
 
 void COsprey::FindAllThink( void )
 {
+
 	CBaseEntity *pEntity = NULL;
 
 	m_iUnits = 0;
@@ -367,7 +368,7 @@ void COsprey::UpdateGoal()
 	}
 	else
 	{
-		ALERT( at_console, "osprey missing target\n" );
+		ALERT( at_console, "osprey missing target" );
 	}
 }
 
@@ -382,7 +383,7 @@ void COsprey::FlyThink( void )
 		UpdateGoal();
 	}
 
-	if( gpGlobals->time > m_startTime + m_dTime )
+	if (gpGlobals->time > m_startTime + m_dTime)	// globals time : tps ds le jeu ; start : tps depuis le dernier path_corner ; mdtime : tps estim
 	{
 		if( m_pGoalEnt )
 		{
@@ -393,7 +394,7 @@ void COsprey::FlyThink( void )
 
 			do{
 				m_pGoalEnt = CBaseEntity::Instance( FIND_ENTITY_BY_TARGETNAME( NULL, STRING( m_pGoalEnt->pev->target ) ) );
-			} while( m_pGoalEnt && m_pGoalEnt->pev->speed < 400 && !HasDead() );
+			} while( m_pGoalEnt && m_pGoalEnt->pev->speed < 400 && !HasDead() );while (m_pGoalEnt->pev->speed < 400 && !HasDead());		// continue si 1 des grunts est mort
 		}
 
 		UpdateGoal();
@@ -519,18 +520,12 @@ void COsprey::Killed( entvars_t *pevAttacker, int iGib )
 void COsprey::CrashTouch( CBaseEntity *pOther )
 {
 	// only crash if we hit something solid
-	switch(pOther->pev->solid)
+	if( pOther->pev->solid == SOLID_BSP )
 	{
-	case SOLID_BBOX:
-	case SOLID_SLIDEBOX:
-	case SOLID_BSP:
 		SetTouch( NULL );
 		m_startTime = gpGlobals->time;
 		pev->nextthink = gpGlobals->time;
 		m_velocity = pev->velocity;
-		break;
-	default:
-		break;
 	}
 }
 

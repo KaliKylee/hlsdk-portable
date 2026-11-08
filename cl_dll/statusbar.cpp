@@ -141,7 +141,7 @@ void CHudStatusBar::ParseStatusString( int line_num )
 							GetPlayerInfo( indexval, &g_PlayerInfoList[indexval] );
 							if( g_PlayerInfoList[indexval].name != NULL )
 							{
-								strlcpy( szRepString, g_PlayerInfoList[indexval].name, MAX_PLAYER_NAME_LENGTH );
+								strncpy( szRepString, g_PlayerInfoList[indexval].name, MAX_PLAYER_NAME_LENGTH );
 								m_pflNameColors[line_num] = GetClientColor( indexval );
 							}
 							else
@@ -231,7 +231,8 @@ int CHudStatusBar::MsgFunc_StatusText( const char *pszName, int iSize, void *pbu
 	if( line < 0 || line >= MAX_STATUSBAR_LINES )
 		return 1;
 
-	strlcpy( m_szStatusText[line], READ_STRING(), MAX_STATUSTEXT_LENGTH );
+	strncpy( m_szStatusText[line], READ_STRING(), MAX_STATUSTEXT_LENGTH );
+	m_szStatusText[line][MAX_STATUSTEXT_LENGTH - 1] = 0;  // ensure it's null terminated ( strncpy() won't null terminate if read string too long)
 
 	if( m_szStatusText[0] == 0 )
 		m_iFlags &= ~HUD_ACTIVE;

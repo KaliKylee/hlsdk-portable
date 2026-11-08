@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 # encoding: utf-8
 # a1batross, mittorn, 2018
+# Edited for HL:Invasion
 
 from waflib import Utils
 import os
@@ -9,6 +10,9 @@ def options(opt):
 	return
 
 def configure(conf):
+	if conf.env.DEST_OS == 'android':
+		conf.check_cc(lib='log')
+
 	if conf.env.COMPILER_CC == 'msvc':
 		# hl.def removes MSVC function name decoration from GiveFnptrsToDll on Windows.
 		# Without this, the lookup for this function fails.
@@ -20,16 +24,132 @@ def configure(conf):
 			conf.fatal("Could not find hl.def")
 
 def build(bld):
-	excluded_files = ['mpstubb.cpp', 'stats.cpp', 'Wxdebug.cpp']
+	# HL:Invasion uses an explicit source list (the directory has extra files
+	# that must not be built)
+	source = [
+		'aflock.cpp',
+		'agrunt.cpp',
+		'airtank.cpp',
+		'animating.cpp',
+		'animation.cpp',
+		'apache.cpp',
+		'barnacle.cpp',
+		'barney.cpp',
+		'bigmomma.cpp',
+		'bloater.cpp',
+		'bmodels.cpp',
+		'briquet.cpp',
+		'bullsquid.cpp',
+		'buttons.cpp',
+		'cbase.cpp',
+		'client.cpp',
+		'combat.cpp',
+		'controller.cpp',
+		'crowbar.cpp',
+		'defaultai.cpp',
+		'diablo.cpp',
+		'doors.cpp',
+		'effects.cpp',
+		'explode.cpp',
+		'fgrenade.cpp',
+		'flybee.cpp',
+		'flyingmonster.cpp',
+		'fog.cpp',
+		'fsniper.cpp',
+		'func_break.cpp',
+		'func_tank.cpp',
+		'func_vgui.cpp',
+		'game.cpp',
+		'gamerules.cpp',
+		'gargantua.cpp',
+		'gauss.cpp',
+		'genericmonster.cpp',
+		'ggrenade.cpp',
+		'globals.cpp',
+		'gman.cpp',
+		'h_ai.cpp',
+		'h_battery.cpp',
+		'h_cine.cpp',
+		'h_cycler.cpp',
+		'h_export.cpp',
+		'handgrenade.cpp',
+		'hassassin.cpp',
+		'headcrab.cpp',
+		'healthkit.cpp',
+		'hgrunt.cpp',
+		'glock.cpp',
+		'hornet.cpp',
+		'houndeye.cpp',
+		'ichthyosaur.cpp',
+		'irgun.cpp',
+		'islave.cpp',
+		'items.cpp',
+		'leech.cpp',
+		'lflammes.cpp',
+		'lights.cpp',
+		'luciole.cpp',
+		'm16.cpp',
+		'maprules.cpp',
+		'miroir.cpp',
+		'monstermaker.cpp',
+		'monsters.cpp',
+		'monsterstate.cpp',
+		'mortar.cpp',
+		'mp5.cpp',
+		'multiplay_gamerules.cpp',
+		'music.cpp',
+		'nihilanth.cpp',
+		'nodes.cpp',
+		'observer.cpp',
+		'inv_crash.cpp',
+		'osprey.cpp',
+		'pathcorner.cpp',
+		'plane.cpp',
+		'plats.cpp',
+		'player.cpp',
+		'../pm_shared/pm_debug.c',
+		'../pm_shared/pm_math.c',
+		'../pm_shared/pm_shared.c',
+		'python.cpp',
+		'radiomsg.cpp',
+		'rat.cpp',
+		'roach.cpp',
+		'rpg.cpp',
+		'rpggrunt.cpp',
+		'satchel.cpp',
+		'schedule.cpp',
+		'scientist.cpp',
+		'scripted.cpp',
+		'shotgun.cpp',
+		'singleplay_gamerules.cpp',
+		'skill.cpp',
+		'sniper.cpp',
+		'sound.cpp',
+		'soundent.cpp',
+		'spectator.cpp',
+		'squadmonster.cpp',
+		'squeakgrenade.cpp',
+		'subs.cpp',
+		'supergun.cpp',
+		't_sub.cpp',
+		'talkmonster.cpp',
+		'tank.cpp',
+		'teamplay_gamerules.cpp',
+		'tempmonster.cpp',
+		'tentacle.cpp',
+		'triggers.cpp',
+		'tripmine.cpp',
+		'turret.cpp',
+		'util.cpp',
+		'weapons.cpp',
+		'world.cpp',
+		'xen.cpp',
+		'zombie.cpp'
+	]
 
-	source = bld.path.ant_glob('**/*.cpp', excl=excluded_files)
-	source += bld.path.parent.ant_glob([
-					'pm_shared/*.c',
-					'public/safe_snprintf.c',
-					'game_shared/voice_gamemgr.cpp'
-					])
-
-	defines = bld.env.EXPORT_DEFINES_LIST
+	defines = list(bld.env.EXPORT_DEFINES_LIST)
+	# Invasion does not use the voice manager
+	defines += ['NO_VOICEGAMEMGR']
 	if 'HAVE_STRLCPY=1' not in defines:
 		source += bld.path.parent.ant_glob('external/openbsd/strlcpy.c')
 
@@ -44,6 +164,10 @@ def build(bld):
 		'../game_shared',
 		'../public'
 	]
+
+	libs = []
+	if bld.env.DEST_OS == 'android':
+		libs += ['LOG']
 
 	if bld.env.DEST_OS != 'dos' and not bld.env.ANDROID_APK:
 		install_path = os.path.join(bld.env.GAMEDIR, bld.env.SERVER_INSTALL_DIR)
@@ -67,7 +191,7 @@ def build(bld):
 		features = 'c cxx',
 		includes = includes,
 		defines  = defines,
-		use      = 'vcs_info',
+		use      = libs,
 		install_path = install_path,
 		idx = bld.get_taskgen_count()
 	)

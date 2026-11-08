@@ -15,13 +15,15 @@
 //
 // hud_redraw.cpp
 //
-#include <math.h>
+#include <cmath>
 
 #include "hud.h"
 #include "cl_util.h"
 //#include "triangleapi.h"
 
+#if USE_VGUI
 #include "vgui_TeamFortressViewport.h"
+#endif
 
 #define MAX_LOGO_FRAMES 56
 
@@ -41,8 +43,10 @@ extern cvar_t *sensitivity;
 // Think
 void CHud::Think( void )
 {
+#if USE_VGUI
 	m_scrinfo.iSize = sizeof(m_scrinfo);
 	GetScreenInfo(&m_scrinfo);
+#endif
 
 	int newfov;
 	HUDLIST *pList = m_pHudList;
@@ -74,7 +78,7 @@ void CHud::Think( void )
 	else
 	{
 		// set a new sensitivity that is proportional to the change from the FOV default
-		m_flMouseSensitivity = sensitivity->value * ((float)newfov / Q_max( default_fov->value, 90 )) * CVAR_GET_FLOAT("zoom_sensitivity_ratio");
+		m_flMouseSensitivity = sensitivity->value * ((float)newfov / (float)default_fov->value) * CVAR_GET_FLOAT("zoom_sensitivity_ratio");
 	}
 
 	// think about default fov
@@ -82,11 +86,6 @@ void CHud::Think( void )
 	{
 		// only let players adjust up in fov,  and only if they are not overriden by something else
 		m_iFOV = Q_max( default_fov->value, 90 );  
-	}
-
-	if( gEngfuncs.IsSpectateOnly() )
-	{
-		m_iFOV = gHUD.m_Spectator.GetFOV(); // default_fov->value;
 	}
 }
 
@@ -104,6 +103,7 @@ int CHud::Redraw( float flTime, int intermission )
 	if( m_flTimeDelta < 0 )
 		m_flTimeDelta = 0;
 
+#if USE_VGUI
 	// Bring up the scoreboard during intermission
 	if (gViewPort)
 	{
@@ -112,6 +112,7 @@ int CHud::Redraw( float flTime, int intermission )
 			// Have to do this here so the scoreboard goes away
 			m_iIntermission = intermission;
 			gViewPort->HideCommandMenu();
+			gViewPort->HideVGUIMenu();
 			gViewPort->HideScoreBoard();
 			gViewPort->UpdateSpectatorPanel();
 		}
@@ -120,14 +121,23 @@ int CHud::Redraw( float flTime, int intermission )
 			m_iIntermission = intermission;
 			gViewPort->HideCommandMenu();
 			gViewPort->HideVGUIMenu();
-			if (UseVguiScoreBoard())
-				gViewPort->ShowScoreBoard();
+#if !USE_NOVGUI_SCOREBOARD
+			gViewPort->ShowScoreBoard();
+#endif
 			gViewPort->UpdateSpectatorPanel();
 			// Take a screenshot if the client's got the cvar set
 			if( CVAR_GET_FLOAT( "hud_takesshots" ) != 0 )
 				m_flShotTime = flTime + 1.0;	// Take a screenshot in a second
 		}
 	}
+#else
+	if( !m_iIntermission && intermission )
+	{
+		// Take a screenshot if the client's got the cvar set
+		if( CVAR_GET_FLOAT( "hud_takesshots" ) != 0 )
+			m_flShotTime = flTime + 1.0f;	// Take a screenshot in a second
+	}
+#endif
 	if( m_flShotTime && m_flShotTime < flTime )
 	{
 		gEngfuncs.pfnClientCmd( "snapshot\n" );
@@ -139,8 +149,6 @@ int CHud::Redraw( float flTime, int intermission )
 	// if no redrawing is necessary
 	// return 0;
 
-	m_iHudNumbersYOffset = IsHL25() ? m_iFontHeight * 0.2 : 0;
-
 	if( m_pCvarDraw->value )
 	{
 		HUDLIST *pList = m_pHudList;
@@ -149,8 +157,10 @@ int CHud::Redraw( float flTime, int intermission )
 		{
 			if( !intermission )
 			{
-				if ( ( pList->p->m_iFlags & HUD_ACTIVE ) && !( m_iHideHUDDisplay & HIDEHUD_ALL ) )
-					pList->p->Draw( flTime );
+				//if ( ( pList->p->m_iFlags & HUD_ACTIVE ) && !( m_iHideHUDDisplay & HIDEHUD_ALL ) )
+				if (   ( (pList->p->m_iFlags & HUD_ACTIVE) && !(m_iHideHUDDisplay & HIDEHUD_ALL) ) 
+					|| ( (pList->p->m_iFlags & HUD_ACTIVE) &&  (m_iHideHUDDisplay & HIDEHUD_ALL) && pList->p->m_iFlags & HUD_ALWAYSDRAW) )	// modif de Julien
+						pList->p->Draw( flTime );
 			}
 			else
 			{
@@ -194,7 +204,9 @@ int CHud::Redraw( float flTime, int intermission )
 
 		if( m_hsprCursor == 0 )
 		{
-			m_hsprCursor = SPR_Load( "sprites/cursor.spr" );
+			char sz[256];
+			sprintf( sz, "sprites/cursor.spr" );
+			m_hsprCursor = SPR_Load( sz );
 		}
 
 		SPR_Set( m_hsprCursor, 250, 250, 250 );
@@ -244,13 +256,12 @@ int CHud::DrawHudString( int xpos, int ypos, int iMaxX, const char *szIt, int r,
 		int w = gHUD.m_scrinfo.charWidths['M'];
 		if( xpos + w  > iMaxX )
 			return xpos;
-		if( ( *szIt == '^' ) && ( *( szIt + 1 ) >= '0') && ( *( szIt + 1 ) <= '9') )
+		if( ( *szIt == '^' ) && ( *( szIt + 1 ) >= '0') && ( *( szIt + 1 ) <= '7') )
 		{
 			szIt++;
-			int index = (*szIt - '0') & 7;
-			r = colors[index][0];
-			g = colors[index][1];
-			b = colors[index][2];
+			r = colors[*szIt - '0'][0];
+			g = colors[*szIt - '0'][1];
+			b = colors[*szIt - '0'][2];
 			if( !*(++szIt) )
 				return xpos;
 		}
@@ -275,13 +286,12 @@ int DrawUtfString( int xpos, int ypos, int iMaxX, const char *szIt, int r, int g
 			int w = gHUD.m_scrinfo.charWidths['M'];
 			if( xpos + w  > iMaxX )
 				return xpos;
-			if( ( *szIt == '^' ) && ( *( szIt + 1 ) >= '0') && ( *( szIt + 1 ) <= '9') )
+			if( ( *szIt == '^' ) && ( *( szIt + 1 ) >= '0') && ( *( szIt + 1 ) <= '7') )
 			{
 				szIt++;
-				int index = (*szIt - '0') & 7;
-				r = colors[index][0];
-				g = colors[index][1];
-				b = colors[index][2];
+				r = colors[*szIt - '0'][0];
+				g = colors[*szIt - '0'][1];
+				b = colors[*szIt - '0'][2];
 				if( !*(++szIt) )
 					return xpos;
 			}

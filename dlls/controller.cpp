@@ -38,6 +38,14 @@
 
 #define CONTROLLER_FLINCH_DELAY			2		// at most one flinch every n secs
 
+
+// modif de julien
+enum 
+{
+	TASK_FLYBEE_WAIT_FOR_MOVEMENT = LAST_COMMON_TASK + 1,
+};
+
+
 class CController : public CSquadMonster
 {
 public:
@@ -481,6 +489,24 @@ Schedule_t slControllerFail[] =
 		"ControllerFail"
 	},
 };
+// modif de julien
+
+Task_t	tlControllerBurn[] =
+{
+	{ TASK_FIND_COVER_FROM_ENEMY,			(float)0		},
+	{ TASK_FLYBEE_WAIT_FOR_MOVEMENT,		(float)0		},
+};
+
+Schedule_t	slControllerBurn[] =
+{
+	{
+		tlControllerBurn,
+		ARRAYSIZE ( tlControllerBurn ),
+		0,
+		0,
+		"ControllerBurn"
+	},
+};
 
 DEFINE_CUSTOM_SCHEDULES( CController )
 {
@@ -488,6 +514,7 @@ DEFINE_CUSTOM_SCHEDULES( CController )
 	slControllerStrafe,
 	slControllerTakeCover,
 	slControllerFail,
+	slControllerBurn,	// modif de julien
 };
 
 IMPLEMENT_CUSTOM_SCHEDULES( CController, CSquadMonster )
@@ -538,6 +565,20 @@ void CController::StartTask( Task_t *pTask )
 			}
 			break;
 		}
+
+	// modif de julien
+
+	case TASK_FLYBEE_WAIT_FOR_MOVEMENT:
+		{
+			if (FRouteClear())
+			{
+				TaskComplete();
+			}
+			break;
+		}
+
+
+
 	default:
 		CSquadMonster::StartTask( pTask );
 		break;
@@ -669,11 +710,8 @@ void CController::RunTask( Task_t *pTask )
 	case TASK_WAIT:
 	case TASK_WAIT_FACE_ENEMY:
 	case TASK_WAIT_PVS:
-		if (m_hEnemy != 0)
-		{
-			MakeIdealYaw( m_vecEnemyLKP );
-			ChangeYaw( pev->yaw_speed );
-		}
+		MakeIdealYaw( m_vecEnemyLKP );
+		ChangeYaw( pev->yaw_speed );
 
 		if( m_fSequenceFinished )
 		{
@@ -710,6 +748,20 @@ void CController::RunTask( Task_t *pTask )
 			}
 		}
 		break;
+
+	// modif de julien
+
+	case TASK_FLYBEE_WAIT_FOR_MOVEMENT:
+		{
+			if (MovementIsComplete())
+			{
+				TaskComplete();
+				RouteClear();		// Stop moving
+			}
+			break;
+		}
+
+
 	default: 
 		CSquadMonster::RunTask( pTask );
 		break;
@@ -769,6 +821,10 @@ Schedule_t *CController::GetScheduleOfType( int Type )
 		return slControllerTakeCover;
 	case SCHED_FAIL:
 		return slControllerFail;
+
+	// modif de julien
+	case SCHED_BURNT:
+		return slControllerBurn;
 	}
 
 	return CBaseMonster::GetScheduleOfType( Type );
@@ -1200,7 +1256,7 @@ void CControllerHeadBall::HuntThink( void )
 		if( pEntity != NULL && pEntity->pev->takedamage )
 		{
 			ClearMultiDamage();
-			pEntity->TraceAttack( m_hOwner->pev, gSkillData.controllerDmgZap, pev->velocity.Normalize(), &tr, DMG_SHOCK );
+			pEntity->TraceAttack( m_hOwner->pev, gSkillData.controllerDmgZap, pev->velocity, &tr, DMG_SHOCK );
 			ApplyMultiDamage( pev, m_hOwner->pev );
 		}
 

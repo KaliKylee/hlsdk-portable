@@ -27,7 +27,9 @@
 #include <stdio.h>
 
 #include "ammohistory.h"
+#if USE_VGUI
 #include "vgui_TeamFortressViewport.h"
+#endif
 
 WEAPON *gpActiveSel;	// NULL means off, 1 means just the menu bar, otherwise
 						// this points to the active weapon menu item
@@ -73,7 +75,10 @@ void WeaponsResource::LoadWeaponSprites( WEAPON *pWeapon )
 {
 	int i, iRes;
 
-	iRes = GetSpriteRes( ScreenWidth, ScreenHeight );
+	if( ScreenWidth < 640 )
+		iRes = 320;
+	else
+		iRes = 640;
 
 	char sz[256];
 
@@ -318,24 +323,21 @@ int CHudAmmo::VidInit( void )
 	giBucketWidth = gHUD.GetSpriteRect( m_HUD_bucket0 ).right - gHUD.GetSpriteRect( m_HUD_bucket0 ).left;
 	giBucketHeight = gHUD.GetSpriteRect( m_HUD_bucket0 ).bottom - gHUD.GetSpriteRect( m_HUD_bucket0 ).top;
 
-	gHR.iHistoryGap = gHUD.GetSpriteRect( m_HUD_bucket0 ).bottom - gHUD.GetSpriteRect( m_HUD_bucket0 ).top;
+	gHR.iHistoryGap = Q_max( gHR.iHistoryGap, gHUD.GetSpriteRect( m_HUD_bucket0 ).bottom - gHUD.GetSpriteRect( m_HUD_bucket0 ).top );
 
 	// If we've already loaded weapons, let's get new sprites
 	gWR.LoadAllWeaponSprites();
 
-	const int res = GetSpriteRes( ScreenWidth, ScreenHeight );
-	int factor;
-	if( res >= 2560 )
-		factor = 4;
-	else if( res >= 1280 )
-		factor = 3;
-	else if( res >= 640 )
-		factor = 2;
+	if( ScreenWidth >= 640 )
+	{
+		giABWidth = 20;
+		giABHeight = 4;
+	}
 	else
-		factor = 1;
-
-	giABWidth = 10 * factor;
-	giABHeight = 2 * factor;
+	{
+		giABWidth = 10;
+		giABHeight = 2;
+	}
 
 	return 1;
 }
@@ -553,6 +555,8 @@ int CHudAmmo::MsgFunc_HideWeapon( const char *pszName, int iSize, void *pbuf )
 	return 1;
 }
 
+
+
 // 
 //  CurWeapon: Update hud state with the current weapon and clip count. Ammo
 //  counts are updated with AmmoX. Server assures that the Weapon ammo type 
@@ -612,7 +616,7 @@ int CHudAmmo::MsgFunc_CurWeapon( const char *pszName, int iSize, void *pbuf )
 
 	if( !( gHUD.m_iHideHUDDisplay & ( HIDEHUD_WEAPONS | HIDEHUD_ALL ) ) )
 	{
-		if( !gHUD.m_inScope )
+		if( gHUD.m_iFOV >= 90 )
 		{
 			// normal crosshairs
 			if( fOnTarget && m_pWeapon->hAutoaim )
@@ -645,8 +649,7 @@ int CHudAmmo::MsgFunc_WeaponList( const char *pszName, int iSize, void *pbuf )
 	
 	WEAPON Weapon;
 
-	strlcpy( Weapon.szName, READ_STRING(), sizeof( Weapon.szName ));
-
+	strcpy( Weapon.szName, READ_STRING() );
 	Weapon.iAmmoType = (int)READ_CHAR();	
 	
 	Weapon.iMax1 = READ_BYTE();
@@ -664,21 +667,6 @@ int CHudAmmo::MsgFunc_WeaponList( const char *pszName, int iSize, void *pbuf )
 	Weapon.iFlags = READ_BYTE();
 	Weapon.iClip = 0;
 
-	if( Weapon.iId < 0 || Weapon.iId >= MAX_WEAPONS )
-		return 0;
-	if( Weapon.iSlot < 0 || Weapon.iSlot >= MAX_WEAPON_SLOTS + 1 )
-		return 0;
-	if( Weapon.iSlotPos < 0 || Weapon.iSlotPos >= MAX_WEAPON_POSITIONS + 1 )
-		return 0;
-	if( Weapon.iAmmoType < -1 || Weapon.iAmmoType >= MAX_AMMO_TYPES )
-		return 0;
-	if( Weapon.iAmmo2Type < -1 || Weapon.iAmmo2Type >= MAX_AMMO_TYPES )
-		return 0;
-	/*if( Weapon.iAmmoType >= 0 && Weapon.iMax1 == 0 )
-		return 0;
-	if( Weapon.iAmmo2Type >= 0 && Weapon.iMax2 == 0 )
-		return 0;*/
-
 	gWR.AddWeapon( &Weapon );
 
 	return 1;
@@ -690,9 +678,11 @@ int CHudAmmo::MsgFunc_WeaponList( const char *pszName, int iSize, void *pbuf )
 // Slot button pressed
 void CHudAmmo::SlotInput( int iSlot )
 {
+#if USE_VGUI
 	// Let the Viewport use it first, for menus
 	if( gViewPort && gViewPort->SlotInput( iSlot ) )
 		return;
+#endif
 	gWR.SelectSlot(iSlot, FALSE, 1);
 }
 
@@ -888,7 +878,6 @@ int CHudAmmo::Draw( float flTime )
 
 	// Does this weapon have a clip?
 	y = ScreenHeight - gHUD.m_iFontHeight - gHUD.m_iFontHeight / 2;
-	y += gHUD.m_iHudNumbersYOffset; // a1ba: fix HL25 HUD vertical inconsistensy
 
 	// Does weapon have any ammo at all?
 	if( m_pWeapon->iAmmoType > 0 )
@@ -953,6 +942,7 @@ int CHudAmmo::Draw( float flTime )
 			SPR_DrawAdditive(0, x, y - iOffset, &m_pWeapon->rcAmmo2 );
 		}
 	}
+
 	return 1;
 }
 
@@ -1031,8 +1021,13 @@ int CHudAmmo::DrawWList( float flTime )
 	else 
 		iActiveSlot = gpActiveSel->iSlot;
 
-	x = 10; //!!!
-	y = 10; //!!!
+//	x = 10; //!!!
+//	y = 10; //!!!
+
+	//modif de Julien
+
+	x = ScreenWidth - 5 * (giBucketWidth + 5);	// haut-gauche du weaponmenu
+	y = 10;
 
 	// Ensure that there are available choices in the active slot
 	if( iActiveSlot > 0 )
@@ -1060,7 +1055,7 @@ int CHudAmmo::DrawWList( float flTime )
 		SPR_Set( gHUD.GetSprite( m_HUD_bucket0 + i ), r, g, b );
 
 		// make active slot wide enough to accomodate gun pictures
-		if( i == iActiveSlot )
+/*		if( i == iActiveSlot )
 		{
 			WEAPON *p = gWR.GetFirstPos( iActiveSlot );
 			if( p )
@@ -1071,18 +1066,46 @@ int CHudAmmo::DrawWList( float flTime )
 		else
 			iWidth = giBucketWidth;
 
-		SPR_DrawAdditive( 0, x, y, &gHUD.GetSpriteRect( m_HUD_bucket0 + i ) );
-		
-		x += iWidth + 5;
+  		SPR_DrawAdditive(0, x, y, &gHUD.GetSpriteRect(m_HUD_bucket0 + i));
+*/
+
+		//-----------------------
+		// modif de Julien
+
+		iWidth = giBucketWidth;
+
+		if ( i == iActiveSlot )
+		{
+			SPR_Set(gHUD.GetSprite(m_HUD_bucket0 + i + 5), r, g, b );
+			SPR_DrawAdditive (
+				0, ScreenWidth - 5 * (giBucketWidth + 5), 10,
+				&gHUD.GetSpriteRect(m_HUD_bucket0 + i + 5)
+				);
+		}
+		else
+		{
+			SPR_DrawAdditive(0, x, y, &gHUD.GetSpriteRect(m_HUD_bucket0 + i));
+		}
+
+		//-----------------
+
+			
+		x += iWidth + 4;
 	}
 
 	a = 128; //!!!
-	x = 10;
+//	x = 10;
+
+	// modif de Julien
+	x = ScreenWidth - 5 * (giBucketWidth + 5);	// haut-gauche du weaponmenu
 
 	// Draw all of the buckets
 	for( i = 0; i < MAX_WEAPON_SLOTS; i++ )
 	{
-		y = giBucketHeight + 10;
+		//y = giBucketHeight + 10;
+
+		//modif de Julien
+		y = gHUD.GetSpriteRect(m_HUD_bucket0 + i + 5).bottom - gHUD.GetSpriteRect(m_HUD_bucket0 + i + 5).top + 10 + 5;
 
 		// If this is the active slot, draw the bigger pictures,
 		// otherwise just draw boxes
@@ -1134,7 +1157,7 @@ int CHudAmmo::DrawWList( float flTime )
 
 			x += iWidth + 5;
 		}
-		else
+	/*	else
 		{
 			// Draw Row of weapons.
 			UnpackRGB( r, g, b, RGB_YELLOWISH );
@@ -1164,6 +1187,7 @@ int CHudAmmo::DrawWList( float flTime )
 
 			x += giBucketWidth + 5;
 		}
+		*/
 	}
 
 	return 1;
@@ -1187,7 +1211,7 @@ client_sprite_t *GetSpriteList( client_sprite_t *pList, const char *psz, int iRe
 
 	while( i-- )
 	{
-		if( p->iRes == iRes && !strcmp( psz, p->szName ))
+		if( ( !strcmp( psz, p->szName ) ) && ( p->iRes == iRes ) )
 			return p;
 		p++;
 	}

@@ -233,6 +233,10 @@ ScorePanel::ScorePanel( int x, int y, int wide, int tall ) : Panel( x, y, wide, 
 void ScorePanel::Initialize( void )
 {
 	// Clear out scoreboard data
+	m_iLastKilledBy = 0;
+	m_fLastKillTime = 0;
+	m_iPlayerNum = 0;
+	m_iNumTeams = 0;
 	memset( g_PlayerExtraInfo, 0, sizeof g_PlayerExtraInfo );
 	memset( g_TeamInfo, 0, sizeof g_TeamInfo );
 }
@@ -252,11 +256,14 @@ void ScorePanel::Update()
 	// Set the title
 	if( gViewPort->m_szServerName[0] != '\0' )
 	{
-		m_TitleLabel.setText( gViewPort->m_szServerName );
+		char sz[MAX_SERVERNAME_LENGTH + 16];
+
+		sprintf( sz, "%s", gViewPort->m_szServerName );
+		m_TitleLabel.setText( sz );
 	}
 
 	m_iRows = 0;
-	gHUD.GetAllPlayersInfo();
+	gViewPort->GetAllPlayersInfo();
 
 	// Clear out sorts
 	for (i = 0; i < NUM_ROWS; i++)
@@ -295,12 +302,85 @@ void ScorePanel::Update()
 //-----------------------------------------------------------------------------
 void ScorePanel::SortTeams()
 {
-	gHUD.m_Scoreboard.UpdateTeams();
+	// clear out team scores
+	int i;
+	for ( i = 1; i <= m_iNumTeams; i++ )
+	{
+		if( !g_TeamInfo[i].scores_overriden )
+			g_TeamInfo[i].frags = g_TeamInfo[i].deaths = 0;
+		g_TeamInfo[i].ping = g_TeamInfo[i].packetloss = 0;
+	}
+
+	// recalc the team scores, then draw them
+	for( i = 1; i < MAX_PLAYERS; i++ )
+	{
+		if( g_PlayerInfoList[i].name == 0 )
+			continue; // empty player slot, skip
+
+		if( g_PlayerExtraInfo[i].teamname[0] == 0 )
+			continue; // skip over players who are not in a team
+
+		// find what team this player is in
+		int j;
+		for ( j = 1; j <= m_iNumTeams; j++ )
+		{
+			if( !stricmp( g_PlayerExtraInfo[i].teamname, g_TeamInfo[j].name ) )
+				break;
+		}
+		if( j > m_iNumTeams )  // player is not in a team, skip to the next guy
+			continue;
+
+		if( !g_TeamInfo[j].scores_overriden )
+		{
+			g_TeamInfo[j].frags += g_PlayerExtraInfo[i].frags;
+			g_TeamInfo[j].deaths += g_PlayerExtraInfo[i].deaths;
+		}
+
+		g_TeamInfo[j].ping += g_PlayerInfoList[i].ping;
+		g_TeamInfo[j].packetloss += g_PlayerInfoList[i].packetloss;
+
+		if( g_PlayerInfoList[i].thisplayer )
+			g_TeamInfo[j].ownteam = TRUE;
+		else
+			g_TeamInfo[j].ownteam = FALSE;
+
+		// Set the team's number (used for team colors)
+		g_TeamInfo[j].teamnumber = g_PlayerExtraInfo[i].teamnumber;
+	}
+
+	// find team ping/packetloss averages
+	for( i = 1; i <= m_iNumTeams; i++ )
+	{
+		g_TeamInfo[i].already_drawn = FALSE;
+
+		if( g_TeamInfo[i].players > 0 )
+		{
+			g_TeamInfo[i].ping /= g_TeamInfo[i].players;  // use the average ping of all the players in the team as the teams ping
+			g_TeamInfo[i].packetloss /= g_TeamInfo[i].players;  // use the average ping of all the players in the team as the teams ping
+		}
+	}
 
 	// Draw the teams
 	while( 1 )
 	{
-		int best_team = gHUD.m_Scoreboard.BestTeam();
+		int highest_frags = -99999; int lowest_deaths = 99999;
+		int best_team = 0;
+
+		for( i = 1; i <= m_iNumTeams; i++ )
+		{
+			if( g_TeamInfo[i].players < 1 )
+				continue;
+
+			if( !g_TeamInfo[i].already_drawn && g_TeamInfo[i].frags >= highest_frags )
+			{
+				if( g_TeamInfo[i].frags > highest_frags || g_TeamInfo[i].deaths < lowest_deaths )
+				{
+					best_team = i;
+					lowest_deaths = g_TeamInfo[i].deaths;
+					highest_frags = g_TeamInfo[i].frags;
+				}
+			}
+		}
 
 		// draw the best team on the scoreboard
 		if( !best_team )
@@ -377,6 +457,69 @@ void ScorePanel::SortPlayers( int iTeam, char *team )
 		m_iIsATeam[m_iRows++] = TEAM_BLANK;
 	}
 }
+
+//-----------------------------------------------------------------------------
+// Purpose: Recalculate the existing teams in the match
+//-----------------------------------------------------------------------------
+void ScorePanel::RebuildTeams()
+{
+	// clear out player counts from teams
+	int i;
+	for ( i = 1; i <= m_iNumTeams; i++ )
+	{
+		g_TeamInfo[i].players = 0;
+	}
+
+	// rebuild the team list
+	gViewPort->GetAllPlayersInfo();
+	m_iNumTeams = 0;
+	for ( i = 1; i < MAX_PLAYERS; i++ )
+	{
+		if ( g_PlayerInfoList[i].name == NULL )
+			continue;
+
+		if ( g_PlayerExtraInfo[i].teamname[0] == 0 )
+			continue; // skip over players who are not in a team
+
+		// is this player in an existing team?
+		int j;
+		for ( j = 1; j <= m_iNumTeams; j++ )
+		{
+			if ( g_TeamInfo[j].name[0] == '\0' )
+				break;
+
+			if ( !stricmp( g_PlayerExtraInfo[i].teamname, g_TeamInfo[j].name ) )
+				break;
+		}
+
+		if ( j > m_iNumTeams )
+		{ // they aren't in a listed team, so make a new one
+			// search through for an empty team slot
+			for ( j = 1; j <= m_iNumTeams; j++ )
+			{
+				if ( g_TeamInfo[j].name[0] == '\0' )
+					break;
+			}
+			m_iNumTeams = Q_max( j, m_iNumTeams );
+
+			strncpy( g_TeamInfo[j].name, g_PlayerExtraInfo[i].teamname, MAX_TEAM_NAME );
+			g_TeamInfo[j].players = 0;
+		}
+
+		g_TeamInfo[j].players++;
+	}
+
+	// clear out any empty teams
+	for ( i = 1; i <= m_iNumTeams; i++ )
+	{
+		if ( g_TeamInfo[i].players < 1 )
+			memset( &g_TeamInfo[i], 0, sizeof(team_info_t) );
+	}
+
+	// Update the scoreboard
+	Update();
+}
+
 
 void ScorePanel::FillGrid()
 {
@@ -519,10 +662,10 @@ void ScorePanel::FillGrid()
 										iTeamColors[ g_PlayerExtraInfo[ m_iSortedRows[row] ].teamnumber % iNumberOfTeamColors ][2],
 										196 );
 				}
-				else if ( m_iSortedRows[row] == gHUD.m_Scoreboard.m_iLastKilledBy && gHUD.m_Scoreboard.m_fLastKillTime && gHUD.m_Scoreboard.m_fLastKillTime > gHUD.m_flTime )
+				else if ( m_iSortedRows[row] == m_iLastKilledBy && m_fLastKillTime && m_fLastKillTime > gHUD.m_flTime )
 				{
 					// Killer's name
-					pLabel->setBgColor( 255,0,0, 255 - ((float)15 * (float)(gHUD.m_Scoreboard.m_fLastKillTime - gHUD.m_flTime)) );
+					pLabel->setBgColor( 255,0,0, 255 - ((float)15 * (float)(m_fLastKillTime - gHUD.m_flTime)) );
 				}
 			}				
 
@@ -541,7 +684,7 @@ void ScorePanel::FillGrid()
 			}
 
 			// Fill out with the correct data
-			sz[0] = '\0';
+			strcpy(sz, "");
 			if ( m_iIsATeam[row] )
 			{
 				char sz2[128];
@@ -551,11 +694,11 @@ void ScorePanel::FillGrid()
 				case COLUMN_NAME:
 					if ( m_iIsATeam[row] == TEAM_SPECTATORS )
 					{
-						strcpy( sz2, CHudTextMessage::BufferedLocaliseTextString( "#Spectators" ) );
+						sprintf( sz2, "%s", CHudTextMessage::BufferedLocaliseTextString( "#Spectators" ) );
 					}
 					else
 					{
-						strcpy( sz2, gViewPort->GetTeamName(team_info->teamnumber) );
+						sprintf( sz2, "%s", gViewPort->GetTeamName(team_info->teamnumber) );
 					}
 
 					strcpy(sz, sz2);
@@ -633,6 +776,11 @@ void ScorePanel::FillGrid()
 					// Don't show classes if this client hasnt picked a team yet
 					if ( g_iTeamNumber == 0 )
 						bShowClass = false;
+#ifdef _TFC
+					// in TFC show all classes in spectator mode
+					if ( g_iUser1 )
+						bShowClass = true;
+#endif
 
 					if (bShowClass)
 					{
@@ -647,7 +795,7 @@ void ScorePanel::FillGrid()
 						if (bNoClass)
 							sz[0] = '\0';
 						else
-							strcpy( sz, CHudTextMessage::BufferedLocaliseTextString( sLocalisedClasses[ g_PlayerExtraInfo[ m_iSortedRows[row] ].playerclass ] ) );
+							sprintf( sz, "%s", CHudTextMessage::BufferedLocaliseTextString( sLocalisedClasses[ g_PlayerExtraInfo[ m_iSortedRows[row] ].playerclass ] ) );
 					}
 					else
 					{
@@ -671,6 +819,21 @@ void ScorePanel::FillGrid()
 					}
 					*/
 					break;
+
+#ifdef _TFC
+				case COLUMN_KILLS:
+					if (g_PlayerExtraInfo[ m_iSortedRows[row] ].teamnumber)
+					sprintf(sz, "%d",  g_PlayerExtraInfo[ m_iSortedRows[row] ].frags );
+					break;
+				case COLUMN_DEATHS:
+					if (g_PlayerExtraInfo[ m_iSortedRows[row] ].teamnumber)
+					sprintf(sz, "%d",  g_PlayerExtraInfo[ m_iSortedRows[row] ].deaths );
+					break;
+				case COLUMN_LATENCY:
+					if (g_PlayerExtraInfo[ m_iSortedRows[row] ].teamnumber)
+					sprintf(sz, "%d", g_PlayerInfoList[ m_iSortedRows[row] ].ping );
+					break;
+#else
 				case COLUMN_KILLS:
 					sprintf(sz, "%d",  g_PlayerExtraInfo[ m_iSortedRows[row] ].frags );
 					break;
@@ -680,6 +843,7 @@ void ScorePanel::FillGrid()
 				case COLUMN_LATENCY:
 					sprintf(sz, "%d", g_PlayerInfoList[ m_iSortedRows[row] ].ping );
 					break;
+#endif
 				default:
 					break;
 				}
@@ -703,9 +867,27 @@ void ScorePanel::FillGrid()
 	m_PlayerList.setSize(x, y);
 }
 
+
+//-----------------------------------------------------------------------------
+// Purpose: Setup highlights for player names in scoreboard
+//-----------------------------------------------------------------------------
+void ScorePanel::DeathMsg( int killer, int victim )
+{
+	// if we were the one killed,  or the world killed us, set the scoreboard to indicate suicide
+	if ( victim == m_iPlayerNum || killer == 0 )
+	{
+		m_iLastKilledBy = killer ? killer : m_iPlayerNum;
+		m_fLastKillTime = gHUD.m_flTime + 10;	// display who we were killed by for 10 seconds
+
+		if ( killer == m_iPlayerNum )
+			m_iLastKilledBy = m_iPlayerNum;
+	}
+}
+
+
 void ScorePanel::Open( void )
 {
-	gHUD.m_Scoreboard.RebuildTeams();
+	RebuildTeams();
 	setVisible(true);
 	m_HitTestPanel.setVisible(true);
 }
@@ -733,30 +915,32 @@ void ScorePanel::mousePressed(MouseCode code, Panel* panel)
 			if (pl_info && pl_info->name && pl_info->name[0])
 			{
 				char string[256];
-				char string1[1024];
-				int len;
 				if (GetClientVoiceMgr()->IsPlayerBlocked(iPlayer))
 				{
-					// remove mute
-					GetClientVoiceMgr()->SetPlayerBlockedState( iPlayer, false );
+					char string1[1024];
 
-					safe_snprintf( string1, sizeof( string1 ), CHudTextMessage::BufferedLocaliseTextString( "#Unmuted" ), pl_info->name );
-					len = safe_snprintf( string, sizeof( string ), "%c** %s\n", HUD_PRINTTALK, string1 );
+					// remove mute
+					GetClientVoiceMgr()->SetPlayerBlockedState(iPlayer, false);
+
+					sprintf( string1, CHudTextMessage::BufferedLocaliseTextString( "#Unmuted" ), pl_info->name );
+					sprintf( string, "%c** %s\n", HUD_PRINTTALK, string1 );
+
+					gHUD.m_TextMessage.MsgFunc_TextMsg(NULL, strlen(string)+1, string );
 				}
 				else
 				{
-					// mute the player
-					GetClientVoiceMgr()->SetPlayerBlockedState( iPlayer, true );
+					char string1[1024];
+					char string2[1024];
 
-					safe_snprintf( string1, sizeof( string1 ), CHudTextMessage::BufferedLocaliseTextString( "#Muted" ), pl_info->name );
-					len = safe_snprintf( string, sizeof( string ), "%c** %s %s\n", HUD_PRINTTALK, string1, CHudTextMessage::BufferedLocaliseTextString( "#No_longer_hear_that_player" ) );
+					// mute the player
+					GetClientVoiceMgr()->SetPlayerBlockedState(iPlayer, true);
+
+					sprintf( string1, CHudTextMessage::BufferedLocaliseTextString( "#Muted" ), pl_info->name );
+					sprintf( string2, "%s", CHudTextMessage::BufferedLocaliseTextString( "#No_longer_hear_that_player" ) );
+					sprintf( string, "%c** %s %s\n", HUD_PRINTTALK, string1, string2 );
+
+					gHUD.m_TextMessage.MsgFunc_TextMsg(NULL, strlen(string)+1, string );
 				}
-				if( len < 0 )
-				{
-					len = sizeof( string ) - 1;
-					strcpy( &string[sizeof( string ) - 2], "\n" );
-				}
-				gHUD.m_TextMessage.MsgFunc_TextMsg(NULL, len + 1, string );
 			}
 		}
 	}

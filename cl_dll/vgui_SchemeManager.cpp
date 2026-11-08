@@ -205,7 +205,8 @@ CSchemeManager::CSchemeManager( int xRes, int yRes )
 		static const int tokenSize = 64;
 		char paramName[tokenSize], paramValue[tokenSize];
 
-		strlcpy( paramName, token, tokenSize );
+		strncpy( paramName, token, tokenSize );
+		paramName[tokenSize-1] = 0; // ensure null termination
 
 		// get the '=' character
 		pFile = gEngfuncs.COM_ParseFile( pFile, token );
@@ -224,7 +225,8 @@ CSchemeManager::CSchemeManager( int xRes, int yRes )
 
 		// get paramValue
 		pFile = gEngfuncs.COM_ParseFile( pFile, token );
-		strlcpy( paramValue, token, tokenSize );
+		strncpy( paramValue, token, tokenSize );
+		paramValue[tokenSize-1] = 0; // ensure null termination
 		
 		// is this a new scheme?
 		if ( !stricmp(paramName, "SchemeName") )
@@ -276,7 +278,8 @@ CSchemeManager::CSchemeManager( int xRes, int yRes )
 			pScheme = &tmpSchemes[currentScheme];
 			hasFgColor = hasBgColor = hasArmedFgColor = hasArmedBgColor = hasMouseDownFgColor = hasMouseDownBgColor = false;
 
-			strlcpy( pScheme->schemeName, paramValue, CScheme::SCHEME_NAME_LENGTH );
+			strncpy( pScheme->schemeName, paramValue, CScheme::SCHEME_NAME_LENGTH );
+			pScheme->schemeName[CScheme::SCHEME_NAME_LENGTH-1] = '\0'; // ensure null termination of string
 		}
 
 		if ( !pScheme )
@@ -288,7 +291,8 @@ CSchemeManager::CSchemeManager( int xRes, int yRes )
 		// pull the data out into the scheme
 		if ( !stricmp(paramName, "FontName") )
 		{
-			strlcpy( pScheme->fontName, paramValue, CScheme::FONT_NAME_LENGTH );
+			strncpy( pScheme->fontName, paramValue, CScheme::FONT_NAME_LENGTH );
+			pScheme->fontName[CScheme::FONT_NAME_LENGTH-1] = 0;
 		}
 		else if ( !stricmp(paramName, "FontSize") )
 		{
@@ -389,9 +393,14 @@ buildDefaultFont:
 			fontFileLength = -1;
 			pFontData = NULL;
 
-			if(g_CV_BitmapFonts && g_CV_BitmapFonts->value)
+			// FreeVGUI has no system font backend (Android), so bitmap fonts are the only
+			// real fonts available: always try them, whatever the 'bitmapfonts' cvar says.
+			// Without this FreeVGUI falls back to its debug font (boxes with hex codes).
+			if( true )
 			{
-				int fontRes = 640;
+				int fontRes = 5;
+				bool bFontFailed = false;
+				/*int fontRes = 640;
 				if ( m_xRes >= 1600 )
 					fontRes = 1600;
 				else if ( m_xRes >= 1280 )
@@ -401,12 +410,36 @@ buildDefaultFont:
 				else if ( m_xRes >= 1024 )
 					fontRes = 1024;
 				else if ( m_xRes >= 800 )
-					fontRes = 800;
+					fontRes = 800;*/
 
-				sprintf(fontFilename, "gfx\\vgui\\fonts\\%d_%s.tga", fontRes, m_pSchemeList[i].schemeName);
+				int screenRes[6] = { 1600, 1280, 1152, 1024, 800, 640 };
+				for(int j = 5; j >= 0; j--){
+					if(m_xRes >= screenRes[j]) fontRes = j;
+				}
+
+				//sprintf(fontFilename, "gfx\\vgui\\fonts\\%d_%s.tga", fontRes, m_pSchemeList[i].schemeName);
+				/*sprintf(fontFilename, "gfx/vgui/fonts/%d_%s.tga", fontRes, m_pSchemeList[i].schemeName);
 				pFontData = gEngfuncs.COM_LoadFile( fontFilename, 5, &fontFileLength );
 				if(!pFontData)
-					gEngfuncs.Con_Printf("Missing bitmap font: %s\n", fontFilename);
+					gEngfuncs.Con_Printf("Missing bitmap font: %s\n", fontFilename);*/
+
+				for(int j = fontRes; j < 6; j++){
+					sprintf(fontFilename, "gfx/vgui/fonts/%d_%s.tga", screenRes[j], m_pSchemeList[i].schemeName);
+					if(bFontFailed) gEngfuncs.Con_Printf("Trying bitmap font instead: %s\n", fontFilename);
+					pFontData = gEngfuncs.COM_LoadFile( fontFilename, 5, &fontFileLength );
+					if(pFontData){
+						break;
+					}else{
+						sprintf(fontFilename, "gfx/VGUI/fonts/%d_%s.tga", screenRes[j], m_pSchemeList[i].schemeName); //Try all-capitals.
+						pFontData = gEngfuncs.COM_LoadFile( fontFilename, 5, &fontFileLength );
+						if(pFontData)
+							break;
+						else{
+							gEngfuncs.Con_Printf("Missing bitmap font: %s (scheme '%s')\n", fontFilename, m_pSchemeList[i].schemeName);
+							bFontFailed = true;
+						}
+					}
+				}
 			}
 
 			m_pSchemeList[i].font = new vgui::Font(

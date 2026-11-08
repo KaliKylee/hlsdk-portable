@@ -22,6 +22,8 @@
 #include "player.h"
 #include "gamerules.h"
 
+extern void ClientDecal ( TraceResult *pTrace, Vector vecSrc, Vector vecEnd, int crowbar = 0 );
+
 #define	CROWBAR_BODYHIT_VOLUME 128
 #define	CROWBAR_WALLHIT_VOLUME 512
 
@@ -29,7 +31,7 @@ LINK_ENTITY_TO_CLASS( weapon_crowbar, CCrowbar )
 
 enum crowbar_e
 {
-	CROWBAR_IDLE = 0,
+/*	CROWBAR_IDLE = 0,
 	CROWBAR_DRAW,
 	CROWBAR_HOLSTER,
 	CROWBAR_ATTACK1HIT,
@@ -44,6 +46,13 @@ enum crowbar_e
 	CROWBAR_IDLE2,
 	CROWBAR_IDLE3
 #endif
+*/
+	CROWBAR_IDLE = 0, //modif de Julien : nouveau crowbar
+	CROWBAR_DRAW,
+	CROWBAR_ATTACK1HIT,
+	CROWBAR_ATTACK1MISS,
+	CROWBAR_ATTACK2HIT,
+	CROWBAR_ATTACK2MISS,
 };
 
 void CCrowbar::Spawn()
@@ -68,7 +77,7 @@ void CCrowbar::Precache( void )
 	PRECACHE_SOUND( "weapons/cbar_hitbod3.wav" );
 	PRECACHE_SOUND( "weapons/cbar_miss1.wav" );
 
-	m_usCrowbar = PRECACHE_EVENT( 1, "events/crowbar.sc" );
+	//m_usCrowbar = PRECACHE_EVENT( 1, "events/crowbar.sc" );
 }
 
 int CCrowbar::GetItemInfo( ItemInfo *p )
@@ -86,13 +95,17 @@ int CCrowbar::GetItemInfo( ItemInfo *p )
 	return 1;
 }
 
+// modif de julien
 int CCrowbar::AddToPlayer( CBasePlayer *pPlayer )
 {
-	if( CBasePlayerWeapon::AddToPlayer( pPlayer ) )
+	if ( CBasePlayerWeapon::AddToPlayer( pPlayer ) )
 	{
 		MESSAGE_BEGIN( MSG_ONE, gmsgWeapPickup, NULL, pPlayer->pev );
 			WRITE_BYTE( m_iId );
 		MESSAGE_END();
+
+		m_pPlayer->TextAmmo( TA_CROWBAR );
+
 		return TRUE;
 	}
 	return FALSE;
@@ -106,7 +119,7 @@ BOOL CCrowbar::Deploy()
 void CCrowbar::Holster( int skiplocal /* = 0 */ )
 {
 	m_pPlayer->m_flNextAttack = UTIL_WeaponTimeBase() + 0.5f;
-	SendWeaponAnim( CROWBAR_HOLSTER );
+	//SendWeaponAnim( CROWBAR_HOLSTER ); //modif de Roy
 }
 
 void FindHullIntersection( const Vector &vecSrc, TraceResult &tr, float *mins, float *maxs, edict_t *pEntity )
@@ -166,12 +179,29 @@ void CCrowbar::PrimaryAttack()
 
 void CCrowbar::Smack()
 {
-	DecalGunshot( &m_trHit, BULLET_PLAYER_CROWBAR );
+	//DecalGunshot( &m_trHit, BULLET_PLAYER_CROWBAR ); //modif de Roy, add Julien's decal model
+	ClientDecal ( &m_trHit, m_vecDecalSrc, m_vecDecalEnd, 1+ (m_iSwing+1) % 2 );
 }
 
 void CCrowbar::SwingAgain( void )
 {
 	Swing( 0 );
+}
+
+void CCrowbar::SendWeaponAnim( int iAnim, int skiplocal, int body ) //Fix???
+{
+	skiplocal = 0;
+
+	m_pPlayer->pev->weaponanim = iAnim;
+
+#if CLIENT_WEAPONS
+	if( skiplocal && ENGINE_CANSKIP( m_pPlayer->edict() ) )
+		return;
+#endif
+	MESSAGE_BEGIN( MSG_ONE, SVC_WEAPONANIM, NULL, m_pPlayer->pev );
+		WRITE_BYTE( iAnim );		// sequence number
+		WRITE_BYTE( pev->body );	// weaponmodel bodygroup.
+	MESSAGE_END();
 }
 
 int CCrowbar::Swing( int fFirst )
@@ -203,9 +233,9 @@ int CCrowbar::Swing( int fFirst )
 #endif
 	if( fFirst )
 	{
-		PLAYBACK_EVENT_FULL( FEV_NOTHOST, m_pPlayer->edict(), m_usCrowbar, 
+		/*PLAYBACK_EVENT_FULL( FEV_NOTHOST, m_pPlayer->edict(), m_usCrowbar, 
 		0.0f, g_vecZero, g_vecZero, 0, 0, 0,
-		0, 0, 0 );
+		0, 0, 0 );*/ //Removed as suggested by nekonomicon, edit de Roy
 	}
 
 	if( tr.flFraction >= 1.0f )
@@ -213,7 +243,19 @@ int CCrowbar::Swing( int fFirst )
 		if( fFirst )
 		{
 			// miss
+			switch( (m_iSwing++) % 2/*3*/ )
+			{
+			case 0:
+				SendWeaponAnim( CROWBAR_ATTACK1MISS ); break;
+			case 1:
+				SendWeaponAnim( CROWBAR_ATTACK2MISS ); break;
+/*			case 2:
+				SendWeaponAnim( CROWBAR_ATTACK3MISS ); break;
+*/			}
+			// miss
 			m_flNextPrimaryAttack = GetNextAttackDelay( 0.5 );
+			// play wiff or swish sound
+			EMIT_SOUND_DYN(ENT(m_pPlayer->pev), CHAN_WEAPON, "weapons/cbar_miss1.wav", 1, ATTN_NORM, 0, 94 + RANDOM_LONG(0,0xF));
 #if CROWBAR_IDLE_ANIM
 			m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + UTIL_SharedRandomFloat( m_pPlayer->random_seed, 10, 15 );
 #endif
@@ -223,7 +265,7 @@ int CCrowbar::Swing( int fFirst )
 	}
 	else
 	{
-		switch( ( ( m_iSwing++ ) % 2 ) + 1 )
+		switch( ( ( m_iSwing++ ) % 2 ) /*+ 1*/ ) //modif de Roy a-la Julien, we don't have Attack3hit here.
 		{
 		case 0:
 			SendWeaponAnim( CROWBAR_ATTACK1HIT );
@@ -231,9 +273,9 @@ int CCrowbar::Swing( int fFirst )
 		case 1:
 			SendWeaponAnim( CROWBAR_ATTACK2HIT );
 			break;
-		case 2:
+		/*case 2:
 			SendWeaponAnim( CROWBAR_ATTACK3HIT );
-			break;
+			break;*/
 		}
 
 		// player "shoot" animation
@@ -334,6 +376,10 @@ int CCrowbar::Swing( int fFirst )
 
 		m_pPlayer->m_iWeaponVolume = (int)( flVol * CROWBAR_WALLHIT_VOLUME );
 
+		// delay the decal a bit, modif de Roy
+		m_trHit = tr;
+		m_vecDecalSrc = vecSrc;
+		m_vecDecalEnd = vecEnd;
 		SetThink( &CCrowbar::Smack );
 		pev->nextthink = gpGlobals->time + 0.2f;
 #endif
@@ -366,7 +412,7 @@ void CCrowbar::WeaponIdle( void )
 			if( flRand > 0.5f )
 			{
 				iAnim = CROWBAR_IDLE;
-				m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + 70.0f / 25.0f;
+				m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + 70.0f / 30.0f;
 			}
 			else
 			{

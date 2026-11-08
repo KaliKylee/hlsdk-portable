@@ -5,6 +5,7 @@
 // $NoKeywords: $
 //=============================================================================
 
+#include "archtypes.h"     // DAL
 #include "voice_gamemgr.h"
 #include <string.h>
 #include <assert.h>
@@ -73,10 +74,8 @@ static void VoiceServerDebug( char const *pFmt, ... )
 		return;
 
 	va_start( marker, pFmt );
-	_vsnprintf( msg, sizeof( msg ) - 1, pFmt, marker );
+	_vsnprintf( msg, sizeof(msg), pFmt, marker );
 	va_end( marker );
-
-	msg[sizeof( msg ) - 1] = 0;
 
 	ALERT( at_console, "%s", msg );
 }
@@ -180,7 +179,7 @@ bool CVoiceGameMgr::ClientCommand(CBasePlayer *pPlayer, const char *cmd)
 	{
 		for(int i=1; i < CMD_ARGC(); i++)
 		{
-			unsigned mask = 0;
+			uint32 mask = 0;
 			sscanf(CMD_ARGV(i), "%x", &mask);
 
 			if(i <= VOICE_MAX_PLAYERS_DW)

@@ -26,10 +26,14 @@
 #define RGB_REDISH 0x00FF1010 //255,160,0
 #define RGB_GREENISH 0x0000A000 //0,160,0
 
+//modif de Julien
+
+#define CONPRINTF gEngfuncs.Con_Printf
+
+
 #include "wrect.h"
 #include "cl_dll.h"
 #include "ammo.h"
-#include "cvardef.h"
 
 #define DHN_DRAWZERO 1
 #define DHN_2DIGITS  2
@@ -57,8 +61,9 @@ typedef struct
 
 typedef struct cvar_s cvar_t;
 
-#define HUD_ACTIVE	1
-#define HUD_INTERMISSION 2
+#define HUD_ACTIVE			1
+#define HUD_INTERMISSION	2
+#define HUD_ALWAYSDRAW		4 //HLINVASION Julien
 
 #define MAX_PLAYER_NAME_LENGTH		32
 
@@ -93,7 +98,9 @@ struct HUDLIST
 
 //
 //-----------------------------------------------------
+#if USE_VGUI
 #include "voice_status.h" // base voice handling class
+#endif
 #include "hud_spectator.h"
 
 //
@@ -163,7 +170,6 @@ private:
 	float m_fFade;
 };
 
-
 #include "health.h"
 
 
@@ -179,7 +185,6 @@ public:
 	int Init( void );
 	int VidInit( void );
 	int Draw( float flTime );
-	void Think();
 	int MsgFunc_Geiger( const char *pszName, int iSize, void *pbuf );
 	
 private:
@@ -197,11 +202,13 @@ public:
 	int Draw( float flTime );
 	int MsgFunc_Train( const char *pszName, int iSize, void *pbuf );
 
+
 private:
 	HSPRITE m_hSprite;
 	int m_iPos;
 };
 
+#if !USE_VGUI || USE_NOVGUI_MOTD
 class CHudMOTD : public CHudBase
 {
 public:
@@ -210,20 +217,22 @@ public:
 	int Draw( float flTime );
 	void Reset( void );
 
-	bool HandleMOTDMessage( const char *pszName, int iSize, void *pbuf );
+	int MsgFunc_MOTD( const char *pszName, int iSize, void *pbuf );
 	void Scroll( int dir );
 	void Scroll( float amount );
 	float scroll;
 	bool m_bShow;
 
-	char m_szMOTD[MAX_MOTD_LENGTH];
 protected:
 	static int MOTD_DISPLAY_TIME;
+	char m_szMOTD[MAX_MOTD_LENGTH];
 
 	int m_iLines;
 	int m_iMaxLength;
 };
+#endif
 
+#if !USE_VGUI || USE_NOVGUI_SCOREBOARD
 class CHudScoreboard : public CHudBase
 {
 public:
@@ -240,9 +249,6 @@ public:
 	int MsgFunc_TeamScores( const char *pszName, int iSize, void *pbuf );
 	int MsgFunc_TeamNames( const char *pszName, int iSize, void *pbuf );
 	void DeathMsg( int killer, int victim );
-	void RebuildTeams();
-	void UpdateTeams();
-	int BestTeam();
 
 	int m_iNumTeams;
 
@@ -250,7 +256,10 @@ public:
 	int m_fLastKillTime;
 	int m_iPlayerNum;
 	int m_iShowscoresHeld;
+
+	void GetAllPlayersInfo( void );
 };
+#endif
 
 //
 //-----------------------------------------------------
@@ -373,6 +382,14 @@ private:
 //
 //-----------------------------------------------------
 //
+
+//HLINVASION
+//modif de Julien
+#define MAX_NORMAL_BATTERY		100
+#define MAX_ARMOR_GROUP			7
+#define MAX_MEMBER_ARMOR		MAX_NORMAL_BATTERY / MAX_ARMOR_GROUP
+#define ARMOR_PAIN_TIME			0.2
+
 class CHudBattery : public CHudBase
 {
 public:
@@ -389,6 +406,16 @@ private:
 	int m_iBat;
 	float m_fFade;
 	int m_iHeight;		// width of the battery innards
+
+	// modif de Julien
+
+	int		m_flArmor [MAX_ARMOR_GROUP] [3];
+	float	m_flPain [MAX_ARMOR_GROUP];
+	float	m_flArmorvalue [MAX_ARMOR_GROUP];
+
+	HSPRITE m_sprCorps;
+	wrect_t m_wrcCorps;
+
 };
 
 //
@@ -488,6 +515,458 @@ private:
 	int m_HUD_title_half;
 };
 
+
+
+// modif de Julien
+//
+// CHudRadio
+
+
+class CHudRadio : public CHudBase
+{
+
+public:
+	int Init( void );
+	int VidInit( void );
+	int Draw(float flTime);
+
+	int MsgFunc_RadioMsg ( const char *pszName, int iSize, void *pbuf );
+
+	HSPRITE m_sprHead1;
+	HSPRITE m_sprHead2;
+	HSPRITE m_sprHead3;
+	HSPRITE m_sprText1;
+	HSPRITE m_sprText2;
+
+	float	m_flStartTime;
+	bool	m_bOpen;
+
+	int		m_iHead;
+	char	m_cText [256];
+};
+
+// modif de Julien
+//
+// CHudTank
+
+
+class CHudTank : public CHudBase
+{
+
+public:
+	int Init( void );
+	int VidInit( void );
+	int Draw(float flTime);
+
+	void SetViewPos ( struct ref_params_s *pparams );
+
+	int MsgFunc_TankView ( const char *pszName, int iSize, void *pbuf );
+
+	HSPRITE m_sprTank;
+
+	vec3_t	m_CamPos;
+	vec3_t	m_CamAng;
+	vec3_t	m_CamVelocity;
+	vec3_t	m_CamAVelocity;
+
+	bool	m_iPlayerInTank;
+	int		m_iCamEnt;
+	float	m_flTankHealth;
+	float	m_flPain;
+
+};
+
+
+// modif de Julien
+//
+// CHudLensFlare
+
+struct gruntlight_t
+{
+	int index;
+	float length;
+	gruntlight_t *pNext;
+};
+
+class CHudLensFlare : public CHudBase
+{
+
+public:
+	int Init( void );
+	int VidInit( void );
+	int Draw(float flTime);
+
+	int MsgFunc_LensFlare ( const char *pszName, int iSize, void *pbuf );
+
+	void DrawLight ( void );
+	void ClearLights ( void );
+
+	gruntlight_t *m_pLight;
+};
+
+
+// modif de Julien
+//
+// CHudBriquet
+
+class CHudBriquet : public CHudBase
+{
+
+public:
+	int Init( void );
+	int VidInit( void );
+	int Draw(float flTime);
+
+	int MsgFunc_Briquet ( const char *pszName, int iSize, void *pbuf );
+
+	void DrawFlamme ( void );
+};
+
+
+
+// modif de Julien
+//
+// CHudLFlammes
+
+
+struct flammes_t
+{
+	int		index;
+	float	flBirthTime;
+
+	bool	bXdir;
+	bool	bYdir;
+	float	angle;
+	float	rotspeed;
+
+	int		imode;
+	int		flag;
+
+	vec3_t	offset;		// tient lieu d'origine pour les flammmes deco
+	vec3_t	velocity;
+
+	flammes_t *pNext;
+};
+
+class CHudLFlammes : public CHudBase
+{
+
+public:
+	int Init( void );
+	int VidInit( void );
+	int Draw(float flTime);
+
+	int MsgFunc_LFlammes ( const char *pszName, int iSize, void *pbuf );
+
+	void DrawFlammes ( void );
+	void ClearFlammes ( void );
+
+	flammes_t *m_pFlammes;
+};
+
+
+
+// modif de Julien
+//
+// CHudFog
+
+class CHudFog : public CHudBase
+{
+
+public:
+	int Init( void );
+	int VidInit( void );
+	int Draw(float flTime);
+
+	int MsgFunc_Fog ( const char *pszName, int iSize, void *pbuf );
+
+	void DrawFog ( void );
+
+	vec3_t	fogcolor;
+	float	mindist;
+	float	maxdist;
+
+	float	maxfadetime;
+	float	fadetime;
+
+	int		Fade;
+	int		bActive;
+};
+
+
+
+// modif de Julien
+//
+// CHudRPG
+
+enum
+{
+	RPG_CROSSHAIR_NORMAL = 0,
+	RPG_CROSSHAIR_EMPTY,
+	RPG_CROSSHAIR_PROCESS,
+	RPG_CROSSHAIR_LOCKED,
+};
+
+enum
+{
+	RPG_TEXT_TOUCHE = 4,
+	RPG_TEXT_MANQUE,
+};
+
+
+
+#define RPG_MENU_ROCKET_SELECTED		( 1 << 0 )
+#define RPG_MENU_ROCKET_EMPTY			( 1 << 1 )
+#define RPG_MENU_ELECTRO_SELECTED		( 1 << 2 )
+#define RPG_MENU_ELECTRO_EMPTY			( 1 << 3 )
+#define RPG_MENU_NUCLEAR_SELECTED		( 1 << 4 )
+#define RPG_MENU_NUCLEAR_EMPTY			( 1 << 5 )
+#define RPG_MENU_ACTIVE					( 1 << 6 )
+#define RPG_MENU_CLOSE					( 1 << 7 )
+
+
+// definition de la classe
+
+class CHudRPG : public CHudBase
+{
+
+public:
+	int Init( void );
+	int VidInit( void );
+	int Draw(float flTime);
+
+	int MsgFunc_RpgViseur ( const char *pszName, int iSize, void *pbuf );
+	int MsgFunc_MenuRpg ( const char *pszName, int iSize, void *pbuf );
+
+	HSPRITE m_sprCrosshair;
+	HSPRITE m_sprMenu;
+	HSPRITE m_sprText;
+
+	wrect_t m_rcElectro;
+	wrect_t m_rcNuclear;
+	wrect_t m_rcRocket;
+	wrect_t m_rcSelect;
+	wrect_t m_rcEmpty;
+	wrect_t m_rcCrosshair;
+
+	int m_iViseurState;
+	int m_iMenuState;
+	int m_iTextState;
+
+	int m_iAmmo1;
+	int m_iAmmo2;
+	int m_iAmmo3;
+
+	float m_flSelectTime;
+	float m_flTextTime;
+};
+
+
+// modif de Julien
+//
+// CHudNVG
+
+
+// definition de la classe
+
+struct nvg_ennemy_t
+{
+	int index;
+	vec3_t color;
+	nvg_ennemy_t *pNext;
+};
+
+class CHudNVG : public CHudBase
+{
+
+public:
+	int Init( void );
+	int VidInit( void );
+	int Draw(float flTime);
+	int Frame( void );
+
+	int MsgFunc_SwitchNVG ( const char *pszName, int iSize, void *pbuf );
+	int MsgFunc_InfosNVG ( const char *pszName, int iSize, void *pbuf );
+
+	HSPRITE m_sprNVG;
+	HSPRITE m_sprEnnemy;
+
+	float frame;
+	float lasttime;
+	int nombre;
+
+	void ClearEnnemies ( void );
+	nvg_ennemy_t *IsEnnemy ( int index );
+	nvg_ennemy_t *pEnnemy;
+};
+
+
+// modif de Roy
+class CHudMusic : public CHudBase // This class is simply a message receiver for the music player
+{
+public: //The methods are implemented in clientmusic.cpp
+	int Init( void ); //This gets called from hud.cpp
+	int MsgFunc_CMusicOpen ( const char *pszName, int iSize, void *pbuf );
+};
+
+// modif de Julien
+//
+// CHudSniper
+
+
+// definition de la classe
+
+class CHudSniper : public CHudBase
+{
+
+public:
+	int Init( void );
+	int VidInit( void );
+	int Draw(float flTime);
+
+	HSPRITE m_sprHG;
+	HSPRITE m_sprH;
+	HSPRITE m_sprHD;
+	HSPRITE m_sprBD;
+	HSPRITE m_sprB;
+	HSPRITE m_sprBG;
+	HSPRITE m_sprG;
+	HSPRITE m_sprD;
+
+	HSPRITE m_sprViseur;
+	HSPRITE m_sprBlack;
+
+	wrect_t m_wrc640;
+	wrect_t m_wrc640Viseur;
+	wrect_t m_wrc1024;
+	wrect_t m_wrcNoir;
+
+};
+
+
+//
+//-------------------------------------------------------------
+//
+// modif de Julien
+//
+
+#define MAX_PARTICULES		256
+#define MAX_DECALS			400
+
+#define FLAG_DECAL_WIDEGLASS		( 1 << 0 )
+#define FLAG_DECAL_GLASS			( 1 << 1 )
+#define FLAG_DECAL_DISK				( 1 << 2 )
+#define FLAG_DECAL_SG				( 1 << 3 )
+#define FLAG_DECAL_CROWBAR			( 1 << 4 )
+#define FLAG_DECAL_CROWBAR_INVERT	( 1 << 5 )
+#define FLAG_DECAL_XENO				( 1 << 6 )
+
+#define FLAG_PARTICULE_WOOD			( 1 << 0 )
+#define FLAG_PARTICULE_OUTRO1		( 1 << 1 )
+#define FLAG_PARTICULE_OUTRO2		( 1 << 2 )
+#define FLAG_PARTICULE_OUTRO3		( 1 << 3 )
+#define FLAG_PARTICULE_SMOKE		( 1 << 4 )
+
+
+
+
+//structure info particule
+
+typedef struct particule_s
+{
+
+	vec3_t origin;
+	vec3_t angles;
+	vec3_t velocity;
+	vec3_t avelocity;
+
+	char model [64];
+	float deathtime;
+	int flags;
+
+	int libre;
+
+} particule_t;
+
+
+//structure info decal
+
+typedef struct spritedecal_s
+{
+
+	vec3_t origin;
+	vec3_t angles;
+
+	char model [64];
+	float deathtime;
+	int flags;
+
+	int libre;
+
+	int entity;
+	vec3_t offset;
+	vec3_t angoffset;
+	vec3_t oldangles;
+
+	float iRndSensX;
+	float iRndSensY;
+
+	float flFrame;
+
+
+} spritedecal_t;
+
+
+
+// definition de la classe
+
+class CHudParticules : public CHudBase
+{
+
+public:
+	int Init( void );
+	int VidInit( void );
+	int Draw(float flTime);
+
+	void DrawAll ( void );
+
+	// messages du serveur
+
+	int MsgFunc_ClientDecal( const char *pszName, int iSize, void *pbuf );
+
+
+
+	// ajout de particules ou de decals
+
+	void	AddParticule		( vec3_t origin, vec3_t angles, vec3_t velocity, vec3_t avelocity, char model [64], int deathtime, int flags );
+	void	AddDecal			( vec3_t origin, vec3_t angles, char model [64], float deathtime, int flags );
+
+	void	RemoveParticule		( int iIndex );
+	void	RemoveDecal			( int iIndex );
+
+
+	// array particules
+
+	struct particule_s		m_pParticules [ MAX_PARTICULES ];
+
+	// array decals
+
+	struct spritedecal_s	m_pDecals [ MAX_DECALS ];
+
+	// temps
+
+	float m_flLastTime;
+
+};
+
+
+//----------------------------------
+// modif de Julien - d
+
+wrect_t CreateWrect ( int left, int top, int right, int bottom );
+
+
+
 //
 //-----------------------------------------------------
 //
@@ -552,14 +1031,8 @@ public:
 	int		m_iFOV;
 	int		m_Teamplay;
 	int		m_iRes;
-	int		m_iMaxRes;
-	int		m_iHudNumbersYOffset;
 	cvar_t  *m_pCvarStealMouse;
 	cvar_t	*m_pCvarDraw;
-	cvar_t  *m_pAllowHD;
-
-	cvar_t  *m_pCvarMOTDVGUI;
-	cvar_t  *m_pCvarScoreboardVGUI;
 
 	int m_iFontHeight;
 	int DrawHudNumber( int x, int y, int iFlags, int iNumber, int r, int g, int b );
@@ -588,13 +1061,6 @@ public:
 	{
 		return m_rgrcRects[index];
 	}
-
-	inline bool IsHL25( void )
-	{
-		// a1ba: only HL25 have higher resolution HUD spritesheets
-		// and only accept HUD style changes if user has allowed HD sprites
-		return m_iMaxRes > 640 && m_pAllowHD->value;
-	}
 	
 	int GetSpriteIndex( const char *SpriteName );	// gets a sprite index, for use in the m_rghSprites[] array
 
@@ -613,8 +1079,26 @@ public:
 	CHudAmmoSecondary	m_AmmoSecondary;
 	CHudTextMessage m_TextMessage;
 	CHudStatusIcons m_StatusIcons;
+
+	// modifs de Julien
+	CHudParticules m_Particules;
+	CHudSniper m_Sniper;
+	CHudNVG m_NVG;
+	CHudMusic m_MusicPlayer; //modif de Roy, we need an instance of the music player's message receiver
+	CHudRPG m_RPG;
+	CHudFog m_Fog;
+	CHudLFlammes m_LFlammes;
+	CHudBriquet m_Briquet;
+	CHudLensFlare m_LensFlare;
+	CHudTank m_HudTank;
+	CHudRadio m_HudRadio;
+
+#if !USE_VGUI || USE_NOVGUI_SCOREBOARD
 	CHudScoreboard	m_Scoreboard;
+#endif
+#if !USE_VGUI || USE_NOVGUI_MOTD
 	CHudMOTD	m_MOTD;
+#endif
 
 	void Init( void );
 	void VidInit( void );
@@ -641,7 +1125,6 @@ public:
 	int	m_iWeaponBits;
 	int	m_fPlayerDead;
 	int m_iIntermission;
-	bool m_inScope;
 
 	// sprite indexes
 	int m_HUD_number_0;
@@ -653,9 +1136,6 @@ public:
 	float GetSensitivity();
 
 	void GetAllPlayersInfo( void );
-
-	bool UseVguiMOTD();
-	bool UseVguiScoreBoard();
 };
 
 extern CHud gHUD;

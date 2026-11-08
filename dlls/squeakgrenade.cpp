@@ -32,7 +32,8 @@ enum w_squeak_e
 	WSQUEAK_RUN
 };
 
-enum squeak_e
+
+/*enum squeak_e //HLINVASION Modif de Julien, the "CBasePlayerWeapon" class and this enum were commented out. Commented out the entire rest of the file for now.
 {
 	SQUEAK_IDLE1 = 0,
 	SQUEAK_FIDGETFIT,
@@ -40,7 +41,8 @@ enum squeak_e
 	SQUEAK_DOWN,
 	SQUEAK_UP,
 	SQUEAK_THROW
-};
+};*/
+
 
 #if !CLIENT_DLL
 class CSqueakGrenade : public CGrenade
@@ -266,9 +268,9 @@ void CSqueakGrenade::HuntThink( void )
 	}
 
 	// higher pitch as squeeker gets closer to detonation time
-	/*float flpitch = 155.0f - 60.0f * ( ( m_flDie - gpGlobals->time ) / SQUEEK_DETONATE_DELAY );
+	float flpitch = 155.0f - 60.0f * ( ( m_flDie - gpGlobals->time ) / SQUEEK_DETONATE_DELAY ); //modif de Julien o para Julien - this was commented out causing a compile time error. Roy.
 	if( flpitch < 80.0f )
-		flpitch = 80.0f;*/
+		flpitch = 80.0f;//
 
 	if( m_hEnemy != 0 )
 	{
@@ -339,8 +341,7 @@ void CSqueakGrenade::SuperBounceTouch( CBaseEntity *pOther )
 	// higher pitch as squeeker gets closer to detonation time
 	flpitch = 155.0f - 60.0f * ( ( m_flDie - gpGlobals->time ) / SQUEEK_DETONATE_DELAY );
 
-	if( !FBitSet( pOther->pev->flags, FL_WORLDBRUSH )
-	    && pOther->pev->takedamage && m_flNextAttack < gpGlobals->time )
+	if( pOther->pev->takedamage && m_flNextAttack < gpGlobals->time )
 	{
 		// attack!
 
@@ -408,7 +409,7 @@ void CSqueakGrenade::SuperBounceTouch( CBaseEntity *pOther )
 }
 #endif
 
-LINK_ENTITY_TO_CLASS( weapon_snark, CSqueak )
+/*LINK_ENTITY_TO_CLASS( weapon_snark, CSqueak ) //commented out by Julien
 
 void CSqueak::Spawn()
 {
@@ -446,7 +447,7 @@ int CSqueak::GetItemInfo( ItemInfo *p )
 	p->iMaxAmmo2 = -1;
 	p->iMaxClip = WEAPON_NOCLIP;
 	p->iSlot = 4;
-	p->iPosition = 3;
+	p->iPosition = 4;
 	p->iId = m_iId = WEAPON_SNARK;
 	p->iWeight = SNARK_WEIGHT;
 	p->iFlags = ITEM_FLAG_LIMITINWORLD | ITEM_FLAG_EXHAUSTIBLE;
@@ -466,17 +467,10 @@ BOOL CSqueak::Deploy()
 
 	m_pPlayer->m_iWeaponVolume = QUIET_GUN_VOLUME;
 
-	const BOOL result = DefaultDeploy( "models/v_squeak.mdl", "models/p_squeak.mdl", SQUEAK_UP, "squeak" );
-#if WEAPONS_ANIMATION_TIMES_FIX
-	if ( result )
-	{
-		m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + 1.7f;
-	}
-#endif
-	return result;
+	return DefaultDeploy( "models/v_squeak.mdl", "models/p_squeak.mdl", SQUEAK_UP, "squeak" );
 }
 
-void CSqueak::Holster( int skiplocal /* = 0 */ )
+void CSqueak::Holster( int skiplocal  )
 {
 	m_pPlayer->m_flNextAttack = UTIL_WeaponTimeBase() + 0.5f;
 
@@ -495,35 +489,20 @@ void CSqueak::PrimaryAttack()
 {
 	if( m_pPlayer->m_rgAmmo[m_iPrimaryAmmoType] )
 	{
-		TraceResult tr;
-		Vector trace_origin, forward;
-		float flVel;
-
-		UTIL_MakeVectors( Vector( 0, m_pPlayer->pev->v_angle.y, m_pPlayer->pev->v_angle.z ));
-		forward = gpGlobals->v_forward;
 		UTIL_MakeVectors( m_pPlayer->pev->v_angle );
-
-		if( m_pPlayer->pev->v_angle.x <= 0 )
-		{
-			flVel = 1;
-		}
-		else
-		{
-			flVel = m_pPlayer->pev->v_angle.x / 90.0f;
-		}
+		TraceResult tr;
+		Vector trace_origin;
 
 		// HACK HACK:  Ugly hacks to handle change in origin based on new physics code for players
 		// Move origin up if crouched and start trace a bit outside of body ( 20 units instead of 16 )
 		trace_origin = m_pPlayer->pev->origin;
 		if( m_pPlayer->pev->flags & FL_DUCKING )
 		{
-			trace_origin = trace_origin - Vector( 0, 0, 1 ) * ( flVel + 1.0f ) * -18;
+			trace_origin = trace_origin - ( VEC_HULL_MIN - VEC_DUCK_HULL_MIN );
 		}
 
-		forward = forward * flVel + gpGlobals->v_forward * ( 1 - flVel );
-
 		// find place to toss monster
-		UTIL_TraceLine( trace_origin + forward * 24.0f, trace_origin + gpGlobals->v_forward * 60.0f, dont_ignore_monsters, NULL, &tr );
+		UTIL_TraceLine( trace_origin + gpGlobals->v_forward * 20.0f, trace_origin + gpGlobals->v_forward * 64.0f, dont_ignore_monsters, NULL, &tr );
 
 		int flags;
 #if CLIENT_WEAPONS
@@ -533,13 +512,13 @@ void CSqueak::PrimaryAttack()
 #endif
 		PLAYBACK_EVENT_FULL( flags, m_pPlayer->edict(), m_usSnarkFire, 0.0f, g_vecZero, g_vecZero, 0.0f, 0.0f, 0, 0, 0, 0 );
 
-		if( tr.fAllSolid == 0 && tr.fStartSolid == 0 && tr.flFraction > 0 )
+		if( tr.fAllSolid == 0 && tr.fStartSolid == 0 && tr.flFraction > 0.25f )
 		{
 			// player "shoot" animation
 			m_pPlayer->SetAnimation( PLAYER_ATTACK1 );
 #if !CLIENT_DLL
 			CBaseEntity *pSqueak = CBaseEntity::Create( "monster_snark", tr.vecEndPos, m_pPlayer->pev->v_angle, m_pPlayer->edict() );
-			pSqueak->pev->velocity = forward * 200.0f + m_pPlayer->pev->velocity;
+			pSqueak->pev->velocity = gpGlobals->v_forward * 200.0f + m_pPlayer->pev->velocity;
 #endif
 			// play hunt sound
 			float flRndSound = RANDOM_FLOAT( 0.0f, 1.0f );
@@ -605,4 +584,5 @@ void CSqueak::WeaponIdle( void )
 	}
 	SendWeaponAnim( iAnim );
 }
+*/
 #endif

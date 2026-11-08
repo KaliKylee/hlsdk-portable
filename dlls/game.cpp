@@ -16,10 +16,9 @@
 #include "eiface.h"
 #include "util.h"
 #include "game.h"
-#include "vcs_info.h"
+#include "inv_log.h"
 
-static cvar_t build_commit = { "sv_game_build_commit", g_VCSInfo_Commit };
-static cvar_t build_branch = { "sv_game_build_branch", g_VCSInfo_Branch };
+BOOL		g_fIsXash3D;
 
 cvar_t displaysoundlist = {"displaysoundlist","0"};
 
@@ -36,11 +35,10 @@ cvar_t falldamage	= { "mp_falldamage","0", FCVAR_SERVER };
 cvar_t weaponstay	= { "mp_weaponstay","0", FCVAR_SERVER };
 cvar_t selfgauss	= { "selfgauss", "1", FCVAR_SERVER };
 cvar_t chargerfix	= { "chargerfix", "0", FCVAR_SERVER };
-cvar_t satchelfix	= { "satchelfix", "1", FCVAR_SERVER };
+cvar_t satchelfix	= { "satchelfix", "0", FCVAR_SERVER };
 cvar_t explosionfix	= { "explosionfix", "0", FCVAR_SERVER };
 cvar_t monsteryawspeedfix	= { "monsteryawspeedfix", "1", FCVAR_SERVER };
 cvar_t corpsephysics = { "corpsephysics", "0", FCVAR_SERVER };
-cvar_t pushablemode = { "pushablemode", "0", FCVAR_SERVER };
 cvar_t forcerespawn	= { "mp_forcerespawn","1", FCVAR_SERVER };
 cvar_t flashlight	= { "mp_flashlight","0", FCVAR_SERVER };
 cvar_t aimcrosshair	= { "mp_autocrosshair","1", FCVAR_SERVER };
@@ -57,11 +55,10 @@ cvar_t multibyte_only = { "mp_multibyte_only", "0", FCVAR_SERVER };
 cvar_t mp_chattime	= { "mp_chattime","10", FCVAR_SERVER };
 
 // Engine Cvars
-cvar_t *g_psv_gravity;
-cvar_t *g_psv_aim;
-cvar_t *g_psv_allow_autoaim;
-cvar_t *g_footsteps;
-cvar_t *g_enable_cheats;
+cvar_t *g_psv_gravity = NULL;
+cvar_t *g_psv_aim = NULL;
+cvar_t *g_footsteps = NULL;
+cvar_t *g_enable_cheats = NULL;
 
 cvar_t *g_psv_developer;
 
@@ -312,6 +309,51 @@ cvar_t	sk_plr_9mmAR_bullet1 = {"sk_plr_9mmAR_bullet1","0"};
 cvar_t	sk_plr_9mmAR_bullet2 = {"sk_plr_9mmAR_bullet2","0"};
 cvar_t	sk_plr_9mmAR_bullet3 = {"sk_plr_9mmAR_bullet3","0"};
 
+//modif de Julien
+//M16
+cvar_t	sk_plr_m16_bullet1 = {"sk_plr_m16_bullet1","0"};
+cvar_t	sk_plr_m16_bullet2 = {"sk_plr_m16_bullet2","0"};
+cvar_t	sk_plr_m16_bullet3 = {"sk_plr_m16_bullet3","0"};
+
+//FSniper
+cvar_t	sk_plr_sniper_bullet1 = {"sk_plr_sniper_bullet1","0"};
+cvar_t	sk_plr_sniper_bullet2 = {"sk_plr_sniper_bullet2","0"};
+cvar_t	sk_plr_sniper_bullet3 = {"sk_plr_sniper_bullet3","0"};
+
+//SGun
+cvar_t	sk_plr_supergun_bullet1 = {"sk_plr_supergun_bullet1","0"};
+cvar_t	sk_plr_supergun_bullet2 = {"sk_plr_supergun_bullet2","0"};
+cvar_t	sk_plr_supergun_bullet3 = {"sk_plr_supergun_bullet3","0"};
+
+//IRgun
+cvar_t	sk_plr_irgun_bullet1 = {"sk_plr_irgun_bullet1","0"};
+cvar_t	sk_plr_irgun_bullet2 = {"sk_plr_irgun_bullet2","0"};
+cvar_t	sk_plr_irgun_bullet3 = {"sk_plr_irgun_bullet3","0"};
+
+//Sniper
+
+cvar_t	sk_sniper_health1 = {"sk_sniper_health1","0"};
+cvar_t	sk_sniper_health2 = {"sk_sniper_health2","0"};
+cvar_t	sk_sniper_health3 = {"sk_sniper_health3","0"};
+
+cvar_t	sk_rpggrunt_health1 = {"sk_rpggrunt_health1","0"};
+cvar_t	sk_rpggrunt_health2 = {"sk_rpggrunt_health2","0"};
+cvar_t	sk_rpggrunt_health3 = {"sk_rpggrunt_health3","0"};
+
+cvar_t	sk_flybee_health1 = {"sk_flybee_health1","0"};
+cvar_t	sk_flybee_health2 = {"sk_flybee_health2","0"};
+cvar_t	sk_flybee_health3 = {"sk_flybee_health3","0"};
+
+cvar_t	sk_luciole_health1 = {"sk_luciole_health1","0"};
+cvar_t	sk_luciole_health2 = {"sk_luciole_health2","0"};
+cvar_t	sk_luciole_health3 = {"sk_luciole_health3","0"};
+
+cvar_t	sk_luciole_damage1 = {"sk_luciole_damage1","0"};
+cvar_t	sk_luciole_damage2 = {"sk_luciole_damage2","0"};
+cvar_t	sk_luciole_damage3 = {"sk_luciole_damage3","0"};
+
+
+//fin modif
 
 // M203 grenade
 cvar_t	sk_plr_9mmAR_grenade1 = {"sk_plr_9mmAR_grenade1","0"};
@@ -324,7 +366,7 @@ cvar_t	sk_plr_buckshot1 = {"sk_plr_buckshot1","0"};
 cvar_t	sk_plr_buckshot2 = {"sk_plr_buckshot2","0"};
 cvar_t	sk_plr_buckshot3 = {"sk_plr_buckshot3","0"};
 
-
+/*
 // Crossbow
 cvar_t	sk_plr_xbow_bolt_client1 = {"sk_plr_xbow_bolt_client1","0"};
 cvar_t	sk_plr_xbow_bolt_client2 = {"sk_plr_xbow_bolt_client2","0"};
@@ -333,7 +375,7 @@ cvar_t	sk_plr_xbow_bolt_client3 = {"sk_plr_xbow_bolt_client3","0"};
 cvar_t	sk_plr_xbow_bolt_monster1 = {"sk_plr_xbow_bolt_monster1","0"};
 cvar_t	sk_plr_xbow_bolt_monster2 = {"sk_plr_xbow_bolt_monster2","0"};
 cvar_t	sk_plr_xbow_bolt_monster3 = {"sk_plr_xbow_bolt_monster3","0"};
-
+*/
 
 // RPG
 cvar_t	sk_plr_rpg1 = {"sk_plr_rpg1","0"};
@@ -346,7 +388,7 @@ cvar_t	sk_plr_gauss1 = {"sk_plr_gauss1","0"};
 cvar_t	sk_plr_gauss2 = {"sk_plr_gauss2","0"};
 cvar_t	sk_plr_gauss3 = {"sk_plr_gauss3","0"};
 
-
+/*
 // Tau Cannon
 cvar_t	sk_plr_egon_narrow1 = {"sk_plr_egon_narrow1","0"};
 cvar_t	sk_plr_egon_narrow2 = {"sk_plr_egon_narrow2","0"};
@@ -355,7 +397,7 @@ cvar_t	sk_plr_egon_narrow3 = {"sk_plr_egon_narrow3","0"};
 cvar_t	sk_plr_egon_wide1 = {"sk_plr_egon_wide1","0"};
 cvar_t	sk_plr_egon_wide2 = {"sk_plr_egon_wide2","0"};
 cvar_t	sk_plr_egon_wide3 = {"sk_plr_egon_wide3","0"};
-
+*/
 
 // Hand Grendade
 cvar_t	sk_plr_hand_grenade1 = {"sk_plr_hand_grenade1","0"};
@@ -460,24 +502,23 @@ cvar_t	sk_player_leg3	= { "sk_player_leg3","1" };
 
 // END Cvars for Skill Level settings
 
-cvar_t sv_pushable_fixed_tick_fudge = { "sv_pushable_fixed_tick_fudge", "15" };
-cvar_t sv_busters = { "sv_busters", "0" };
-
 // Register your console variables here
 // This gets called one time when the game is initialied
 void GameDLLInit( void )
 {
+	INV_Log( "GameDLLInit" );
+
+	// Register cvars here:
+	if( CVAR_GET_POINTER( "build" ) )
+		g_fIsXash3D = TRUE;
+
 	g_psv_gravity = CVAR_GET_POINTER( "sv_gravity" );
 	g_psv_aim = CVAR_GET_POINTER( "sv_aim" );
-	g_psv_allow_autoaim = CVAR_GET_POINTER( "sv_allow_autoaim" );
 	g_footsteps = CVAR_GET_POINTER( "mp_footsteps" );
 
 	g_psv_developer = CVAR_GET_POINTER( "developer" );
 
 	g_enable_cheats = CVAR_GET_POINTER( "sv_cheats" );
-
-	CVAR_REGISTER( &build_commit );
-	CVAR_REGISTER( &build_branch );
 
 	CVAR_REGISTER( &displaysoundlist );
 	CVAR_REGISTER( &allow_spectators );
@@ -498,7 +539,6 @@ void GameDLLInit( void )
 	CVAR_REGISTER( &explosionfix );
 	CVAR_REGISTER( &monsteryawspeedfix );
 	CVAR_REGISTER( &corpsephysics );
-	CVAR_REGISTER( &pushablemode );
 	CVAR_REGISTER( &forcerespawn );
 	CVAR_REGISTER( &flashlight );
 	CVAR_REGISTER( &aimcrosshair );
@@ -511,7 +551,7 @@ void GameDLLInit( void )
 	CVAR_REGISTER( &multibyte_only );
 
 	CVAR_REGISTER( &mp_chattime );
-	CVAR_REGISTER( &sv_busters );
+
 
 
 // REGISTER CVARS FOR SKILL LEVEL STUFF
@@ -731,6 +771,51 @@ void GameDLLInit( void )
 	CVAR_REGISTER( &sk_sentry_health2 );// {"sk_sentry_health2","0"};
 	CVAR_REGISTER( &sk_sentry_health3 );// {"sk_sentry_health3","0"};
 
+	//modif de Julien
+
+	//M16
+    CVAR_REGISTER ( &sk_plr_m16_bullet1 );// {"sk_plr_9mmAR_bullet1","0"};
+	CVAR_REGISTER ( &sk_plr_m16_bullet2 );// {"sk_plr_9mmAR_bullet2","0"};
+	CVAR_REGISTER ( &sk_plr_m16_bullet3 );// {"sk_plr_9mmAR_bullet3","0"};
+
+	//FSniper
+    CVAR_REGISTER ( &sk_plr_sniper_bullet1 );// {"sk_plr_9mmAR_bullet1","0"};
+	CVAR_REGISTER ( &sk_plr_sniper_bullet2 );// {"sk_plr_9mmAR_bullet2","0"};
+	CVAR_REGISTER ( &sk_plr_sniper_bullet3 );// {"sk_plr_9mmAR_bullet3","0"};
+
+	//Supergun
+    CVAR_REGISTER ( &sk_plr_supergun_bullet1 );// {"sk_plr_9mmAR_bullet1","0"};
+	CVAR_REGISTER ( &sk_plr_supergun_bullet2 );// {"sk_plr_9mmAR_bullet2","0"};
+	CVAR_REGISTER ( &sk_plr_supergun_bullet3 );// {"sk_plr_9mmAR_bullet3","0"};
+
+	//IRGun
+    CVAR_REGISTER ( &sk_plr_irgun_bullet1 );// {"sk_plr_9mmAR_bullet1","0"};
+	CVAR_REGISTER ( &sk_plr_irgun_bullet2 );// {"sk_plr_9mmAR_bullet2","0"};
+	CVAR_REGISTER ( &sk_plr_irgun_bullet3 );// {"sk_plr_9mmAR_bullet3","0"};
+
+    CVAR_REGISTER ( &sk_sniper_health1 );// {"sk_plr_9mmAR_bullet1","0"};
+	CVAR_REGISTER ( &sk_sniper_health2 );// {"sk_plr_9mmAR_bullet2","0"};
+	CVAR_REGISTER ( &sk_sniper_health3 );// {"sk_plr_9mmAR_bullet3","0"};
+
+    CVAR_REGISTER ( &sk_rpggrunt_health1 );// {"sk_plr_9mmAR_bullet1","0"};
+	CVAR_REGISTER ( &sk_rpggrunt_health2 );// {"sk_plr_9mmAR_bullet2","0"};
+	CVAR_REGISTER ( &sk_rpggrunt_health3 );// {"sk_plr_9mmAR_bullet3","0"};
+
+    CVAR_REGISTER ( &sk_flybee_health1 );// {"sk_plr_9mmAR_bullet1","0"};
+	CVAR_REGISTER ( &sk_flybee_health2 );// {"sk_plr_9mmAR_bullet2","0"};
+	CVAR_REGISTER ( &sk_flybee_health3 );// {"sk_plr_9mmAR_bullet3","0"};
+
+    CVAR_REGISTER ( &sk_luciole_health1 );// {"sk_plr_9mmAR_bullet1","0"};
+	CVAR_REGISTER ( &sk_luciole_health2 );// {"sk_plr_9mmAR_bullet2","0"};
+	CVAR_REGISTER ( &sk_luciole_health3 );// {"sk_plr_9mmAR_bullet3","0"};
+
+	CVAR_REGISTER ( &sk_luciole_damage1 );// {"sk_plr_9mmAR_bullet1","0"};
+	CVAR_REGISTER ( &sk_luciole_damage2 );// {"sk_plr_9mmAR_bullet2","0"};
+	CVAR_REGISTER ( &sk_luciole_damage3 );// {"sk_plr_9mmAR_bullet3","0"};
+
+
+	//fin modif====================
+
 
 	// PLAYER WEAPONS
 
@@ -764,14 +849,14 @@ void GameDLLInit( void )
 	CVAR_REGISTER( &sk_plr_buckshot2 );// {"sk_plr_buckshot2","0"};
 	CVAR_REGISTER( &sk_plr_buckshot3 );// {"sk_plr_buckshot3","0"};
 
-	// Crossbow
-	CVAR_REGISTER( &sk_plr_xbow_bolt_monster1 );// {"sk_plr_xbow_bolt1","0"};
+	// Crossbow //modif de Julien
+	/*CVAR_REGISTER( &sk_plr_xbow_bolt_monster1 );// {"sk_plr_xbow_bolt1","0"};
 	CVAR_REGISTER( &sk_plr_xbow_bolt_monster2 );// {"sk_plr_xbow_bolt2","0"};
 	CVAR_REGISTER( &sk_plr_xbow_bolt_monster3 );// {"sk_plr_xbow_bolt3","0"};
 
 	CVAR_REGISTER( &sk_plr_xbow_bolt_client1 );// {"sk_plr_xbow_bolt1","0"};
 	CVAR_REGISTER( &sk_plr_xbow_bolt_client2 );// {"sk_plr_xbow_bolt2","0"};
-	CVAR_REGISTER( &sk_plr_xbow_bolt_client3 );// {"sk_plr_xbow_bolt3","0"};
+	CVAR_REGISTER( &sk_plr_xbow_bolt_client3 );// {"sk_plr_xbow_bolt3","0"};*/
 
 	// RPG
 	CVAR_REGISTER( &sk_plr_rpg1 );// {"sk_plr_rpg1","0"};
@@ -783,14 +868,14 @@ void GameDLLInit( void )
 	CVAR_REGISTER( &sk_plr_gauss2 );// {"sk_plr_gauss2","0"};
 	CVAR_REGISTER( &sk_plr_gauss3 );// {"sk_plr_gauss3","0"};
 
-	// Egon Gun
-	CVAR_REGISTER( &sk_plr_egon_narrow1 );// {"sk_plr_egon_narrow1","0"};
+	// Egon Gun  //modif de Julien
+	/*CVAR_REGISTER( &sk_plr_egon_narrow1 );// {"sk_plr_egon_narrow1","0"};
 	CVAR_REGISTER( &sk_plr_egon_narrow2 );// {"sk_plr_egon_narrow2","0"};
 	CVAR_REGISTER( &sk_plr_egon_narrow3 );// {"sk_plr_egon_narrow3","0"};
 
 	CVAR_REGISTER( &sk_plr_egon_wide1 );// {"sk_plr_egon_wide1","0"};
 	CVAR_REGISTER( &sk_plr_egon_wide2 );// {"sk_plr_egon_wide2","0"};
-	CVAR_REGISTER( &sk_plr_egon_wide3 );// {"sk_plr_egon_wide3","0"};
+	CVAR_REGISTER( &sk_plr_egon_wide3 );// {"sk_plr_egon_wide3","0"};*/
 
 	// Hand Grendade
 	CVAR_REGISTER( &sk_plr_hand_grenade1 );// {"sk_plr_hand_grenade1","0"};
@@ -888,8 +973,6 @@ void GameDLLInit( void )
 	CVAR_REGISTER( &sk_player_leg2 );
 	CVAR_REGISTER( &sk_player_leg3 );
 // END REGISTER CVARS FOR SKILL LEVEL STUFF
-
-	CVAR_REGISTER( &sv_pushable_fixed_tick_fudge );
 
 	SERVER_COMMAND( "exec skill.cfg\n" );
 }

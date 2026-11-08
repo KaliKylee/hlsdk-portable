@@ -1,6 +1,8 @@
 #
 # Copyright (c) 2016 Alibek Omarov
 #
+# Edited by Roy for HL:Invasion
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
@@ -26,10 +28,11 @@ project (CLDLL)
 set (CLDLL_LIBRARY client)
 
 add_definitions(-DCLIENT_DLL)
+add_definitions(-DUSE_VGUI)
 
 if(NOT MSVC)
 	add_compile_options(-fno-exceptions) # GCC/Clang flag
-	add_compile_options(-fno-rtti) # GCC/Clang flag
+	add_compile_options(-Wno-write-strings) # GCC/Clang flag
 	add_compile_options(-fvisibility=hidden) # GCC/Clang flag
 	add_definitions(-D_LINUX -DLINUX) # It seems enough for all non-Win32 systems
 	add_definitions(-Dstricmp=strcasecmp -Dstrnicmp=strncasecmp)
@@ -52,30 +55,36 @@ if (GOLDSOURCE_SUPPORT)
 	add_definitions(-DGOLDSOURCE_SUPPORT)
 endif()
 
+if (DISABLE_MINIAUDIO)
+	add_definitions(-DDISABLE_MINIAUDIO)
+endif()
+
 if (USE_STATIC_FREEVGUI)
 	add_definitions(-DINTERNAL_VGUI_SUPPORT)
 endif()
 
 set (CLDLL_SOURCES
-	../dlls/crossbow.cpp
-	../dlls/crowbar.cpp
-	../dlls/egon.cpp
-	../dlls/gauss.cpp
-	../dlls/handgrenade.cpp
-	../dlls/hornetgun.cpp
-	../dlls/mp5.cpp
-	../dlls/python.cpp
-	../dlls/rpg.cpp
-	../dlls/satchel.cpp
-	../dlls/shotgun.cpp
-	../dlls/squeakgrenade.cpp
-	../dlls/tripmine.cpp
-	../dlls/glock.cpp
+	clientbriquet.cpp
+	clientfog.cpp
+	clientlflammes.cpp
 	ev_hldm.cpp
+	GameStudioModelRenderer.cpp
 	hl/hl_baseentity.cpp
 	hl/hl_events.cpp
 	hl/hl_objects.cpp
 	hl/hl_weapons.cpp
+	../dlls/glock.cpp
+	../dlls/inv_crash.cpp
+	hud_tank.cpp
+	hudradio.cpp
+	hudrpg.cpp
+	hudzoom.cpp
+	lensflare.cpp
+	nvg.cpp
+	clientmusic.cpp
+	particules.cpp
+	studio_util.cpp
+	StudioModelRenderer.cpp
 	ammo.cpp
 	ammo_secondary.cpp
 	ammohistory.cpp
@@ -88,7 +97,6 @@ set (CLDLL_SOURCES
 	ev_common.cpp
 	events.cpp
 	flashlight.cpp
-	GameStudioModelRenderer.cpp
 	geiger.cpp
 	health.cpp
 	hud.cpp
@@ -98,32 +106,26 @@ set (CLDLL_SOURCES
 	hud_update.cpp
 	in_camera.cpp
 	input.cpp
-	input_goldsource.cpp
+	input_goldsource.cpp #those three are needed for in_joystick and modern input
 	input_mouse.cpp
 	input_xash3d.cpp
-	interpolation.cpp
 	menu.cpp
 	message.cpp
-	MOTD.cpp
+	overview.cpp
 	parsemsg.cpp
+	parsemsg.h
 	../pm_shared/pm_debug.c
 	../pm_shared/pm_math.c
 	../pm_shared/pm_shared.c
 	saytext.cpp
-	scoreboard.cpp
 	status_icons.cpp
 	statusbar.cpp
-	studio_util.cpp
-	StudioModelRenderer.cpp
 	text_message.cpp
 	train.cpp
 	tri.cpp
 	util.cpp
 	view.cpp
-	../public/safe_snprintf.c
-)
 
-list(APPEND CLDLL_SOURCES
 	vgui_int.cpp
 	vgui_ClassMenu.cpp
 	vgui_ConsolePanel.cpp
@@ -144,7 +146,14 @@ list(APPEND CLDLL_SOURCES
 	../game_shared/vgui_scrollbar2.cpp
 	../game_shared/vgui_slider2.cpp
 	../game_shared/voice_banmgr.cpp
-)
+	#modif de Roy
+	vgui_keypad.cpp
+	vgui_OrdiControl.cpp
+	vgui_OrdiMenu.cpp
+	vgui_radio.cpp
+	vgui_soin.cpp
+	#fin de modif de Roy
+	)
 
 if (HAVE_STRLCPY)
 	add_definitions(-DHAVE_STRLCPY)
@@ -170,7 +179,11 @@ endif()
 include_directories(../utils/vgui/include)
 
 add_library (${CLDLL_LIBRARY} SHARED ${CLDLL_SOURCES})
-target_link_libraries(${CLDLL_LIBRARY} vcs_info)
+if(ANDROID)
+	target_link_libraries(${CLDLL_LIBRARY} log)
+	# the call chain in invasion_crash.log depends on frame pointers
+	target_compile_options(${CLDLL_LIBRARY} PRIVATE -fno-omit-frame-pointer)
+endif()
 
 if (GOLDSOURCE_SUPPORT)
 	target_link_libraries( ${CLDLL_LIBRARY} ${CMAKE_DL_LIBS} )

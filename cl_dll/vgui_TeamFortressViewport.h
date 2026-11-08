@@ -9,6 +9,7 @@
 #define TEAMFORTRESSVIEWPORT_H
 
 #include <VGUI_Panel.h>
+#include <VGUI_Frame.h>
 #include <VGUI_TextPanel.h>
 #include <VGUI_Label.h>
 #include <VGUI_Button.h>
@@ -18,17 +19,25 @@
 #include <VGUI_Image.h>
 #include <VGUI_FileInputStream.h>
 #include <VGUI_BitmapTGA.h>
+#include <VGUI_DesktopIcon.h>
 #include <VGUI_App.h>
+#include <VGUI_MiniApp.h>
 #include <VGUI_LineBorder.h>
+#include <VGUI_String.h>
 #include <VGUI_ScrollPanel.h>
 #include <VGUI_ScrollBar.h>
 #include <VGUI_Slider.h>
 
 // custom scheme handling
 #include "vgui_SchemeManager.h"
+#include "invas_defs.h"
+#include "crutches.h" //Load some code crutches for HLINVASION, modif de Roy
 
 #define TF_DEFS_ONLY
-#define PC_LASTCLASS 12
+#ifdef _TFC
+#include "../tfc/tf_defs.h"
+#else
+#define PC_LASTCLASS 10
 #define PC_UNDEFINED 0
 #define MENU_DEFAULT				1
 #define MENU_TEAM 					2
@@ -38,7 +47,8 @@
 #define MENU_CLASSHELP				6
 #define MENU_CLASSHELP2 			7
 #define MENU_REPEATHELP 			8
-#define MENU_SPECHELP				9
+#define MENU_SPECHELP				59 //modif de Julien
+#endif
 using namespace vgui;
 
 class Cursor;
@@ -54,9 +64,14 @@ class DragNDropPanel;
 class CTransparentPanel;
 class CClassMenuPanel;
 class CTeamMenuPanel;
+class COrdiMenuPanel;	//modif de Julien
+class COrdiControlPanel;	//modif de Julien
+class CKeypad;	//modif de Julien
+class CSoin;	//modif de Julien
+class CRadio;	//modif de Julien
 class TeamFortressViewport;
 
-char *GetVGUITGAName( const char *pszName );
+char *GetVGUITGAName( const char *pszName, bool allCapitalsVGUI = false );
 BitmapTGA *LoadTGAForRes( const char* pImageName );
 void ScaleColors( int &r, int &g, int &b, int a );
 extern const char *sTFClassSelection[];
@@ -508,9 +523,28 @@ private:
 	void		 CreateClassMenu( void );
 	CMenuPanel*	 ShowClassMenu( void );
 	void		 CreateSpectatorMenu( void );
+	//modif de Julien
+	void        CreateOrdiMenu( void );
+	CMenuPanel*    ShowOrdiMenu( void );
+	//modif de Julien
+	void        CreateOrdiControl( void );
+	CMenuPanel*    ShowOrdiControl( void );
+	//modif de Julien
+	void        CreateKeypad( void );
+	CMenuPanel*    ShowKeypad( void );
+	//modif de Julien
+	void        CreateSoin( void );
+	CMenuPanel*    ShowSoin( void );
+	//modif de Julien
+	void        CreateRadio( void );
+	CMenuPanel*    ShowRadio( void );
 	
 	// Scheme handler
 	CSchemeManager m_SchemeManager;
+
+	// MOTD
+	int		m_iGotAllMOTD;
+	char	m_szMOTD[ MAX_MOTD_LENGTH ];
 
 	//  Command Menu Team buttons
 	CommandButton *m_pTeamButtons[6];
@@ -554,6 +588,8 @@ public:
 
 	int	 KeyInput( int down, int keynum, const char *pszCurrentBinding );
 	void InputPlayerSpecial( void );
+	void GetAllPlayersInfo( void );
+	void DeathMsg( int killer, int victim );
 
 	void ShowCommandMenu(int menuIndex);
 	void InputSignalHideCommandMenu( void );
@@ -591,10 +627,16 @@ public:
 	int MsgFunc_Feign(const char *pszName, int iSize, void *pbuf );
 	int MsgFunc_Detpack(const char *pszName, int iSize, void *pbuf );
 	int MsgFunc_VGUIMenu(const char *pszName, int iSize, void *pbuf );
-	void ShowMOTD();
+	int MsgFunc_VGUIordi(const char *pszName, int iSize, void *pbuf );//modif de Julien
+	int MsgFunc_Keypad(const char *pszName, int iSize, void *pbuf );//modif de Julien
+	int MsgFunc_Conveyor(const char *pszName, int iSize, void *pbuf );//modif de Julien
+	int MsgFunc_MOTD( const char *pszName, int iSize, void *pbuf );
 	int MsgFunc_BuildSt( const char *pszName, int iSize, void *pbuf );
 	int MsgFunc_RandomPC( const char *pszName, int iSize, void *pbuf );
 	int MsgFunc_ServerName( const char *pszName, int iSize, void *pbuf );
+	int MsgFunc_ScoreInfo( const char *pszName, int iSize, void *pbuf );
+	int MsgFunc_TeamScore( const char *pszName, int iSize, void *pbuf );
+	int MsgFunc_TeamInfo( const char *pszName, int iSize, void *pbuf );
 	int MsgFunc_Spectator( const char *pszName, int iSize, void *pbuf );
 	int MsgFunc_AllowSpec( const char *pszName, int iSize, void *pbuf );
 	int MsgFunc_SpecFade( const char *pszName, int iSize, void *pbuf );	
@@ -608,6 +650,11 @@ public:
 	CSchemeManager *GetSchemeManager( void ) { return &m_SchemeManager; }
 	ScorePanel *GetScoreBoard( void ) { return m_pScoreBoard; }
 
+	// modif de Julien
+
+	CMenuPanel *OpenSoinMenu ( void ) { return ShowSoin(); };
+	CMenuPanel *OpenRadioMenu ( void ) { return ShowRadio(); };
+
 	void *operator new( size_t stAllocateBlock );
 
 public:
@@ -619,6 +666,11 @@ public:
 	int						m_SpectatorCameraMenu;
 	int						m_PlayerMenu; // a list of current player
 	CClassMenuPanel	*m_pClassMenu;
+	COrdiMenuPanel 	*m_pOrdiMenu;			//modif de Julien
+	COrdiControlPanel 	*m_pOrdiControl; 	//modif de Julien
+	CKeypad		 	*m_pKeypad;			 	//modif de Julien
+	CSoin		 	*m_pSoin;			 	//modif de Julien
+	CRadio		 	*m_pRadio;			 	//modif de Julien
 	ScorePanel		*m_pScoreBoard;
 	SpectatorPanel *m_pSpectatorPanel;
 	char			m_szServerName[ MAX_SERVERNAME_LENGTH ];
@@ -628,6 +680,49 @@ public:
 // Command Menu Button Handlers
 #define MAX_COMMAND_SIZE	256
 
+//modif de Julien
+
+class CMenuHandler_OrdiMenu : public ActionSignal
+{
+protected:
+	int m_iType;
+	int m_iMenu;
+	COrdiMenuPanel *m_pPanel;
+
+public:
+	CMenuHandler_OrdiMenu ( int iType, int iMenu, COrdiMenuPanel *pPanel )
+	{
+		m_iType = iType;
+		m_iMenu = iMenu;
+		m_pPanel = pPanel;
+	}
+
+	virtual void actionPerformed(Panel* panel);	//d
+
+#ifdef DOUBLECLICKFIXPATH_INVASION_VGUI
+	int skipTime = 0; //Just an integer to store double-press fix, modif de Roy
+#endif
+};
+
+//modif de Julien
+
+class CMenuHandler_OrdiControl : public ActionSignal
+{
+protected:
+	COrdiControlPanel *m_pPanel;
+
+public:
+	CMenuHandler_OrdiControl ( COrdiControlPanel *pPanel )
+	{
+		m_pPanel = pPanel;
+	}
+
+	virtual void actionPerformed(Panel* panel);	//d
+};
+
+
+//=================
+
 class CMenuHandler_StringCommand : public ActionSignal
 {
 protected:
@@ -636,13 +731,15 @@ protected:
 public:
 	CMenuHandler_StringCommand( const char *pszCommand )
 	{
-		strlcpy( m_pszCommand, pszCommand, MAX_COMMAND_SIZE );
+		strncpy( m_pszCommand, pszCommand, MAX_COMMAND_SIZE - 1 );
+		m_pszCommand[MAX_COMMAND_SIZE - 1] = '\0';
 		m_iCloseVGUIMenu = false;
 	}
 
 	CMenuHandler_StringCommand( const char *pszCommand, int iClose )
 	{
-		strlcpy( m_pszCommand, pszCommand, MAX_COMMAND_SIZE );
+		strncpy( m_pszCommand, pszCommand, MAX_COMMAND_SIZE - 1 );
+		m_pszCommand[MAX_COMMAND_SIZE - 1] = '\0';
 		m_iCloseVGUIMenu = true;
 	}
 
@@ -831,7 +928,8 @@ protected:
 public:
 	CMenuHandler_SpectateFollow( char *player )
 	{
-		strlcpy( m_szplayer, player, MAX_COMMAND_SIZE );
+		strncpy( m_szplayer, player, MAX_COMMAND_SIZE);
+		m_szplayer[MAX_COMMAND_SIZE-1] = '\0';
 	}
 
 	virtual void actionPerformed(Panel* panel)
@@ -1011,6 +1109,12 @@ public:
 
 	virtual int IsNotValid()
 	{
+		// Only visible for spies
+#ifdef _TFC
+		if( g_iPlayerClass != PC_SPY )
+			return true;
+#endif
+
 		if( m_iFeignState == gViewPort->GetIsFeigning() )
 			return false;
 
@@ -1053,6 +1157,12 @@ public:
 
 	virtual int IsNotValid()
 	{
+#ifdef _TFC
+		// Only visible for spies
+		if( g_iPlayerClass != PC_SPY )
+			return true;
+#endif
+
 		// if it's not tied to a specific team, then always show (for spies)
 		if( !m_iValidTeamsBits )
 			return false;
@@ -1078,6 +1188,12 @@ public:
 
 	virtual int IsNotValid()
 	{
+#ifdef _TFC
+		// Only visible for demomen
+		if( g_iPlayerClass != PC_DEMOMAN )
+			return true;
+#endif
+
 		if( m_iDetpackState == gViewPort->GetIsSettingDetpack() )
 			return false;
 
@@ -1114,6 +1230,64 @@ public:
 
 	virtual int IsNotValid()
 	{
+#ifdef _TFC
+		// Only visible for engineers
+		if( g_iPlayerClass != PC_ENGINEER )
+			return true;
+
+		// If this isn't set, it's only active when they're not building
+		if( m_iBuildState & BUILDSTATE_BUILDING )
+		{
+			// Make sure the player's building
+			if( !( gViewPort->GetBuildState() & BS_BUILDING ) )
+				return true;
+		}
+		else
+		{
+			// Make sure the player's not building
+			if( gViewPort->GetBuildState() & BS_BUILDING )
+				return true;
+		}
+
+		if( m_iBuildState & BUILDSTATE_BASE )
+		{
+			// Only appear if we've got enough metal to build something, or something already built
+			if ( gViewPort->GetBuildState() & (BS_HAS_SENTRYGUN | BS_HAS_DISPENSER | BS_CANB_SENTRYGUN | BS_CANB_DISPENSER | BS_HAS_ENTRY_TELEPORTER | BS_HAS_EXIT_TELEPORTER | BS_CANB_ENTRY_TELEPORTER | BS_CANB_EXIT_TELEPORTER) )
+				return false;
+
+			return true;
+		}
+
+		// Must have a building
+		if( m_iBuildState & BUILDSTATE_HASBUILDING )
+		{
+			if( m_iBuildData == BuildButton::DISPENSER && !( gViewPort->GetBuildState() & BS_HAS_DISPENSER ) )
+				return true;
+
+			if( m_iBuildData == BuildButton::SENTRYGUN && !( gViewPort->GetBuildState() & BS_HAS_SENTRYGUN ) )
+				return true;
+			if ( m_iBuildData == BuildButton::ENTRY_TELEPORTER && !(gViewPort->GetBuildState() & BS_HAS_ENTRY_TELEPORTER) )
+				return true;
+			if ( m_iBuildData == BuildButton::EXIT_TELEPORTER && !(gViewPort->GetBuildState() & BS_HAS_EXIT_TELEPORTER) )
+				return true;
+		}
+
+		// Can build something
+		if( m_iBuildState & BUILDSTATE_CANBUILD )
+		{
+			// Make sure they've got the ammo and don't have one already
+			if( m_iBuildData == BuildButton::DISPENSER && ( gViewPort->GetBuildState() & BS_CANB_DISPENSER ) )
+				return false;
+			if( m_iBuildData == BuildButton::SENTRYGUN && ( gViewPort->GetBuildState() & BS_CANB_SENTRYGUN ) )
+				return false;
+			if ( m_iBuildData == BuildButton::ENTRY_TELEPORTER && (gViewPort->GetBuildState() & BS_CANB_ENTRY_TELEPORTER) )
+				return false;
+			if ( m_iBuildData == BuildButton::EXIT_TELEPORTER && (gViewPort->GetBuildState() & BS_CANB_EXIT_TELEPORTER) )
+				return false;
+
+			return true;
+		}
+#endif
 		return false;
 	}
 };
@@ -1659,6 +1833,11 @@ public:
 		FileInputStream *fis = new FileInputStream( GetVGUITGAName( "%d_hud_health" ), false );
 		m_pHealthTGA = new BitmapTGA( fis, true );
 		fis->close();
+		if(!m_pHealthTGA){
+			fis = new FileInputStream( GetVGUITGAName( "%d_hud_health", true ), false );
+			m_pHealthTGA = new BitmapTGA( fis, true );
+			fis->close();
+		}
 
 		// Create the Health Label
 		int iXSize, iYSize;
@@ -1717,4 +1896,11 @@ public:
 		FillRGBA( x, iYPos + 5, HealthWidth / 10, gHUD.m_iFontHeight, 255, 160, 0, a );
 	}
 };
+
+#include "vgui_OrdiMenu.h"
+#include "vgui_OrdiControl.h"
+#include "vgui_keypad.h"
+#include "vgui_soin.h"
+#include "vgui_radio.h"
+
 #endif

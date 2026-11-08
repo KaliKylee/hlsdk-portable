@@ -20,7 +20,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
+#include <cmath>
 
 #include "hud.h"
 #include "cl_util.h"
@@ -33,11 +33,11 @@
 #if !defined(M_PI_F)
 #define M_PI_F		(float)M_PI
 #endif
-// extern vec3_t vec3_origin;
+extern vec3_t vec3_origin;
 
 // if C++ mangling differs from C symbol name
 #if _MSC_VER || __WATCOMC__
-float vec3_origin[3];
+vec3_t vec3_origin;
 #endif
 
 float Length( const float *v )
@@ -123,8 +123,13 @@ void VectorMA( const float *veca, float scale, const float *vecb, float *vecc )
 
 HSPRITE LoadSprite( const char *pszName )
 {
-	int i = GetSpriteRes( ScreenWidth, ScreenHeight );
+	int i;
 	char sz[256];
+
+	if( ScreenWidth < 640 )
+		i = 320;
+	else
+		i = 640;
 
 	sprintf( sz, pszName, i );
 

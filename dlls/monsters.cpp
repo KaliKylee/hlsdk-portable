@@ -106,6 +106,7 @@ TYPEDESCRIPTION	CBaseMonster::m_SaveData[] =
 
 	DEFINE_FIELD( CBaseMonster, m_scriptState, FIELD_INTEGER ),
 	DEFINE_FIELD( CBaseMonster, m_pCine, FIELD_CLASSPTR ),
+	DEFINE_FIELD( CBaseMonster, m_iHasGibbed, FIELD_INTEGER ),
 };
 
 //IMPLEMENT_SAVERESTORE( CBaseMonster, CBaseToggle )
@@ -184,9 +185,6 @@ void CBaseMonster::BarnacleVictimBitten( entvars_t *pevBarnacle )
 //=========================================================
 void CBaseMonster::BarnacleVictimReleased( void )
 {
-	if (m_IdealMonsterState == MONSTERSTATE_DEAD)
-		return;
-
 	m_IdealMonsterState = MONSTERSTATE_IDLE;
 
 	pev->velocity = g_vecZero;
@@ -559,6 +557,7 @@ void CBaseMonster::MonsterThink( void )
 	{
 		Move( flInterval );
 	}
+
 #if _DEBUG	
 	else 
 	{
@@ -566,6 +565,7 @@ void CBaseMonster::MonsterThink( void )
 			ALERT( at_error, "Schedule stalled!!\n" );
 	}
 #endif
+
 }
 
 //=========================================================
@@ -2026,6 +2026,8 @@ void CBaseMonster::MonsterInit( void )
 	SetThink( &CBaseMonster::MonsterInitThink );
 	pev->nextthink = gpGlobals->time + 0.1f;
 	SetUse( &CBaseMonster::MonsterUse );
+
+	m_flLastYawTime = gpGlobals->time;
 }
 
 //=========================================================
@@ -2088,7 +2090,7 @@ void CBaseMonster::StartMonster( void )
 
 		if( !m_pGoalEnt )
 		{
-			ALERT( at_error, "ReadyMonster()--%s couldn't find target %s\n", STRING( pev->classname ), STRING( pev->target ) );
+			ALERT( at_error, "ReadyMonster()--%s couldn't find target %s", STRING( pev->classname ), STRING( pev->target ) );
 		}
 		else
 		{
@@ -2100,7 +2102,7 @@ void CBaseMonster::StartMonster( void )
 			// At this point, we expect only a path_corner as initial goal
 			if( !FClassnameIs( m_pGoalEnt->pev, "path_corner" ) )
 			{
-				ALERT( at_warning, "ReadyMonster--monster's initial goal '%s' is not a path_corner\n", STRING( pev->target ) );
+				ALERT( at_warning, "ReadyMonster--monster's initial goal '%s' is not a path_corner", STRING( pev->target ) );
 			}
 #endif
 			// set the monster up to walk a path corner path. 
@@ -2131,13 +2133,13 @@ void CBaseMonster::StartMonster( void )
 	pev->nextthink += RANDOM_FLOAT( 0.1f, 0.4f ); // spread think times.
 
 	// Vit_amiN: fixed -- now it doesn't touch any scripted_sequence target
-	if( !FStringNull( pev->targetname ) && !m_pCine )// wait until triggered
+	/*if( !FStringNull( pev->targetname ) && !m_pCine )// wait until triggered
 	{
 		SetState( MONSTERSTATE_IDLE );
 		// UNDONE: Some scripted sequence monsters don't have an idle?
 		SetActivity( ACT_IDLE );
 		ChangeSchedule( GetScheduleOfType( SCHED_WAIT_TRIGGER ) );
-	}
+	}*/
 }
 
 void CBaseMonster::MovementComplete( void ) 
@@ -2510,12 +2512,9 @@ float CBaseMonster::ChangeYaw( int yawSpeed )
 	{
 		if( monsteryawspeedfix.value )
 		{
-			if( m_flLastYawTime == 0.f )
-				m_flLastYawTime = gpGlobals->time - gpGlobals->frametime;
+			float delta;
 
-			float delta = Q_min( gpGlobals->time - m_flLastYawTime, 0.25f );
-
-			m_flLastYawTime = gpGlobals->time;
+			delta = Q_min( gpGlobals->time - m_flLastYawTime, 0.25f );
 
 			speed = (float)yawSpeed * delta * 2;
 		}
@@ -2564,6 +2563,8 @@ float CBaseMonster::ChangeYaw( int yawSpeed )
 	}
 	else
 		move = 0;
+
+	m_flLastYawTime = gpGlobals->time;
 
 	return move;
 }
@@ -3191,7 +3192,6 @@ BOOL CBaseMonster::FCanActiveIdle( void )
 	return FALSE;
 }
 
-#if !SPEAKABLE_TARGETS
 void CBaseMonster::PlaySentence( const char *pszSentence, float duration, float volume, float attenuation )
 {
 	if( pszSentence && IsAlive() )
@@ -3212,7 +3212,7 @@ void CBaseMonster::SentenceStop( void )
 {
 	EMIT_SOUND( edict(), CHAN_VOICE, "common/null.wav", 1.0, ATTN_IDLE );
 }
-#endif
+
 void CBaseMonster::CorpseFallThink( void )
 {
 	if( pev->flags & FL_ONGROUND )
@@ -3403,4 +3403,28 @@ BOOL CBaseMonster::ShouldFadeOnDeath( void )
 		return TRUE;
 
 	return FALSE;
+}
+
+
+//---------------------------------------------------
+// modif de Julien
+
+
+void CBaseMonster :: Gunflash ( void )
+{
+	Vector vecSrc = GetGunPosition ();
+
+	MESSAGE_BEGIN( MSG_PVS, SVC_TEMPENTITY, vecSrc );
+		WRITE_BYTE(TE_DLIGHT);
+		WRITE_COORD(vecSrc.x);	// X
+		WRITE_COORD(vecSrc.y);	// Y
+		WRITE_COORD(vecSrc.z);	// Z
+		WRITE_BYTE( 12 * RANDOM_FLOAT(0.8, 1.2) );		// radius * 0.1
+		WRITE_BYTE( 255 );		// r
+		WRITE_BYTE( 180 );		// g
+		WRITE_BYTE( 96 );		// b
+		WRITE_BYTE( 0.5 );		// time * 10
+		WRITE_BYTE( 10 );		// decay * 0.1
+	MESSAGE_END( );
+
 }

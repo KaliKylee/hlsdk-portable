@@ -20,6 +20,8 @@
 # SOFTWARE.
 #
 
+# Edited for HL:Invasion
+#
 cmake_minimum_required(VERSION 3.9)
 project (SVDLL)
 
@@ -27,7 +29,6 @@ set (SVDLL_LIBRARY server)
 
 if(NOT MSVC)
 	add_compile_options(-fno-exceptions) # GCC/Clang flag
-	add_compile_options(-fno-rtti) # GCC/Clang flag
 	add_compile_options(-Wno-invalid-offsetof) # GCC/Clang flag
 	add_compile_options(-fvisibility=hidden) # GCC/Clang flag
 	add_definitions(-D_LINUX) # It seems enough for all non-Win32 systems
@@ -45,9 +46,9 @@ else()
 endif()
 
 set (SVDLL_SOURCES
+	aflock.cpp
 	agrunt.cpp
 	airtank.cpp
-	aflock.cpp
 	animating.cpp
 	animation.cpp
 	apache.cpp
@@ -56,22 +57,27 @@ set (SVDLL_SOURCES
 	bigmomma.cpp
 	bloater.cpp
 	bmodels.cpp
+	briquet.cpp
 	bullsquid.cpp
 	buttons.cpp
 	cbase.cpp
 	client.cpp
 	combat.cpp
 	controller.cpp
-	crossbow.cpp
 	crowbar.cpp
 	defaultai.cpp
+	diablo.cpp
 	doors.cpp
 	effects.cpp
-	egon.cpp
 	explode.cpp
+	fgrenade.cpp
+	flybee.cpp
 	flyingmonster.cpp
+	fog.cpp
+	fsniper.cpp
 	func_break.cpp
 	func_tank.cpp
+	func_vgui.cpp
 	game.cpp
 	gamerules.cpp
 	gargantua.cpp
@@ -79,7 +85,6 @@ set (SVDLL_SOURCES
 	genericmonster.cpp
 	ggrenade.cpp
 	globals.cpp
-	glock.cpp
 	gman.cpp
 	h_ai.cpp
 	h_battery.cpp
@@ -91,34 +96,46 @@ set (SVDLL_SOURCES
 	headcrab.cpp
 	healthkit.cpp
 	hgrunt.cpp
+	glock.cpp
 	hornet.cpp
-	hornetgun.cpp
 	houndeye.cpp
 	ichthyosaur.cpp
+	irgun.cpp
 	islave.cpp
 	items.cpp
 	leech.cpp
+	lflammes.cpp
 	lights.cpp
+	luciole.cpp
+	m16.cpp
 	maprules.cpp
+	miroir.cpp
 	monstermaker.cpp
 	monsters.cpp
+	monsters.h
 	monsterstate.cpp
 	mortar.cpp
 	mp5.cpp
 	multiplay_gamerules.cpp
+	music.cpp
 	nihilanth.cpp
 	nodes.cpp
 	observer.cpp
+	inv_crash.cpp
 	osprey.cpp
 	pathcorner.cpp
 	plane.cpp
 	plats.cpp
 	player.cpp
-	playermonster.cpp
+	../pm_shared/pm_debug.c
+	../pm_shared/pm_math.c
+	../pm_shared/pm_shared.c
 	python.cpp
+	radiomsg.cpp
 	rat.cpp
 	roach.cpp
 	rpg.cpp
+	rpggrunt.cpp
 	satchel.cpp
 	schedule.cpp
 	scientist.cpp
@@ -126,13 +143,17 @@ set (SVDLL_SOURCES
 	shotgun.cpp
 	singleplay_gamerules.cpp
 	skill.cpp
+	sniper.cpp
 	sound.cpp
 	soundent.cpp
 	spectator.cpp
 	squadmonster.cpp
 	squeakgrenade.cpp
 	subs.cpp
+	supergun.cpp
+	t_sub.cpp
 	talkmonster.cpp
+	tank.cpp
 	teamplay_gamerules.cpp
 	tempmonster.cpp
 	tentacle.cpp
@@ -140,16 +161,11 @@ set (SVDLL_SOURCES
 	tripmine.cpp
 	turret.cpp
 	util.cpp
-	vehicle.cpp
+	util.h
 	weapons.cpp
 	world.cpp
 	xen.cpp
 	zombie.cpp
-	../game_shared/voice_gamemgr.cpp
-	../pm_shared/pm_debug.c
-	../pm_shared/pm_math.c
-	../pm_shared/pm_shared.c
-	../public/safe_snprintf.c
 )
 
 if (HAVE_STRLCPY)
@@ -168,6 +184,13 @@ endif()
 
 include_directories (. wpn_shared ../common ../engine ../pm_shared ../game_shared ../public)
 
+# Invasion does not use the voice manager
+if(USE_VOICEMGR)
+	list(APPEND SVDLL_SOURCES ../game_shared/voice_gamemgr.cpp)
+else()
+	add_definitions(-DNO_VOICEGAMEMGR)
+endif()
+
 if(MSVC)
 	set(SVDLL_SOURCES
 		${SVDLL_SOURCES}
@@ -175,7 +198,11 @@ if(MSVC)
 endif()
 
 add_library (${SVDLL_LIBRARY} SHARED ${SVDLL_SOURCES})
-target_link_libraries(${SVDLL_LIBRARY} vcs_info)
+if(ANDROID)
+	target_link_libraries(${SVDLL_LIBRARY} log)
+	# the call chain in invasion_crash.log depends on frame pointers
+	target_compile_options(${SVDLL_LIBRARY} PRIVATE -fno-omit-frame-pointer)
+endif()
 
 set_target_properties (${SVDLL_LIBRARY} PROPERTIES POSITION_INDEPENDENT_CODE 1)
 

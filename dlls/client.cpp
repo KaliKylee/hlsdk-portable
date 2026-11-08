@@ -39,6 +39,7 @@
 #include "usercmd.h"
 #include "netadr.h"
 #include "pm_shared.h"
+#include "inv_log.h"
 
 extern DLL_GLOBAL ULONG		g_ulModelIndexPlayer;
 extern DLL_GLOBAL BOOL		g_fGameOver;
@@ -48,11 +49,20 @@ extern DLL_GLOBAL ULONG		g_ulFrameCount;
 extern void CopyToBodyQue( entvars_t* pev );
 extern int giPrecacheGrunt;
 extern int gmsgSayText;
+extern int gmsgBhopcap;
 
 extern cvar_t allow_spectators;
 extern cvar_t multibyte_only;
 
 extern int g_teamplay;
+
+extern cvar_t bhopcap;
+extern "C" int g_bhopcap;
+
+// modif de Julien
+extern CBaseEntity *FindEntityForward( CBaseEntity *pMe );
+
+
 
 void LinkUserMessages( void );
 
@@ -98,6 +108,8 @@ called when a player disconnects from a server
 GLOBALS ASSUMED SET:  g_fGameOver
 ============
 */
+
+
 void ClientDisconnect( edict_t *pEntity )
 {
 	if( g_fGameOver )
@@ -105,8 +117,7 @@ void ClientDisconnect( edict_t *pEntity )
 
 	char text[256] = "";
 	if( pEntity->v.netname )
-		safe_snprintf( text, sizeof( text ), "- %s has left the game\n", STRING( pEntity->v.netname ));
-
+		_snprintf( text, sizeof(text), "- %s has left the game\n", STRING( pEntity->v.netname ) );
 	MESSAGE_BEGIN( MSG_ALL, gmsgSayText, NULL );
 		WRITE_BYTE( ENTINDEX( pEntity ) );
 		WRITE_STRING( text );
@@ -124,7 +135,6 @@ void ClientDisconnect( edict_t *pEntity )
 	pEntity->v.takedamage = DAMAGE_NO;// don't attract autoaim
 	pEntity->v.solid = SOLID_NOT;// nonsolid
 	pEntity->v.effects = 0;// clear any effects
-	pEntity->v.flags = 0;// clear any flags
 	UTIL_SetOrigin( &pEntity->v, pEntity->v.origin );
 
 	g_pGameRules->ClientDisconnected( pEntity );
@@ -192,6 +202,8 @@ void ClientPutInServer( edict_t *pEntity )
 
 	entvars_t *pev = &pEntity->v;
 
+	INV_Log( "ClientPutInServer: jogador entrou (mapa %s)", STRING( gpGlobals->mapname ) );
+
 	pPlayer = GetClassPtr( (CBasePlayer *)pev );
 	pPlayer->SetCustomDecalFrames( -1 ); // Assume none;
 	pPlayer->SetPrefsFromUserinfo( g_engfuncs.pfnGetInfoKeyBuffer( pEntity ) );
@@ -206,8 +218,10 @@ void ClientPutInServer( edict_t *pEntity )
 	pPlayer->pev->iuser2 = 0;
 }
 
+#if !NO_VOICEGAMEMGR
 #include "voice_gamemgr.h"
 extern CVoiceGameMgr g_VoiceGameMgr;
+#endif
 
 //-----------------------------------------------------------------------------
 // Purpose: determine if a uchar32 represents a valid Unicode code point
@@ -348,14 +362,13 @@ void Host_Say( edict_t *pEntity, int teamonly )
 	{
 		if( CMD_ARGC() >= 2 )
 		{
-			safe_snprintf( szTemp, sizeof( szTemp ), "%s %s", (char *)pcmd, (char *)CMD_ARGS() );
+			sprintf( szTemp, "%s %s", (char *)pcmd, (char *)CMD_ARGS() );
 		}
 		else
 		{
 			// Just a one word command, use the first word...sigh
-			strlcpy( szTemp, (char *)pcmd, sizeof( szTemp ));
+			sprintf( szTemp, "%s", (char *)pcmd );
 		}
-
 		p = szTemp;
 	}
 
@@ -371,11 +384,11 @@ void Host_Say( edict_t *pEntity, int teamonly )
 
 	// turn on color set 2  (color on,  no sound)
 	if( player->IsObserver() && ( teamonly ) )
-		safe_snprintf( text, sizeof( text ), "%c(SPEC) %s: ", 2, STRING( pEntity->v.netname ) );
+		sprintf( text, "%c(SPEC) %s: ", 2, STRING( pEntity->v.netname ) );
 	else if( teamonly )
-		safe_snprintf( text, sizeof( text ), "%c(TEAM) %s: ", 2, STRING( pEntity->v.netname ) );
+		sprintf( text, "%c(TEAM) %s: ", 2, STRING( pEntity->v.netname ) );
 	else
-		safe_snprintf( text, sizeof( text ), "%c%s: ", 2, STRING( pEntity->v.netname ) );
+		sprintf( text, "%c%s: ", 2, STRING( pEntity->v.netname ) );
 
 	j = sizeof( text ) - 2 - strlen( text );  // -2 for /n and null terminator
 	if( (int)strlen( p ) > j )
@@ -402,9 +415,11 @@ void Host_Say( edict_t *pEntity, int teamonly )
 
 		if( !( client->IsNetClient() ) )	// Not a client ? (should never be true)
 			continue;
+#if !NO_VOICEGAMEMGR
 		// can the receiver hear the sender? or has he muted him?
 		if( g_VoiceGameMgr.PlayerHasBlockedPlayer( client, player ) )
 			continue;
+#endif
 		if( !player->IsObserver() && teamonly && g_pGameRules->PlayerRelationship( client, CBaseEntity::Instance( pEntity ) ) != GR_TEAMMATE )
 			continue;
 
@@ -464,6 +479,7 @@ called each time a player uses a "cmd" command
 ============
 */
 extern cvar_t *g_enable_cheats;
+extern int g_testmode;	// modif de Julien
 
 // Use CMD_ARGV,  CMD_ARGV, and CMD_ARGC to get pointers the character string command.
 void ClientCommand( edict_t *pEntity )
@@ -601,6 +617,165 @@ void ClientCommand( edict_t *pEntity )
 		if( pPlayer->IsObserver() )
 			pPlayer->Observer_FindNextPlayer( atoi( CMD_ARGV( 1 ) ) ? true : false );
 	}
+//
+	//modif de Julien
+	else if (FStrEq(pcmd, "test" ))
+	{
+		ALERT ( at_console , "testmode ON\n" );
+		g_testmode = 1;
+
+		int i = 0;
+		while ( i < 5 )
+		{
+			GetClassPtr((CBasePlayer *)pev)->CheatImpulseCommands( 101 );
+			i++;
+		}
+	}
+
+	//modif de Julien
+	else if (FStrEq(pcmd, "testmode" ))
+	{
+		ALERT ( at_console , "testmode ON\n" );
+		g_testmode = 1;
+	}
+
+
+
+	// SCHED_DIE
+	//modif de Julien
+	else if (FStrEq(pcmd, "flybee" ))
+	{
+
+/*		CBaseMonster *pFlybee = ( CBaseMonster *) UTIL_FindEntityByClassname ( NULL, "monster_flybee" );
+
+		if ( pFlybee != NULL )
+		{
+			pFlybee->GetScheduleOfType ( SCHED_DIE );
+		}*/
+
+		CBaseEntity *pMe = CBaseEntity::Instance ( pEntity );
+
+
+		CBaseEntity *pE = FindEntityForward( pMe );
+
+		if ( pE )
+		{
+			if ( pE->pev->takedamage )
+				pE->TakeDamage ( pev, pev, pE->pev->health, DMG_GENERIC );
+		}
+	}
+
+	//modif de Julien
+	else if (FStrEq(pcmd, "ordimenu" ))
+	{
+		if ( atoi(CMD_ARGV(1)) == 2 )
+		{
+			EMIT_SOUND( ENT(pev), CHAN_ITEM, "buttons/blip2.wav", 1, ATTN_NORM );
+
+			//d
+			
+			edict_t* pentCherche = NULL;
+
+			for ( int i = 0 ; i<15 ; i++ )
+			{
+				pentCherche = FIND_ENTITY_BY_CLASSNAME ( pentCherche, "monster_camera" );
+
+				if (!FNullEnt(pentCherche))
+				{
+					CBaseEntity *pTarget = CBaseEntity::Instance(pentCherche);
+					pTarget->Use( CBaseEntity::Instance(pEntity), CBaseEntity::Instance(pEntity), USE_ON, 1 );
+					//la valeur 1 d
+				}
+			}
+
+			// d
+
+			pentCherche = NULL;
+
+			for ( int j = 0 ; j<5 ; j++ )
+			{
+				pentCherche = FIND_ENTITY_BY_TARGETNAME ( pentCherche, "security" );
+
+				if (!FNullEnt(pentCherche))
+					UTIL_Remove( CBaseEntity::Instance(pentCherche) );
+			}
+			for ( int k = 0 ; k<5 ; k++ )
+			{
+				pentCherche = FIND_ENTITY_BY_TARGETNAME ( pentCherche, "security_2" );
+
+				if (!FNullEnt(pentCherche))
+					UTIL_Remove( CBaseEntity::Instance(pentCherche) );
+			}
+
+			for ( int l = 0 ; l<5 ; l++ )
+			{
+				pentCherche = FIND_ENTITY_BY_TARGETNAME ( pentCherche, "security_3" );
+
+				if (!FNullEnt(pentCherche))
+					UTIL_Remove( CBaseEntity::Instance(pentCherche) );
+			}
+
+		}
+
+		else if ( atoi(CMD_ARGV(1)) == 1 )
+			EMIT_SOUND( ENT(pev), CHAN_ITEM, "sentences/blip.wav", 1, ATTN_NORM );
+	}
+
+	//modif de Julien
+	else if (FStrEq(pcmd, "ordicontrol" ))
+	{
+		CBaseEntity *pEnt = UTIL_FindEntityByClassname ( NULL, "func_conveyorcontrol" );
+
+		if ( pEnt != NULL )
+		{
+			pEnt->Use ( GetClassPtr((CBasePlayer *)pev), GetClassPtr((CBasePlayer *)pev), USE_OFF, atoi(CMD_ARGV(1)) );
+		}
+
+	}
+
+	else if (FStrEq(pcmd, "keypad" ))
+	{
+		if ( atoi(CMD_ARGV(1)) == 0 )
+		{
+			EMIT_SOUND( ENT(pev), CHAN_ITEM, "buttons/button10.wav", 1, ATTN_NORM );
+			return;
+		}
+
+		CBaseEntity *pEntity = UTIL_FindEntityByClassname ( NULL, "func_keypad" );
+
+		while ( pEntity != NULL )
+		{
+			if ( ENTINDEX(pEntity->edict()) == atoi(CMD_ARGV(1)) )
+			{
+				FireTargets ( STRING(pEntity->pev->target), pEntity, GetClassPtr((CBasePlayer *)pev), USE_ON, 0 );
+				break;
+			}
+
+			pEntity = UTIL_FindEntityByClassname ( pEntity, "func_keypad" );
+		}
+
+		EMIT_SOUND( ENT(pev), CHAN_ITEM, "buttons/blip2.wav", 1, ATTN_NORM );
+
+	}
+
+	else if (FStrEq(pcmd, "medkit" ))
+	{
+		GetClassPtr((CBasePlayer *)pev)->UseMedkit();
+	}
+
+	else if (FStrEq(pcmd, "battery" ))
+	{
+		GetClassPtr((CBasePlayer *)pev)->UseBattery(0);
+	}
+
+	else if (FStrEq(pcmd, "soin" ))
+	{
+		int commande = atoi(CMD_ARGV(1));
+		GetClassPtr((CBasePlayer *)pev)->UseBattery(commande);
+	}
+
+
+//
 	else if( g_pGameRules->ClientCommand( GetClassPtr( (CBasePlayer *)pev ), pcmd ) )
 	{
 		// MenuSelect returns true only if the command is properly handled,  so don't print a warning
@@ -617,15 +792,8 @@ void ClientCommand( edict_t *pEntity )
 
 		// check the length of the command (prevents crash)
 		// max total length is 192 ...and we're adding a string below ("Unknown command: %s\n")
-		strlcpy( command, pcmd, sizeof( command ));
-
-		// First parse the name and remove any %'s
-		for( char *pApersand = command; *pApersand; pApersand++ )
-		{
-			// Replace it with a space
-			if( *pApersand == '%' )
-				*pApersand = ' ';
-		}
+		strncpy( command, pcmd, 127 );
+		command[127] = '\0';
 
 		// tell the user they entered an unknown command
 		ClientPrint( &pEntity->v, HUD_PRINTCONSOLE, UTIL_VarArgs( "Unknown command: %s\n", command ) );
@@ -652,7 +820,8 @@ void ClientUserInfoChanged( edict_t *pEntity, char *infobuffer )
 	{
 		char sName[256];
 		char *pName = g_engfuncs.pfnInfoKeyValue( infobuffer, "name" );
-		strlcpy( sName, pName, sizeof( sName ));
+		strncpy( sName, pName, sizeof(sName) - 1 );
+		sName[sizeof(sName) - 1] = '\0';
 
 		// First parse the name and remove any %'s
 		for( char *pApersand = sName; pApersand != NULL && *pApersand != 0; pApersand++ )
@@ -668,7 +837,7 @@ void ClientUserInfoChanged( edict_t *pEntity, char *infobuffer )
 		if( gpGlobals->maxClients > 1 )
 		{
 			char text[256];
-			safe_snprintf( text, sizeof( text ), "* %s changed name to %s\n", STRING( pEntity->v.netname ), g_engfuncs.pfnInfoKeyValue( infobuffer, "name" ) );
+			_snprintf( text, 256, "* %s changed name to %s\n", STRING( pEntity->v.netname ), g_engfuncs.pfnInfoKeyValue( infobuffer, "name" ) );
 			MESSAGE_BEGIN( MSG_ALL, gmsgSayText, NULL );
 				WRITE_BYTE( ENTINDEX( pEntity ) );
 				WRITE_STRING( text );
@@ -704,6 +873,7 @@ static int g_serveractive = 0;
 void ServerDeactivate( void )
 {
 	//ALERT( at_console, "ServerDeactivate()\n" );
+	INV_Log( "ServerDeactivate" );
 
 	// It's possible that the engine will call this function more times than is necessary
 	//  Therefore, only run it one time for each call to ServerActivate 
@@ -724,6 +894,7 @@ void ServerActivate( edict_t *pEdictList, int edictCount, int clientMax )
 	CBaseEntity	*pClass;
 
 	//ALERT( at_console, "ServerActivate()\n" );
+	INV_Log( "ServerActivate: mapa=%s clientMax=%d edicts=%d", STRING( gpGlobals->mapname ), clientMax, edictCount );
 
 	// Every call to ServerActivate should be matched by a call to ServerDeactivate
 	g_serveractive = 1;
@@ -735,7 +906,7 @@ void ServerActivate( edict_t *pEdictList, int edictCount, int clientMax )
 			continue;
 
 		// Clients aren't necessarily initialized until ClientPutInServer()
-		if( (i > 0 && i <= clientMax) || !pEdictList[i].pvPrivateData )
+		if( i < clientMax || !pEdictList[i].pvPrivateData )
 			continue;
 
 		pClass = CBaseEntity::Instance( &pEdictList[i] );
@@ -816,6 +987,15 @@ void StartFrame( void )
 
 	gpGlobals->teamplay = teamplay.value;
 	g_ulFrameCount++;
+
+	int oldBhopcap = g_bhopcap;
+	g_bhopcap = ( g_pGameRules->IsMultiplayer() && bhopcap.value != 0.0f ) ? 1 : 0;
+	if( g_bhopcap != oldBhopcap )
+	{
+		MESSAGE_BEGIN( MSG_ALL, gmsgBhopcap, NULL );
+			WRITE_BYTE( g_bhopcap );
+		MESSAGE_END();
+	}
 }
 
 void ClientPrecache( void )
@@ -890,8 +1070,6 @@ void ClientPrecache( void )
 
 	PRECACHE_SOUND( "plats/train_use1.wav" );		// use a train
 
-	PRECACHE_SOUND( "plats/vehicle_ignition.wav" );
-
 	PRECACHE_SOUND( "buttons/spark5.wav" );		// hit computer texture
 	PRECACHE_SOUND( "buttons/spark6.wav" );
 	PRECACHE_SOUND( "debris/glass1.wav" );
@@ -928,6 +1106,10 @@ void ClientPrecache( void )
 	PRECACHE_SOUND( "player/geiger2.wav" );
 	PRECACHE_SOUND( "player/geiger1.wav" );
 
+	// modif de Julien
+
+	PRECACHE_SOUND("items/smallmedkit2.wav");
+
 	if( giPrecacheGrunt )
 		UTIL_PrecacheOther( "monster_human_grunt" );
 }
@@ -944,7 +1126,7 @@ const char *GetGameDescription()
 	if( g_pGameRules ) // this function may be called before the world has spawned, and the game rules initialized
 		return g_pGameRules->GetGameDescription();
 	else
-		return "Half-Life";
+		return "Half-Life : Invasion";
 }
 
 /*
@@ -1081,6 +1263,20 @@ void SetupVisibility( edict_t *pViewEntity, edict_t *pClient, unsigned char **pv
 		return;
 	}
 
+	// modif de Julien
+	// camera du tank
+
+	CBaseEntity *pEnt = CBaseEntity::Instance(pClient);
+	if ( pEnt->IsPlayer() )
+	{
+		CBasePlayer *pPlayer = (CBasePlayer*)pEnt;
+		if( pPlayer->m_iDrivingTank == TRUE )
+		{
+			// origine de la camera et non pas du joueur
+			pView = UTIL_FindEntityByClassname(NULL, "info_tank_camera" )->edict();
+		}
+	}
+
 	if( pView->v.effects & EF_MERGE_VISIBILITY )
 	{
 		if( FClassnameIs( pView, "env_sky" ) )
@@ -1120,7 +1316,6 @@ we could also use the pas/ pvs that we set in SetupVisibility, if we wanted to. 
 int AddToFullPack( struct entity_state_s *state, int e, edict_t *ent, edict_t *host, int hostflags, int player, unsigned char *pSet )
 {
 	int i;
-	CBaseEntity *Entity;
 
 	// don't send if flagged for NODRAW and it's not the host getting the message
 	if( ( ent->v.effects & EF_NODRAW ) && ( ent != host ) )
@@ -1140,7 +1335,8 @@ int AddToFullPack( struct entity_state_s *state, int e, edict_t *ent, edict_t *h
 	// If pSet is NULL, then the test will always succeed and the entity will be added to the update
 	if( ent != host )
 	{
-		if( !ENGINE_CHECK_VISIBILITY( (const struct edict_s *)ent, pSet ) )
+		// modif de Julien
+		if ( !ENGINE_CHECK_VISIBILITY( (const struct edict_s *)ent, pSet ) && !FClassnameIs ( ent, "info_tank_camera") )
 		{
 			// env_sky is visible always
 			if( !FClassnameIs( ent, "env_sky" ) )
@@ -1306,16 +1502,7 @@ int AddToFullPack( struct entity_state_s *state, int e, edict_t *ent, edict_t *h
 		state->health		= (int)ent->v.health;
 	}
 
-	if( ( Entity = CBaseEntity::Instance( ent ))
-	    && Entity->Classify() != CLASS_NONE
-	    && Entity->Classify() != CLASS_MACHINE )
-	{
-		SetBits( state->eflags, EFLAG_FLESH_SOUND );
-	}
-	else
-	{
-		ClearBits( state->eflags, EFLAG_FLESH_SOUND );
-	}
+
 
 	return 1;
 }
@@ -1633,13 +1820,14 @@ void RegisterEncoders( void )
 
 int GetWeaponData( struct edict_s *player, struct weapon_data_s *info )
 {
-	memset( info, 0, MAX_WEAPONS * sizeof(weapon_data_t) );
 #if CLIENT_WEAPONS
 	int i;
 	weapon_data_t *item;
 	entvars_t *pev = &player->v;
 	CBasePlayer *pl = (CBasePlayer *)CBasePlayer::Instance( pev );
 	CBasePlayerWeapon *gun;
+
+	memset( info, 0, 32 * sizeof(weapon_data_t) );
 
 	if( !pl )
 		return 1;
@@ -1661,7 +1849,7 @@ int GetWeaponData( struct edict_s *player, struct weapon_data_s *info )
 					// Get The ID.
 					gun->GetItemInfo( &II );
 
-					if( II.iId >= 0 && II.iId < MAX_WEAPONS )
+					if( II.iId >= 0 && II.iId < 32 )
 					{
 						item = &info[II.iId];
 					 	
@@ -1687,6 +1875,8 @@ int GetWeaponData( struct edict_s *player, struct weapon_data_s *info )
 			}
 		}
 	}
+#else
+	memset( info, 0, 32 * sizeof(weapon_data_t) );
 #endif
 	return 1;
 }
@@ -1792,11 +1982,11 @@ void UpdateClientData( const struct edict_s *ent, int sendweapons, struct client
 					cd->vuser4.y = pl->m_rgAmmo[gun->m_iPrimaryAmmoType];
 					cd->vuser4.z = pl->m_rgAmmo[gun->m_iSecondaryAmmoType];
 
-					if( pl->m_pActiveItem->m_iId == WEAPON_RPG )
+					/*if( pl->m_pActiveItem->m_iId == WEAPON_RPG ) //modif de Julien o para Julien
 					{
 						cd->vuser2.y = ( (CRpg *)pl->m_pActiveItem )->m_fSpotActive;
 						cd->vuser2.z = ( (CRpg *)pl->m_pActiveItem )->m_cActiveRockets;
-					}
+					}*/
 				}
 			}
 		}

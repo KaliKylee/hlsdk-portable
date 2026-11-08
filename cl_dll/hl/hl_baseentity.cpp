@@ -108,8 +108,6 @@ Vector UTIL_VecToAngles( const Vector &vec ){ return 0; }
 CSprite *CSprite::SpriteCreate( const char *pSpriteName, const Vector &origin, BOOL animate ) { return 0; }
 void CBeam::PointEntInit( const Vector &start, int endIndex ) { }
 CBeam *CBeam::BeamCreate( const char *pSpriteName, int width ) { return NULL; }
-const Vector &CBeam::GetStartPos( void ){ return g_vecZero; }
-const Vector &CBeam::GetEndPos( void ){ return g_vecZero; }
 void CSprite::Expand( float scaleSpeed, float fadeSpeed ) { }
 
 CBaseEntity* CBaseMonster::CheckTraceHullAttack( float flDist, int iDamage, int iDmgType ) { return NULL; }
@@ -196,7 +194,7 @@ void CBaseAnimating::SetBodygroup( int iGroup, int iValue ) { }
 int CBaseAnimating::GetBodygroup( int iGroup ) { return 0; }
 Vector CBaseMonster::GetGunPosition( void ) { return g_vecZero; }
 void CBaseEntity::TraceAttack( entvars_t *pevAttacker, float flDamage, Vector vecDir, TraceResult *ptr, int bitsDamageType ) { }
-void CBaseEntity::FireBullets( ULONG cShots, Vector vecSrc, Vector vecDirShooting, Vector vecSpread, float flDistance, int iBulletType, int iTracerFreq, int iDamage, entvars_t *pevAttacker ) { }
+void CBaseEntity::FireBullets( ULONG cShots, Vector vecSrc, Vector vecDirShooting, Vector vecSpread, float flDistance, int iBulletType, int iTracerFreq, int iDamage, entvars_t *pevAttacker, int TraverseMur) { } //modif de Julien (TraverseMur)
 void CBaseEntity::TraceBleed( float flDamage, Vector vecDir, TraceResult *ptr, int bitsDamageType ) { }
 void CBaseMonster::MakeDamageBloodDecal( int cCount, float flNoise, TraceResult *ptr, const Vector &vecDir ) { }
 BOOL CBaseMonster::FGetNodeRoute( Vector vecDest ) { return TRUE; }
@@ -209,15 +207,9 @@ BOOL CBaseMonster::FindLateralCover( const Vector &vecThreat, const Vector &vecV
 Vector CBaseMonster::ShootAtEnemy( const Vector &shootOrigin ) { return g_vecZero; }
 BOOL CBaseMonster::FacingIdeal( void ) { return FALSE; }
 BOOL CBaseMonster::FCanActiveIdle( void ) { return FALSE; }
-#if SPEAKABLE_TARGETS
-void CBaseToggle::PlaySentence( const char *pszSentence, float duration, float volume, float attenuation ) { }
-void CBaseToggle::PlayScriptedSentence( const char *pszSentence, float duration, float volume, float attenuation, BOOL bConcurrent, CBaseEntity *pListener ) { }
-void CBaseToggle::SentenceStop( void ) { }
-#else
 void CBaseMonster::PlaySentence( const char *pszSentence, float duration, float volume, float attenuation ) { }
 void CBaseMonster::PlayScriptedSentence( const char *pszSentence, float duration, float volume, float attenuation, BOOL bConcurrent, CBaseEntity *pListener ) { }
 void CBaseMonster::SentenceStop( void ) { }
-#endif
 void CBaseMonster::CorpseFallThink( void ) { }
 void CBaseMonster::MonsterInitDead( void ) { }
 BOOL CBaseMonster::BBoxFlat( void ) { return TRUE; }
@@ -245,6 +237,11 @@ int CBaseMonster::TakeHealth(float flHealth, int bitsDamageType) { return 0; }
 int CBaseMonster::TakeDamage( entvars_t *pevInflictor, entvars_t *pevAttacker, float flDamage, int bitsDamageType ) { return 0; }
 int CBaseMonster::Restore( class CRestore & ) { return 1; }
 int CBaseMonster::Save( class CSave & ) { return 1; }
+// modif de Julien
+void CBaseMonster :: Gunflash ( void ) {};
+void CBasePlayer :: TextAmmo ( TEXT_AMMMO ta_text ) {};
+
+
 
 int TrainSpeed( int iSpeed, int iMax ) { return 0; }
 void CBasePlayer::DeathSound( void ) { }

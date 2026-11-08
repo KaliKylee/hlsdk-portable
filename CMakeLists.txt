@@ -20,6 +20,8 @@
 # SOFTWARE.
 #
 
+# Edited for HL:Invasion
+#
 # 3.9 added captures in if(MATCHES)
 cmake_minimum_required(VERSION 3.9)
 
@@ -48,6 +50,8 @@ option(BUILD_SERVER "Build server dll" ON)
 option(LTO "Enable interprocedural optimization" OFF)
 option(POLLY "Enable pollyhedral optimization" OFF)
 option(ANDROID_APK "Enable APK styled deploy" OFF)
+option(USE_VOICEMGR "Enable VOICE MANAGER (Invasion does not use it)" OFF)
+option(DISABLE_MINIAUDIO "Disable Miniaudio (client music)" OFF)
 
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 	set(CMAKE_INSTALL_PREFIX "")

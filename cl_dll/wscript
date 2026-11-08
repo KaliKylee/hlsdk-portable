@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 # encoding: utf-8
 # a1batross, mittorn, 2018
+# Edited for HL:Invasion
 
 from waflib import Utils
 import os
@@ -12,6 +13,9 @@ def options(opt):
 		default=True, help = 'disable GoldSource compatibility on i386 Win/Mac/Linux')
 
 def configure(conf):
+	if conf.env.DEST_OS == 'android':
+		conf.check_cc(lib='log')
+
 	if conf.env.DEST_OS in ['win32', 'linux', 'darwin'] and conf.env.DEST_CPU == 'x86':
 		conf.env.GOLDSOURCE_SUPPORT = conf.options.GOLDSOURCE_SUPPORT
 	else:
@@ -21,9 +25,12 @@ def configure(conf):
 		conf.check_cc(lib='dl')
 
 def build(bld):
-	libs = ['vcs_info']
-	defines = ['CLIENT_DLL']
+	libs = []
+	defines = ['CLIENT_DLL', 'USE_VGUI']
 	defines += bld.env.EXPORT_DEFINES_LIST
+	libs += ['vgui']
+	if bld.env.DEST_OS == 'android':
+		libs += ['LOG']
 
 	# the idea is to always include original vgui headers set (because nobody is gonna port their code to freevgui headers)
 	# but compile freevgui as a shared library here so we can link against it, but skip it from install
@@ -35,34 +42,97 @@ def build(bld):
 		'../game_shared',
 		'../public',
 		'../utils/vgui/include']
-	excluded_files = ['GameStudioModelRenderer_Sample.cpp',
-		'game_shared/voice_vgui_tweakdlg.cpp',
-		'game_shared/voice_gamemgr.cpp',
-		'game_shared/voice_status.cpp']
+	excluded_files = []
 
-	libs += ['vgui']
-
-	source = bld.path.ant_glob('**/*.cpp', excl=excluded_files)
-	source += bld.path.parent.ant_glob('game_shared/*.cpp', excl=excluded_files)
-	source += bld.path.parent.ant_glob([
-		'public/safe_snprintf.c',
-		'pm_shared/*.c',
-		'dlls/crossbow.cpp',
-		'dlls/crowbar.cpp',
-		'dlls/egon.cpp',
-		'dlls/gauss.cpp',
-		'dlls/glock.cpp',
-		'dlls/handgrenade.cpp',
-		'dlls/hornetgun.cpp',
-		'dlls/mp5.cpp',
-		'dlls/python.cpp',
-		'dlls/rpg.cpp',
-		'dlls/satchel.cpp',
-		'dlls/shotgun.cpp',
-		'dlls/squeakgrenade.cpp',
-		'dlls/tripmine.cpp'
-	])
-
+	# HL:Invasion uses an explicit source list (the directory has extra files
+	# that must not be built)
+	source = [
+		'clientbriquet.cpp',
+		'clientfog.cpp',
+		'clientlflammes.cpp',
+		'ev_hldm.cpp',
+		'GameStudioModelRenderer.cpp',
+		'hl/hl_baseentity.cpp',
+		'hl/hl_events.cpp',
+		'hl/hl_objects.cpp',
+		'hl/hl_weapons.cpp',
+		'../dlls/glock.cpp',
+		'../dlls/inv_crash.cpp',
+		'hud_tank.cpp',
+		'hudradio.cpp',
+		'hudrpg.cpp',
+		'hudzoom.cpp',
+		'lensflare.cpp',
+		'nvg.cpp',
+		'clientmusic.cpp',
+		'particules.cpp',
+		'studio_util.cpp',
+		'StudioModelRenderer.cpp',
+		'ammo.cpp',
+		'ammo_secondary.cpp',
+		'ammohistory.cpp',
+		'battery.cpp',
+		'cdll_int.cpp',
+		'com_weapons.cpp',
+		'death.cpp',
+		'demo.cpp',
+		'entity.cpp',
+		'ev_common.cpp',
+		'events.cpp',
+		'flashlight.cpp',
+		'geiger.cpp',
+		'health.cpp',
+		'hud.cpp',
+		'hud_msg.cpp',
+		'hud_redraw.cpp',
+		'hud_spectator.cpp',
+		'hud_update.cpp',
+		'in_camera.cpp',
+		'input.cpp',
+		'input_goldsource.cpp',
+		'input_mouse.cpp',
+		'input_xash3d.cpp',
+		'menu.cpp',
+		'message.cpp',
+		'overview.cpp',
+		'parsemsg.cpp',
+		'../pm_shared/pm_debug.c',
+		'../pm_shared/pm_math.c',
+		'../pm_shared/pm_shared.c',
+		'saytext.cpp',
+		'status_icons.cpp',
+		'statusbar.cpp',
+		'text_message.cpp',
+		'train.cpp',
+		'tri.cpp',
+		'util.cpp',
+		'view.cpp',
+		'vgui_int.cpp',
+		'vgui_ClassMenu.cpp',
+		'vgui_ConsolePanel.cpp',
+		'vgui_ControlConfigPanel.cpp',
+		'vgui_CustomObjects.cpp',
+		'vgui_MOTDWindow.cpp',
+		'vgui_SchemeManager.cpp',
+		'vgui_ScorePanel.cpp',
+		'vgui_TeamFortressViewport.cpp',
+		'vgui_SpectatorPanel.cpp',
+		'vgui_teammenu.cpp',
+		'voice_status.cpp',
+		'../game_shared/vgui_checkbutton2.cpp',
+		'../game_shared/vgui_grid.cpp',
+		'../game_shared/vgui_helpers.cpp',
+		'../game_shared/vgui_listbox.cpp',
+		'../game_shared/vgui_loadtga.cpp',
+		'../game_shared/vgui_scrollbar2.cpp',
+		'../game_shared/vgui_slider2.cpp',
+		'../game_shared/voice_banmgr.cpp',
+		'vgui_keypad.cpp',
+		'vgui_OrdiControl.cpp',
+		'vgui_OrdiMenu.cpp',
+		'vgui_radio.cpp',
+		'vgui_soin.cpp'
+	]
 
 	if bld.env.DEST_OS == 'win32':
 		libs += ['USER32']

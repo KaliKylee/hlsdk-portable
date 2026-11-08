@@ -23,8 +23,18 @@
 #include "netadr.h"
 #include "parsemsg.h"
 
+#if USE_VGUI
 #include "vgui_int.h"
 #include "vgui_TeamFortressViewport.h"
+#endif
+
+#if GOLDSOURCE_SUPPORT && (_WIN32 || __linux__ || __APPLE__) && (__i386 || _M_IX86)
+#define USE_FAKE_VGUI	!USE_VGUI
+#if USE_FAKE_VGUI
+#include "VGUI_Panel.h"
+#include "VGUI_App.h"
+#endif
+#endif
 
 extern "C"
 {
@@ -32,22 +42,36 @@ extern "C"
 }
 
 #include <string.h>
-#include "vcs_info.h"
-
-cl_enginefunc_t gEngfuncs;
-CHud gHUD;
-TeamFortressViewport *gViewPort = NULL;
-mobile_engfuncs_t *gMobileEngfuncs = NULL;
+#include "inv_log.h"
 
 #if defined( INTERNAL_VGUI_SUPPORT )
-// declare InitVGUISupportAPI so that linker doesn't remove it because nothing references it
+// FreeVGUI is linked statically (libvgui.a): the engine looks up
+// InitVGUISupportAPI by name, but nothing here calls it, so reference it
+// so the linker does not drop it.
 extern "C" void InitVGUISupportAPI( void *api );
 void *g_pKeepVGUISupport = (void *)InitVGUISupportAPI;
 #endif
 
+cl_enginefunc_t gEngfuncs;
+CHud gHUD;
+#if USE_VGUI
+TeamFortressViewport *gViewPort = NULL;
+#endif
+mobile_engfuncs_t *gMobileEngfuncs = NULL;
+
+extern "C" int g_bhopcap;
 void InitInput( void );
 void EV_HookEvents( void );
 void IN_Commands( void );
+
+int __MsgFunc_Bhopcap( const char *pszName, int iSize, void *pbuf )
+{
+	BEGIN_READ( pbuf, iSize );
+
+	g_bhopcap = READ_BYTE();
+
+	return 1;
+}
 
 /*
 ========================== 
@@ -72,7 +96,7 @@ int		DLLEXPORT HUD_GetHullBounds( int hullnumber, float *mins, float *maxs );
 void	DLLEXPORT HUD_Frame( double time );
 void	DLLEXPORT HUD_VoiceStatus(int entindex, qboolean bTalking);
 void	DLLEXPORT HUD_DirectorMessage( int iSize, void *pbuf );
-int DLLEXPORT HUD_MobilityInterface( mobile_engfuncs_t *gpMobileEngfuncs );
+void DLLEXPORT HUD_MobilityInterface( mobile_engfuncs_t *gpMobileEngfuncs );
 }
 
 /*
@@ -147,6 +171,8 @@ void DLLEXPORT HUD_PlayerMove( struct playermove_s *ppmove, int server )
 
 int DLLEXPORT Initialize( cl_enginefunc_t *pEnginefuncs, int iVersion )
 {
+	INV_Log( "cliente: Initialize (versao da interface %d)", iVersion );
+
 	gEngfuncs = *pEnginefuncs;
 
 	if( iVersion != CLDLL_INTERFACE_VERSION )
@@ -165,9 +191,6 @@ int DLLEXPORT Initialize( cl_enginefunc_t *pEnginefuncs, int iVersion )
 	}
 
 	EV_HookEvents();
-
-	gEngfuncs.pfnRegisterVariable( "cl_game_build_commit", g_VCSInfo_Commit, 0 );
-	gEngfuncs.pfnRegisterVariable( "cl_game_build_branch", g_VCSInfo_Branch, 0 );
 
 	return 1;
 }
@@ -191,6 +214,48 @@ int *HUD_GetRect( void )
 	return extent;
 }
 
+#if USE_FAKE_VGUI
+class TeamFortressViewport : public vgui::Panel
+{
+public:
+	TeamFortressViewport(int x,int y,int wide,int tall);
+	void Initialize( void );
+
+	virtual void paintBackground();
+	void *operator new( size_t stAllocateBlock );
+};
+
+static TeamFortressViewport* gViewPort = NULL;
+
+TeamFortressViewport::TeamFortressViewport(int x, int y, int wide, int tall) : Panel(x, y, wide, tall)
+{
+	gViewPort = this;
+	Initialize();
+}
+
+void TeamFortressViewport::Initialize()
+{
+	//vgui::App::getInstance()->setCursorOveride( vgui::App::getInstance()->getScheme()->getCursor(vgui::Scheme::scu_none) );
+}
+
+void TeamFortressViewport::paintBackground()
+{
+//	int wide, tall;
+//	getParent()->getSize( wide, tall );
+//	setSize( wide, tall );
+	int extents[4];
+	getParent()->getAbsExtents(extents[0],extents[1],extents[2],extents[3]);
+	gEngfuncs.VGui_ViewportPaintBackground(extents);
+}
+
+void *TeamFortressViewport::operator new( size_t stAllocateBlock )
+{
+	void *mem = ::operator new( stAllocateBlock );
+	memset( mem, 0, stAllocateBlock );
+	return mem;
+}
+#endif
+
 /*
 ==========================
 	HUD_VidInit
@@ -203,10 +268,30 @@ so the HUD can reinitialize itself.
 
 int DLLEXPORT HUD_VidInit( void )
 {
+	INV_Log( "cliente: HUD_VidInit (novo mapa)" );
+
 	gHUD.VidInit();
+#if USE_FAKE_VGUI
+	vgui::Panel* root=(vgui::Panel*)gEngfuncs.VGui_GetPanel();
+	if (root) {
+		gEngfuncs.Con_Printf( "Root VGUI panel exists\n" );
+		root->setBgColor(128,128,0,0);
 
+		if (gViewPort != NULL)
+		{
+			gViewPort->Initialize();
+		}
+		else
+		{
+			gViewPort = new TeamFortressViewport(0,0,root->getWide(),root->getTall());
+			gViewPort->setParent(root);
+		}
+	} else {
+		gEngfuncs.Con_Printf( "Root VGUI panel does not exist\n" );
+	}
+#elif USE_VGUI
 	VGui_Startup();
-
+#endif
 	return 1;
 }
 
@@ -224,7 +309,11 @@ void DLLEXPORT HUD_Init( void )
 {
 	InitInput();
 	gHUD.Init();
+#if USE_VGUI
 	Scheme_Init();
+#endif
+
+	gEngfuncs.pfnHookUserMsg( "Bhopcap", __MsgFunc_Bhopcap );
 }
 
 /*
@@ -286,7 +375,14 @@ Called by engine every frame that client .dll is loaded
 
 void DLLEXPORT HUD_Frame( double time )
 {
+#if USE_VGUI
 	GetClientVoiceMgr()->Frame(time);
+#elif USE_FAKE_VGUI
+	if (!gViewPort)
+		gEngfuncs.VGui_ViewportPaintBackground(HUD_GetRect());
+#else
+	gEngfuncs.VGui_ViewportPaintBackground(HUD_GetRect());
+#endif
 }
 
 /*
@@ -299,7 +395,9 @@ Called when a player starts or stops talking.
 
 void DLLEXPORT HUD_VoiceStatus( int entindex, qboolean bTalking )
 {
+#if USE_VGUI
 	GetClientVoiceMgr()->UpdateSpeakerStatus(entindex, bTalking);
+#endif
 }
 
 /*
@@ -315,12 +413,11 @@ void DLLEXPORT HUD_DirectorMessage( int iSize, void *pbuf )
 	 gHUD.m_Spectator.DirectorMessage( iSize, pbuf );
 }
 
-int DLLEXPORT HUD_MobilityInterface( mobile_engfuncs_t *gpMobileEngfuncs )
+void DLLEXPORT HUD_MobilityInterface( mobile_engfuncs_t *gpMobileEngfuncs )
 {
 	if( gpMobileEngfuncs->version != MOBILITY_API_VERSION )
-		return 1;
+		return;
 	gMobileEngfuncs = gpMobileEngfuncs;
-	return 0;
 }
 
 bool HUD_MessageBox( const char *msg )

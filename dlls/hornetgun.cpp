@@ -98,7 +98,7 @@ int CHgun::GetItemInfo( ItemInfo *p )
 	p->iMaxAmmo2 = -1;
 	p->iMaxClip = WEAPON_NOCLIP;
 	p->iSlot = 3;
-	p->iPosition = 3;
+	p->iPosition = 4;
 	p->iId = m_iId = WEAPON_HORNETGUN;
 	p->iFlags = ITEM_FLAG_NOAUTOSWITCHEMPTY | ITEM_FLAG_NOAUTORELOAD;
 	p->iWeight = HORNETGUN_WEIGHT;
@@ -137,12 +137,7 @@ void CHgun::PrimaryAttack()
 	CBaseEntity *pHornet = CBaseEntity::Create( "hornet", m_pPlayer->GetGunPosition() + gpGlobals->v_forward * 16.0f + gpGlobals->v_right * 8.0f + gpGlobals->v_up * -12.0f, m_pPlayer->pev->v_angle, m_pPlayer->edict() );
 	pHornet->pev->velocity = gpGlobals->v_forward * 300.0f;
 
-	float flRechargeTimePause = 0.5f;
-
-	if( g_pGameRules->IsMultiplayer() )
-		flRechargeTimePause = 0.3f;
-
-	m_flRechargeTime = gpGlobals->time + flRechargeTimePause;
+	m_flRechargeTime = gpGlobals->time + 0.5f;
 #endif
 	m_pPlayer->m_rgAmmo[m_iPrimaryAmmoType]--;
 	
@@ -228,14 +223,8 @@ void CHgun::SecondaryAttack( void )
 
 	pHornet->SetThink( &CHornet::StartDart );
 
-	float flRechargeTimePause = 0.5f;
-
-	if( g_pGameRules->IsMultiplayer() )
-		flRechargeTimePause = 0.3f;
-
-	m_flRechargeTime = gpGlobals->time + flRechargeTimePause;
+	m_flRechargeTime = gpGlobals->time + 0.5f;
 #endif
-
 	int flags;
 #if CLIENT_WEAPONS
 	flags = FEV_NOTHOST;
@@ -262,16 +251,8 @@ void CHgun::Reload( void )
 
 	while( m_pPlayer->m_rgAmmo[m_iPrimaryAmmoType] < HORNET_MAX_CARRY && m_flRechargeTime < gpGlobals->time )
 	{
-		float flRechargeTimePause = 0.5f;
-#if CLIENT_DLL
-		if( bIsMultiplayer() )
-#else
-		if( g_pGameRules->IsMultiplayer() )
-#endif
-			flRechargeTimePause = 0.3f;
-
 		m_pPlayer->m_rgAmmo[m_iPrimaryAmmoType]++;
-		m_flRechargeTime += flRechargeTimePause;
+		m_flRechargeTime += 0.5f;
 	}
 }
 

@@ -18,6 +18,7 @@
 
 #include "vgui_int.h"
 #include "VGUI_Font.h"
+#include "VGUI_ScrollPanel.h"
 #include "VGUI_TextImage.h"
 
 #include "hud.h"
@@ -181,7 +182,6 @@ void CTeamMenuPanel::Update( void )
 
 				// bound key replacement
 				char sz[32]; 
-				size_t strsize = 0;
 				sprintf( sz, "%d", i );
 				m_pButtons[i]->setBoundKey( sz[0] );
 
@@ -209,8 +209,9 @@ void CTeamMenuPanel::Update( void )
 
 					iTotal++;
 					if( iTotal > 1 )
-						strsize += strlcpy( &szPlayerList[strsize], ", ", sizeof( szPlayerList ) - strsize );
-					strsize += strlcpy( &szPlayerList[strsize], g_PlayerInfoList[j].name, sizeof( szPlayerList ) - strsize );
+						strncat( szPlayerList, ", ", sizeof(szPlayerList) - strlen( szPlayerList ) - 1 );
+					strncat( szPlayerList, g_PlayerInfoList[j].name, sizeof(szPlayerList) - strlen( szPlayerList ) - 1 );
+					szPlayerList[sizeof(szPlayerList) - 1] = '\0';
 				}
 
 				if( iTotal > 0 )
@@ -218,10 +219,11 @@ void CTeamMenuPanel::Update( void )
 					// Set the text of the info Panel
 					char szText[( ( MAX_PLAYER_NAME_LENGTH + 3 ) * 31 ) + 256]; 
 					if( iTotal == 1 )
-						strsize = sprintf( szText, "%s: %d Player (%d points)", gViewPort->GetTeamName( i ), iTotal, g_TeamInfo[i].frags );
+						sprintf( szText, "%s: %d Player (%d points)", gViewPort->GetTeamName( i ), iTotal, g_TeamInfo[i].frags );
 					else
-						strsize = sprintf( szText, "%s: %d Players (%d points)", gViewPort->GetTeamName( i ), iTotal, g_TeamInfo[i].frags );
-					strlcpy( &szText[strsize], szPlayerList, sizeof( szText ) - strsize );
+						sprintf( szText, "%s: %d Players (%d points)", gViewPort->GetTeamName( i ), iTotal, g_TeamInfo[i].frags );
+					strncat( szText, szPlayerList, sizeof(szText) - strlen( szText ) - 1 );
+					szText[sizeof(szText) - 1] = '\0';
 
 					m_pTeamInfoPanel[i]->setText( szText );
 				}

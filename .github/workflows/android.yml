@@ -1,0 +1,178 @@
+name: Build Android libs + APK (HL Invasion)
+
+on:
+  workflow_dispatch:
+
+env:
+  # Used only if the submodules are missing/empty in the repository
+  # (e.g. the submodule was never added). Pinned to versions checked with this tree.
+  FREEVGUI_REPO:   https://github.com/FWGS/freevgui
+  FREEVGUI_REF:    73bfb4659f3d9eb28b79e5b26baea8c6b888d5eb
+  MINIAUDIO_REPO:  https://github.com/mackron/miniaudio
+  MINIAUDIO_REF:   4d813cfe23c28db165cce6785419fee9d2399766
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { abi: arm64-v8a,   bit64: "ON" }
+          - { abi: armeabi-v7a, bit64: "OFF" }
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Make sure FreeVGUI and miniaudio are present
+        run: |
+          set -eu
+          fetch() { # repo ref dir
+            rm -rf "$3"; mkdir -p "$3"
+            git -C "$3" init -q
+            git -C "$3" remote add origin "$1"
+            git -C "$3" fetch -q --depth 1 origin "$2"
+            git -C "$3" checkout -q FETCH_HEAD
+          }
+          [ -f freevgui/CMakeLists.txt ]       || fetch "$FREEVGUI_REPO"  "$FREEVGUI_REF"  freevgui
+          [ -f miniaudio/miniaudio.h ]         || fetch "$MINIAUDIO_REPO" "$MINIAUDIO_REF" miniaudio
+          test -f freevgui/platform/xash3d-fwgs/app.cpp
+          test -f engine/vgui_api.h
+          test -f miniaudio/miniaudio.h
+
+      - name: Configure
+        run: |
+          set -eu
+          NDK="${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}"
+          # RelWithDebInfo: keeps the symbols (we strip ourselves below) and
+          # keeps frame pointers usable for invasion_crash.log
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=${{ matrix.abi }} \
+            -DANDROID_PLATFORM=android-21 \
+            -DANDROID_STL=c++_static \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+            -DCMAKE_C_FLAGS_RELWITHDEBINFO="-O2 -g1 -DNDEBUG -Wno-error -Wno-format-security -Wno-error=format-security" \
+            -DCMAKE_CXX_FLAGS_RELWITHDEBINFO="-O2 -g1 -DNDEBUG -Wno-error -Wno-format-security -Wno-error=format-security -Wno-c++11-narrowing -Wno-register" \
+            -D64BIT=${{ matrix.bit64 }} \
+            -DBUILD_CLIENT=ON -DBUILD_SERVER=ON
+
+      - name: Build
+        run: cmake --build build -j"$(nproc)"
+
+      - name: Collect libs
+        run: |
+          set -eu
+          NDK="${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}"
+          STRIP=$(find "$NDK/toolchains/llvm/prebuilt" -name llvm-strip | head -n1)
+          OUT=out/${{ matrix.abi }}
+          mkdir -p "$OUT"
+          # The names come straight from the build (Xash3D library naming):
+          #   libclient_android_<arch>.so   and   libinvasion_android_<arch>.so
+          cp build/cl_dll/lib*_android_*.so "$OUT/"
+          cp build/dlls/lib*_android_*.so   "$OUT/"
+          ls -la "$OUT"
+          test "$(ls "$OUT"/lib*_android_*.so | wc -l)" = 2
+          CLIENT=$(ls "$OUT"/libclient_android_*.so)
+          SERVER=$(ls "$OUT"/libinvasion_android_*.so)
+          # libs WITH symbols (before strip): used to translate addresses in invasion_crash.log
+          mkdir -p symbols/${{ matrix.abi }}
+          cp "$OUT"/lib*_android_*.so symbols/${{ matrix.abi }}/
+          "$STRIP" --strip-unneeded "$OUT"/*.so
+          file "$OUT"/*.so
+          # the engine looks the VGUI entry point up in the client library
+          nm -D --defined-only "$CLIENT" | grep -E "InitVGUISupportAPI" || \
+            { echo "::error::InitVGUISupportAPI is missing from the client lib"; exit 1; }
+          nm -D --defined-only "$CLIENT" | grep -E "Initialize|GetClientAPI" >/dev/null || \
+            { echo "::error::expected client exports are missing"; exit 1; }
+          # FreeVGUI must be linked statically: no libvgui.so dependency allowed
+          if readelf -d "$CLIENT" | grep -q "libvgui"; then
+            echo "::error::client lib still depends on libvgui.so"; exit 1
+          fi
+          readelf -d "$CLIENT" | grep NEEDED
+          nm -D --defined-only "$SERVER" | grep -E "GiveFnptrsToDll|GetEntityAPI" || \
+            { echo "::error::expected server exports are missing"; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Invasion-libs-symbols-${{ matrix.abi }}
+          path: symbols/${{ matrix.abi }}
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hlinvasion-libs-${{ matrix.abi }}
+          path: out/${{ matrix.abi }}/*.so
+          if-no-files-found: error
+
+  bundle:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: hlinvasion-libs-*
+          path: jniLibs_tmp
+      - name: Arrange as jniLibs/<abi>/
+        run: |
+          set -eu
+          for d in jniLibs_tmp/hlinvasion-libs-*; do
+            abi=${d##*/hlinvasion-libs-}
+            mkdir -p jniLibs/$abi
+            cp "$d"/*.so jniLibs/$abi/
+          done
+          find jniLibs -type f | sort
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hlinvasion-jniLibs
+          path: jniLibs
+
+  apk:
+    # launcher (pasta android/) + as libs do mod => APK instalavel
+    needs: bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: hlinvasion-jniLibs
+          path: libs_in
+
+      - name: Put the libs inside the launcher
+        run: |
+          set -eu
+          # o engine procura libinvasion_android_<arch>.so e libclient_android_<arch>.so
+          for abi_dir in libs_in/*/; do
+            abi=$(basename "$abi_dir")
+            mkdir -p "android/app/src/main/jniLibs/$abi"
+            cp "$abi_dir"/lib*_android_*.so "android/app/src/main/jniLibs/$abi/"
+          done
+          find android/app/src/main/jniLibs -type f | sort
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install Android SDK pieces
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Invasion-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error

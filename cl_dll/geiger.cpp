@@ -63,11 +63,6 @@ int CHudGeiger::MsgFunc_Geiger( const char *pszName,  int iSize, void *pbuf )
 
 int CHudGeiger::Draw( float flTime )
 {
-	return 1;
-}
-
-void CHudGeiger::Think()
-{
 	int pct;
 	float flvol = 0.0f;
 	//int rg[3];
@@ -183,4 +178,6 @@ void CHudGeiger::Think()
 			PlaySound( sz, flvol );
 		}
 	}
+
+	return 1;
 }

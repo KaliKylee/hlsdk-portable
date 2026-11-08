@@ -21,8 +21,7 @@
 #include	"decals.h"
 #include	"gamerules.h"
 #include	"game.h"
-
-bool g_fIsXash3D = false;
+#include "inv_log.h"
 
 void EntvarsKeyvalue( entvars_t *pev, KeyValueData *pkvd );
 
@@ -100,7 +99,7 @@ static DLL_FUNCTIONS gFunctionTable =
 
 static void SetObjectCollisionBox( entvars_t *pev );
 
-#if !XASH_WIN32
+#if !_WIN32
 extern "C" {
 #endif
 int GetEntityAPI( DLL_FUNCTIONS *pFunctionTable, int interfaceVersion )
@@ -127,12 +126,7 @@ int GetEntityAPI2( DLL_FUNCTIONS *pFunctionTable, int *interfaceVersion )
 	return TRUE;
 }
 
-int Server_GetPhysicsInterface( int version, server_physics_api_t *api, physics_interface_t *interface )
-{
-	g_fIsXash3D = true;
-	return FALSE; // do not tell engine to init physics interface, as we're not using it
-}
-#if !XASH_WIN32
+#if !_WIN32
 }
 #endif
 
@@ -146,6 +140,7 @@ int DispatchSpawn( edict_t *pent )
 		pEntity->pev->absmin = pEntity->pev->origin - Vector( 1.0f, 1.0f, 1.0f );
 		pEntity->pev->absmax = pEntity->pev->origin + Vector( 1.0f, 1.0f, 1.0f );
 
+		INV_Breadcrumb( "spawn %s (%s) idx=%d", STRING( pEntity->pev->classname ), STRING( pEntity->pev->model ), ENTINDEX( pent ) );
 		pEntity->Spawn();
 
 		// Try to get the pointer again, in case the spawn function deleted the entity.
@@ -413,6 +408,7 @@ int DispatchRestore( edict_t *pent, SAVERESTOREDATA *pSaveData, int globalEntity
 			}
 		}
 	}
+
 	return 0;
 }
 
@@ -593,6 +589,7 @@ TYPEDESCRIPTION	CBaseEntity::m_SaveData[] =
 	DEFINE_FIELD( CBaseEntity, m_pfnTouch, FIELD_FUNCTION ),
 	DEFINE_FIELD( CBaseEntity, m_pfnUse, FIELD_FUNCTION ),
 	DEFINE_FIELD( CBaseEntity, m_pfnBlocked, FIELD_FUNCTION ),
+	DEFINE_FIELD( CBaseEntity, m_bFireInGaz, FIELD_BOOLEAN ),
 };
 
 int CBaseEntity::Save( CSave &save )
@@ -775,4 +772,46 @@ CBaseEntity *CBaseEntity::Create( const char *szName, const Vector &vecOrigin, c
 	pEntity->pev->angles = vecAngles;
 	DispatchSpawn( pEntity->edict() );
 	return pEntity;
+}
+
+//modif de Julien
+//=========================================
+//	pour les trigger_gaz
+//=========================================
+//modif de Roy, we need to solve firing in Gaz non-virtual conundrum, so we move this function from CBasePlayer here, it will be inherited anyway.
+BOOL CBaseEntity::IsInGaz ( void )
+{
+	if( !IsPlayer()) return FALSE; //Quit immediately. This will always be true. CBaseEntity doesn't have an IsPlayer returning TRUE at all.
+	//Oh, but... CBasePlayer has!
+	//So, since when combat.cpp calls this function, it calls this version, not the player's anyway, as the base function
+	//is for CBaseEntity, it simply asks it if it's the player (which is true in that case, as when the caller is actually
+	//CBasePlayer it will return TRUE for IsPlayer), but as it doesn't use pointers, it will call the CBaseEntity version.
+	//And we get FALSE, since the previous version only had actual code for the player, and always returned FALSE for 
+	//CBaseEntity. So, instead we put all the code in CBaseEntity, make it always FALSE on IsPlayer call and let CBasePlayer
+	//simply inherit it and override IsPlayer with an always TRUE call.
+
+	Vector vecPlayer = Center ();
+
+	CBaseEntity *pFind = NULL;
+	edict_t *pTrigger = NULL;
+	pTrigger = FIND_ENTITY_BY_CLASSNAME( NULL, "trigger_gaz" );
+
+	while ( !FNullEnt ( pTrigger ) )
+	{
+		pFind = CBaseEntity::Instance ( pTrigger );
+
+
+		if ( vecPlayer.x > pFind->pev->absmin.x && vecPlayer.x < pFind->pev->absmax.x &&
+			 vecPlayer.y > pFind->pev->absmin.y && vecPlayer.y < pFind->pev->absmax.y &&
+			 vecPlayer.z > pFind->pev->absmin.z && vecPlayer.z < pFind->pev->absmax.z )		// Player est ds le trigger
+		{
+			return TRUE;
+		}
+		else
+		{
+			pTrigger = FIND_ENTITY_BY_CLASSNAME( pTrigger, "trigger_gaz" );
+		}
+
+	}
+	return FALSE;
 }

@@ -23,7 +23,9 @@
 #include <string.h>
 #include <stdio.h>
 
+#if USE_VGUI
 #include "vgui_TeamFortressViewport.h"
+#endif
 
 DECLARE_MESSAGE( m_DeathNotice, DeathMsg )
 
@@ -94,17 +96,6 @@ int CHudDeathNotice::Draw( float flTime )
 {
 	int x, y, r, g, b;
 
-	int gap = 20;
-
-	const wrect_t& sprite = gHUD.GetSpriteRect(m_HUD_d_skull);
-	gap = sprite.bottom - sprite.top;
-
-	SCREENINFO screenInfo;
-
-	screenInfo.iSize = sizeof(SCREENINFO);
-	gEngfuncs.pfnGetScreenInfo(&screenInfo);
-	gap = Q_max( gap, screenInfo.iCharHeight );
-
 	for( int i = 0; i < MAX_DEATHNOTICES; i++ )
 	{
 		if( rgDeathNoticeList[i].iId == 0 )
@@ -123,13 +114,15 @@ int CHudDeathNotice::Draw( float flTime )
 
 		// Only draw if the viewport will let me
 		// vgui dropped out
+#if USE_VGUI
 		if( gViewPort && gViewPort->AllowedToPrintText() )
+#endif
 		{
 			// Draw the death notice
-			y = YRES( DEATHNOTICE_TOP ) + 2 + ( gap * i );  //!!!
+			y = YRES( DEATHNOTICE_TOP ) + 2 + ( 20 * i );  //!!!
 
 			int id = ( rgDeathNoticeList[i].iId == -1 ) ? m_HUD_d_skull : rgDeathNoticeList[i].iId;
-			x = ScreenWidth - ConsoleStringLen( rgDeathNoticeList[i].szVictim ) - ( gHUD.GetSpriteRect(id).right - gHUD.GetSpriteRect(id).left ) - 4;
+			x = ScreenWidth - ConsoleStringLen( rgDeathNoticeList[i].szVictim ) - ( gHUD.GetSpriteRect(id).right - gHUD.GetSpriteRect(id).left );
 
 			if( !rgDeathNoticeList[i].iSuicide )
 			{
@@ -138,7 +131,7 @@ int CHudDeathNotice::Draw( float flTime )
 				// Draw killers name
 				if( rgDeathNoticeList[i].KillerColor )
 					DrawSetTextColor( rgDeathNoticeList[i].KillerColor[0], rgDeathNoticeList[i].KillerColor[1], rgDeathNoticeList[i].KillerColor[2] );
-				x = 5 + DrawConsoleString( x, y + 4, rgDeathNoticeList[i].szKiller );
+				x = 5 + DrawConsoleString( x, y, rgDeathNoticeList[i].szKiller );
 			}
 
 			r = 255; g = 80; b = 0;
@@ -158,7 +151,7 @@ int CHudDeathNotice::Draw( float flTime )
 			{
 				if( rgDeathNoticeList[i].VictimColor )
 					DrawSetTextColor( rgDeathNoticeList[i].VictimColor[0], rgDeathNoticeList[i].VictimColor[1], rgDeathNoticeList[i].VictimColor[2] );
-				x = DrawConsoleString( x, y + 4, rgDeathNoticeList[i].szVictim );
+				x = DrawConsoleString( x, y, rgDeathNoticeList[i].szVictim );
 			}
 		}
 	}
@@ -179,9 +172,12 @@ int CHudDeathNotice::MsgFunc_DeathMsg( const char *pszName, int iSize, void *pbu
 
 	char killedwith[32];
 	strcpy( killedwith, "d_" );
-	strlcat( killedwith, READ_STRING(), sizeof( killedwith ));
+	strncat( killedwith, READ_STRING(), sizeof(killedwith) - strlen(killedwith) - 1 );
 
-	gHUD.m_Scoreboard.DeathMsg( killer, victim );
+#if USE_VGUI
+	if (gViewPort)
+		gViewPort->DeathMsg( killer, victim );
+#endif
 
 	gHUD.m_Spectator.DeathMessage( victim );
 
@@ -210,7 +206,8 @@ int CHudDeathNotice::MsgFunc_DeathMsg( const char *pszName, int iSize, void *pbu
 	else
 	{
 		rgDeathNoticeList[i].KillerColor = GetClientColor( killer );
-		strlcpy( rgDeathNoticeList[i].szKiller, killer_name, MAX_PLAYER_NAME_LENGTH );
+		strncpy( rgDeathNoticeList[i].szKiller, killer_name, MAX_PLAYER_NAME_LENGTH );
+		rgDeathNoticeList[i].szKiller[MAX_PLAYER_NAME_LENGTH - 1] = 0;
 	}
 
 	// Get the Victim's name
@@ -226,7 +223,8 @@ int CHudDeathNotice::MsgFunc_DeathMsg( const char *pszName, int iSize, void *pbu
 	else
 	{
 		rgDeathNoticeList[i].VictimColor = GetClientColor( victim );
-		strlcpy( rgDeathNoticeList[i].szVictim, victim_name, MAX_PLAYER_NAME_LENGTH );
+		strncpy( rgDeathNoticeList[i].szVictim, victim_name, MAX_PLAYER_NAME_LENGTH );
+		rgDeathNoticeList[i].szVictim[MAX_PLAYER_NAME_LENGTH - 1] = 0;
 	}
 
 	// Is it a non-player object kill?

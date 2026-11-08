@@ -28,7 +28,14 @@ extern "C"
 #include <string.h>
 #include <ctype.h>
 
+#if USE_VGUI
 #include "vgui_TeamFortressViewport.h"
+#endif
+
+#include "crutches.h" //Load some code crutches for HLINVASION, modif de Roy
+#ifdef NOATTACKFIXPATH_INVASION_VGUI
+bool hlinv_isAttackSuspended = false; //We need to prevent attacks while VGUI is active, modif de Roy
+#endif
 
 extern "C" 
 {
@@ -379,8 +386,10 @@ Return 1 to allow engine to process the key, otherwise, act on it as needed
 */
 int DLLEXPORT HUD_Key_Event( int down, int keynum, const char *pszCurrentBinding )
 {
+#if USE_VGUI
 	if (gViewPort)
 		return gViewPort->KeyInput(down, keynum, pszCurrentBinding);
+#endif
 	return 1;
 }
 
@@ -649,28 +658,95 @@ void IN_Impulse( void )
 void IN_ScoreDown( void )
 {
 	KeyDown( &in_score );
-	if ( gHUD.UseVguiScoreBoard() && gViewPort )
+#if USE_VGUI && !USE_NOVGUI_SCOREBOARD
+	if ( gViewPort )
 	{
 		gViewPort->ShowScoreBoard();
-		return;
 	}
+#else
 	gHUD.m_Scoreboard.UserCmd_ShowScores();
+#endif
 }
 
 void IN_ScoreUp( void )
 {
 	KeyUp( &in_score );
+#if USE_VGUI && !USE_NOVGUI_SCOREBOARD
 	if ( gViewPort )
 	{
 		gViewPort->HideScoreBoard();
 	}
+#else
 	gHUD.m_Scoreboard.UserCmd_HideScores();
+#endif
 }
 
 void IN_MLookUp( void )
 {
 	KeyUp( &in_mlook );
 }
+
+// modif de Julien
+
+void IN_BatteryDown ( void )
+{}
+
+void IN_BatteryUp ( void )
+{
+	if ( gHUD.m_flTimeDelta > 0 )
+		gEngfuncs.pfnClientCmd("battery" );
+}
+
+
+void IN_MedkitDown ( void )
+{}
+
+void IN_MedkitUp ( void )
+{
+	if ( gHUD.m_flTimeDelta > 0 )
+		gEngfuncs.pfnClientCmd("medkit" );
+}
+
+
+// modif de julien
+
+void IN_SoinDown ( void )
+{
+#if USE_VGUI
+
+	if ( gViewPort->m_pCurrentMenu && gViewPort->m_pCurrentMenu->GetMenuID() == MENU_RADIO )
+	{
+		gViewPort->m_pCurrentMenu->Close ();
+
+	}
+	if ( gViewPort && gHUD.m_iWeaponBits & (1<<(WEAPON_SUIT)) )
+	{
+		CMenuPanel *pNewMenu = NULL;
+
+		pNewMenu = gViewPort->OpenSoinMenu();
+
+		gViewPort->HideCommandMenu();
+
+		pNewMenu->SetMenuID( MENU_SOIN );
+		pNewMenu->SetActive( true );
+
+		gViewPort->m_pCurrentMenu = pNewMenu;
+		gViewPort->m_pCurrentMenu->Open();
+		gViewPort->UpdateCursorState();	
+
+	}
+#endif
+}
+void IN_SoinUp ( void )
+{
+#if USE_VGUI
+	if ( gViewPort )
+	{
+		gViewPort->HideTopMenu();
+	}
+#endif
+}
+
 
 /*
 ===============
@@ -862,9 +938,16 @@ void DLLEXPORT CL_CreateMove( float frametime, struct usercmd_s *cmd, int active
 	//
 	cmd->buttons = CL_ButtonBits( 1 );
 
+#if USE_VGUI
 	// If they're in a modal dialog, ignore the attack button.
 	if(GetClientVoiceMgr()->IsInSquelchMode())
 		cmd->buttons &= ~IN_ATTACK;
+#ifdef NOATTACKFIXPATH_INVASION_VGUI
+	//gEngfuncs.Con_Printf ( "client.dll : hlinv_isAttackSuspended :  > %i\n", hlinv_isAttackSuspended );	//alertatconsole
+	if(hlinv_isAttackSuspended) //We need to prevent attacks while VGUI is active, modif de Roy
+		cmd->buttons &= ~IN_ATTACK;
+#endif
+#endif
 
 	// Using joystick?
 	if( in_joystick->value )
@@ -920,9 +1003,11 @@ int CL_ButtonBits( int bResetState )
 
 	if( in_attack.state & 3 )
 	{
+#if !USE_VGUI || USE_NOVGUI_MOTD
 		if( gHUD.m_MOTD.m_bShow )
 			gHUD.m_MOTD.Reset();
 		else
+#endif
 			bits |= IN_ATTACK;
 	}
 
@@ -1018,6 +1103,7 @@ int CL_ButtonBits( int bResetState )
 		in_reload.state &= ~2;
 		in_alt1.state &= ~2;
 		in_score.state &= ~2;
+
 	}
 
 	return bits;
@@ -1109,6 +1195,15 @@ void InitInput( void )
 	gEngfuncs.pfnAddCommand( "-graph", IN_GraphUp );
 	gEngfuncs.pfnAddCommand( "+break", IN_BreakDown );
 	gEngfuncs.pfnAddCommand( "-break", IN_BreakUp );
+
+	// modif de Julien
+
+	gEngfuncs.pfnAddCommand ("+medkit",IN_MedkitDown );
+	gEngfuncs.pfnAddCommand ("-medkit",IN_MedkitUp );
+	gEngfuncs.pfnAddCommand ("+battery",IN_BatteryDown );
+	gEngfuncs.pfnAddCommand ("-battery",IN_BatteryUp );
+	gEngfuncs.pfnAddCommand ("+soin",IN_SoinDown );
+	gEngfuncs.pfnAddCommand ("-soin",IN_SoinUp );
 
 	lookstrafe		= gEngfuncs.pfnRegisterVariable( "lookstrafe", "0", FCVAR_ARCHIVE );
 	lookspring		= gEngfuncs.pfnRegisterVariable( "lookspring", "0", FCVAR_ARCHIVE );

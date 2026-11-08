@@ -773,6 +773,19 @@ void CFuncTrain::Next( void )
 		ClearBits( pev->effects, EF_NOINTERP );
 		SetMoveDone( &CFuncTrain::Wait );
 		LinearMove( pTarg->pev->origin - ( pev->mins + pev->maxs ) * 0.5f, pev->speed );
+
+		//modif de Julien
+	/*	if ( (pev->spawnflags & 2) && ( pTarg->pev->angles != Vector ( 0, 0, 0 ) ) )
+		{
+			ALERT ( at_console, " TOTOTOTOTOTOTOTOT\n" );
+			Vector vecDestDelta = pTarg->pev->angles;
+
+			float time = (pTarg->pev->origin - (pev->mins + pev->maxs)* 0.5).Length() / pev->speed;
+
+			pev->avelocity = Vector ( 200, 0, 0 );//vecDestDelta / time;
+		}*/
+
+		
 	}
 }
 
@@ -816,7 +829,7 @@ void CFuncTrain::Spawn( void )
 		pev->speed = 100;
 
 	if( FStringNull(pev->target) )
-		ALERT( at_console, "FuncTrain with no target\n" );
+		ALERT( at_console, "FuncTrain with no target" );
 
 	if( pev->dmg == 0 )
 		pev->dmg = 2;
@@ -1441,7 +1454,7 @@ void CFuncTrackTrain::Spawn( void )
 	m_dir = 1;
 
 	if( FStringNull( pev->target ) )
-		ALERT( at_console, "FuncTrain with no target\n" );
+		ALERT( at_console, "FuncTrain with no target" );
 
 	if( pev->spawnflags & SF_TRACKTRAIN_PASSABLE )
 		pev->solid = SOLID_NOT;

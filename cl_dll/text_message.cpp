@@ -26,7 +26,9 @@
 #include <stdio.h>
 #include "parsemsg.h"
 
+#if USE_VGUI
 #include "vgui_TeamFortressViewport.h"
+#endif
 
 DECLARE_MESSAGE( m_TextMessage, TextMsg )
 
@@ -167,37 +169,45 @@ int CHudTextMessage::MsgFunc_TextMsg( const char *pszName, int iSize, void *pbuf
 #define MSG_BUF_SIZE 128
 	char szBuf[6][MSG_BUF_SIZE];
 
-	strlcpy( szBuf[0], LookupString( READ_STRING(), &msg_dest ), MSG_BUF_SIZE );
+	strncpy( szBuf[0], LookupString( READ_STRING(), &msg_dest ), MSG_BUF_SIZE - 1 );
+	szBuf[0][MSG_BUF_SIZE - 1] = '\0';
 
 	for( int i = 1; i <= 4; i++ )
 	{
 		// keep reading strings and using C format strings for subsituting the strings into the localised text string
-		strlcpy( szBuf[i], LookupString( READ_STRING() ), MSG_BUF_SIZE );
+		strncpy( szBuf[i], LookupString( READ_STRING() ), MSG_BUF_SIZE - 1 );
+		szBuf[i][MSG_BUF_SIZE - 1] = '\0';
 		StripEndNewlineFromString( szBuf[i] ); // these strings are meant for subsitution into the main strings, so cull the automatic end newlines
 	}
 
 	char *psz = szBuf[5];
 
+#if USE_VGUI
 	if( gViewPort && gViewPort->AllowedToPrintText() == FALSE )
 		return 1;
+#endif
 
 	switch( msg_dest )
 	{
 	case HUD_PRINTCENTER:
-		safe_snprintf( psz, MSG_BUF_SIZE, szBuf[0], szBuf[1], szBuf[2], szBuf[3], szBuf[4] );
+		_snprintf( psz, MSG_BUF_SIZE, szBuf[0], szBuf[1], szBuf[2], szBuf[3], szBuf[4] );
+		psz[MSG_BUF_SIZE - 1] = '\0';
 		CenterPrint( ConvertCRtoNL( psz ) );
 		break;
 	case HUD_PRINTNOTIFY:
 		psz[0] = 1;  // mark this message to go into the notify buffer
-		safe_snprintf( psz + 1, MSG_BUF_SIZE - 1, szBuf[0], szBuf[1], szBuf[2], szBuf[3], szBuf[4] );
+		_snprintf( psz + 1, MSG_BUF_SIZE - 1, szBuf[0], szBuf[1], szBuf[2], szBuf[3], szBuf[4] );
+		psz[MSG_BUF_SIZE - 2] = '\0';
 		ConsolePrint( ConvertCRtoNL( psz ) );
 		break;
 	case HUD_PRINTTALK:
-		safe_snprintf( psz, MSG_BUF_SIZE, szBuf[0], szBuf[1], szBuf[2], szBuf[3], szBuf[4] );
+		_snprintf( psz, MSG_BUF_SIZE, szBuf[0], szBuf[1], szBuf[2], szBuf[3], szBuf[4] );
+		psz[MSG_BUF_SIZE - 1] = '\0';
 		gHUD.m_SayText.SayTextPrint( ConvertCRtoNL( psz ), MSG_BUF_SIZE );
 		break;
 	case HUD_PRINTCONSOLE:
-		safe_snprintf( psz, MSG_BUF_SIZE, szBuf[0], szBuf[1], szBuf[2], szBuf[3], szBuf[4] );
+		_snprintf( psz, MSG_BUF_SIZE, szBuf[0], szBuf[1], szBuf[2], szBuf[3], szBuf[4] );
+		psz[MSG_BUF_SIZE - 1] = '\0';
 		ConsolePrint( ConvertCRtoNL( psz ) );
 		break;
 	}
