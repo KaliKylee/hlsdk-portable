@@ -343,7 +343,7 @@ int DrawUtfStringXash3D(int xpos, int ypos, int iMaxX, const char *szIt, int r, 
 					"AAAAAAACEEEEIIII" "DNOOOOOxOUUUUYTs"
 					"aaaaaaaceeeeiiii" "dnooooo/ouuuuyty";
 				szIt++;
-				xpos += gEngfuncs.pfnVGUI2DrawCharacterAdditive( xpos, ypos, (unsigned char)latin1Base[n], r, g, b, 0 );
+				xpos += gEngfuncs.pfnVGUI2DrawCharacterAdditive( xpos, ypos, (unsigned char)latin1Base[n - 0x80], r, g, b, 0 );
 				continue;
 			}
 		}
