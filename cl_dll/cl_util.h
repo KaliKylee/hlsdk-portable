@@ -188,5 +188,6 @@ HSPRITE LoadSprite( const char *pszName );
 
 bool HUD_MessageBox( const char *msg );
 bool IsXashFWGS();
+const char *HudStripLatinAccents( const char *src );
 void ShutdownInput( void );
 #endif

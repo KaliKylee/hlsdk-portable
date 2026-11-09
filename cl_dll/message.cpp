@@ -250,7 +250,7 @@ void CHudMessage::MessageDrawScan( client_textmessage_t *pMessage, float time )
 	const char *pText;
 	const char *pLineStart;
 
-	pText = pMessage->pMessage;
+	pText = HudStripLatinAccents( pMessage->pMessage );
 	// Count lines
 	m_parms.lines = 1;
 	m_parms.time = time;
@@ -276,7 +276,7 @@ void CHudMessage::MessageDrawScan( client_textmessage_t *pMessage, float time )
 	m_parms.totalHeight = ( m_parms.lines * gHUD.m_scrinfo.iCharHeight );
 
 	m_parms.y = YPosition( pMessage->y, m_parms.totalHeight );
-	pText = pMessage->pMessage;
+	pText = HudStripLatinAccents( pMessage->pMessage );
 
 	m_parms.charTime = 0;
 

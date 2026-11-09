@@ -306,6 +306,42 @@ int CHud::DrawHudString(int xpos, int ypos, int iMaxX, const char *szIt, int r, 
 	}
 }
 
+static const char latin1BaseLetters[] =
+	"AAAAAAACEEEEIIII" "DNOOOOOxOUUUUYTs"
+	"aaaaaaaceeeeiiii" "dnooooo/ouuuuyty";
+
+static bool StripAccentsEnabled()
+{
+	static cvar_t *stripAccents = NULL;
+	if( !stripAccents )
+		stripAccents = CVAR_CREATE( "cl_strip_accents", "1", FCVAR_ARCHIVE );
+	return stripAccents->value != 0;
+}
+
+// Engine font is cp1251 only: replace UTF-8 Latin-1 letters (C3 xx) by base ASCII letters.
+// Returns src itself when nothing to do, otherwise a static buffer.
+const char *HudStripLatinAccents( const char *src )
+{
+	static char buf[4096];
+	if( !src || !IsXashFWGS() || !StripAccentsEnabled() )
+		return src;
+	size_t o = 0;
+	bool changed = false;
+	for( const unsigned char *p = (const unsigned char *)src; *p && o < sizeof( buf ) - 1; p++ )
+	{
+		if( p[0] == 0xC3 && p[1] >= 0x80 && p[1] <= 0xBF )
+		{
+			buf[o++] = latin1BaseLetters[p[1] - 0x80];
+			p++;
+			changed = true;
+		}
+		else
+			buf[o++] = (char)*p;
+	}
+	buf[o] = 0;
+	return changed ? buf : src;
+}
+
 int DrawUtfStringXash3D(int xpos, int ypos, int iMaxX, const char *szIt, int r, int g, int b , int length)
 {
 	// xash3d: reset unicode state
@@ -333,17 +369,11 @@ int DrawUtfStringXash3D(int xpos, int ypos, int iMaxX, const char *szIt, int r, 
 		// Fall back to the unaccented base letter for Latin-1 chars (UTF-8 C3 xx).
 		if( c == 0xC3 && ( length == -1 || szIt + 1 - start < length ) )
 		{
-			static cvar_t *stripAccents = NULL;
-			if( !stripAccents )
-				stripAccents = CVAR_CREATE( "cl_strip_accents", "1", FCVAR_ARCHIVE );
 			unsigned char n = (unsigned char)szIt[1];
-			if( stripAccents->value && n >= 0x80 && n <= 0xBF )
+			if( StripAccentsEnabled() && n >= 0x80 && n <= 0xBF )
 			{
-				static const char latin1Base[] =
-					"AAAAAAACEEEEIIII" "DNOOOOOxOUUUUYTs"
-					"aaaaaaaceeeeiiii" "dnooooo/ouuuuyty";
 				szIt++;
-				xpos += gEngfuncs.pfnVGUI2DrawCharacterAdditive( xpos, ypos, (unsigned char)latin1Base[n - 0x80], r, g, b, 0 );
+				xpos += gEngfuncs.pfnVGUI2DrawCharacterAdditive( xpos, ypos, (unsigned char)latin1BaseLetters[n - 0x80], r, g, b, 0 );
 				continue;
 			}
 		}
