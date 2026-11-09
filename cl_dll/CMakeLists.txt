@@ -23,6 +23,12 @@
 cmake_minimum_required(VERSION 3.9)
 project (CLDLL)
 
+# O mod usa "using namespace std" e tem o proprio typedef "byte": em C++17 isso conflita com std::byte
+# ("reference to 'byte' is ambiguous"). Por isso fica em C++14 (o NDK novo usa C++17 por padrao).
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED OFF)
+set(CMAKE_CXX_EXTENSIONS ON)
+
 set (CLDLL_LIBRARY client)
 
 add_definitions(-DCLIENT_DLL)
