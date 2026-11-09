@@ -16,6 +16,19 @@ AbstractInput* currentInput = &goldSourceInput;
 #else
 AbstractInput* currentInput = &fwgsInput;
 #endif
+
+#if !SUPPORT_GOLDSOURCE_INPUT
+// Used by the VGUI code (vgui_TeamFortressViewport.cpp). With the GoldSource input there is a real
+// implementation in input_goldsource.cpp; Xash3D FWGS manages the cursor itself, so there is nothing to reset.
+void IN_ResetMouse( void )
+{
+}
+
+// Same here: FWGS shows/hides the cursor on its own (the engine sends the touch/mouse state).
+void IN_SetVisibleMouse( bool visible )
+{
+}
+#endif
 extern "C"  void DLLEXPORT IN_ClientMoveEvent( float forwardmove, float sidemove )
 {
 	currentInput->IN_ClientMoveEvent(forwardmove, sidemove);
