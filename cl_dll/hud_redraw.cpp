@@ -329,6 +329,24 @@ int DrawUtfStringXash3D(int xpos, int ypos, int iMaxX, const char *szIt, int r, 
 				return xpos;
 		}
 		int c = (unsigned int)(unsigned char)*szIt;
+		// Engine console font is cp1251 only, Latin accents have no glyph ("?").
+		// Fall back to the unaccented base letter for Latin-1 chars (UTF-8 C3 xx).
+		if( c == 0xC3 && ( length == -1 || szIt + 1 - start < length ) )
+		{
+			static cvar_t *stripAccents = NULL;
+			if( !stripAccents )
+				stripAccents = CVAR_CREATE( "cl_strip_accents", "1", FCVAR_ARCHIVE );
+			unsigned char n = (unsigned char)szIt[1];
+			if( stripAccents->value && n >= 0x80 && n <= 0xBF )
+			{
+				static const char latin1Base[] =
+					"AAAAAAACEEEEIIII" "DNOOOOOxOUUUUYTs"
+					"aaaaaaaceeeeiiii" "dnooooo/ouuuuyty";
+				szIt++;
+				xpos += gEngfuncs.pfnVGUI2DrawCharacterAdditive( xpos, ypos, (unsigned char)latin1Base[n], r, g, b, 0 );
+				continue;
+			}
+		}
 		xpos += gEngfuncs.pfnVGUI2DrawCharacterAdditive( xpos, ypos, c, r, g, b, 0 );
 	}
 	return xpos;
