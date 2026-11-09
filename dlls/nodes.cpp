@@ -2471,7 +2471,7 @@ int CGraph::FLoadGraph( const char *szMapName )
 			length -= sizeof(CLink_Retail) * m_cLinks;
 			if( length < 0 )
 				goto ShortFile;
-			reinterpret_cast<CLink_Retail*>(pMemFile) -> copyOverTo(m_pLinkPool);
+			for( int linkIdx = 0; linkIdx < m_cLinks; linkIdx++ ) reinterpret_cast<CLink_Retail*>(pMemFile)[linkIdx].copyOverTo(&m_pLinkPool[linkIdx]);
 			pMemFile += sizeof(CLink_Retail) * m_cLinks;
 		}
 #endif

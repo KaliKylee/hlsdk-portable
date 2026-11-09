@@ -40,6 +40,13 @@
 #include "vgui_TeamFortressViewport.h"
 #endif
 
+#if USE_VGUI && defined( INTERNAL_VGUI_SUPPORT )
+// FreeVGUI is linked statically into this library; the engine looks for InitVGUISupportAPI here.
+// Reference it so that the linker doesn't drop it.
+extern "C" void InitVGUISupportAPI( void *api );
+void *g_pKeepVGUISupport = (void *)InitVGUISupportAPI;
+#endif
+
 #if GOLDSOURCE_SUPPORT && (_WIN32 || (__linux__ && !__ANDROID__) || __APPLE__) && (__i386 || _M_IX86)
 #define USE_FAKE_VGUI	!USE_VGUI
 #if USE_FAKE_VGUI

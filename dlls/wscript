@@ -24,6 +24,8 @@ def build(bld):
 
 	source = bld.path.ant_glob('**/*.cpp', excl=excluded_files)
 	source += bld.path.parent.ant_glob('pm_shared/*.c')
+	# shared with the client; required by game.cpp/pm_shared.c (see dlls/CMakeLists.txt)
+	source += bld.path.parent.ant_glob(['game_shared/parsetext.cpp', 'game_shared/tex_materials.c'])
 
 	defines = []
 	if bld.env.USE_VOICEMGR:
@@ -45,9 +47,15 @@ def build(bld):
 	else:
 		install_path = bld.env.PREFIX
 
+	# Xash3D Android loads the game library as libserver.so
+	if bld.env.DEST_OS == 'android':
+		server_name = 'server'
+	else:
+		server_name = bld.env.SERVER_LIBRARY_NAME
+
 	bld.shlib(
 		source   = source,
-		target   = bld.env.SERVER_LIBRARY_NAME + bld.env.POSTFIX,
+		target   = server_name + bld.env.POSTFIX,
 		name     = 'server',
 		features = 'c cxx',
 		includes = includes,

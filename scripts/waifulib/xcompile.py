@@ -336,7 +336,11 @@ class Android:
 			ldflags += ['-lgcc']
 
 		if self.is_clang() or self.is_host():
-			ldflags += ['-stdlib=libstdc++']
+			if self.ndk_rev >= 18:
+				# modern NDKs ship only libc++; link it statically so no libc++_shared.so is needed
+				ldflags += ['-stdlib=libc++', '-static-libstdc++']
+			else:
+				ldflags += ['-stdlib=libstdc++']
 		else: ldflags += ['-no-canonical-prefixes']
 
 		if self.is_arm():

@@ -1,0 +1,70 @@
+name: android
+
+on:
+  workflow_dispatch:
+
+jobs:
+  android:
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: aarch64        # arm64-v8a
+            api: 21
+            abi: arm64-v8a
+          - arch: armeabi-v7a    # 32-bit ARM
+            api: 19
+            abi: armeabi-v7a
+    env:
+      # xcompile.py only supports NDK r10/r19/r20/r23/r25, so r25c is pinned here
+      # (the NDK preinstalled on GitHub runners is too new).
+      NDK_VERSION: r25c
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache NDK
+        id: cache-ndk
+        uses: actions/cache@v4
+        with:
+          path: android-ndk-${{ env.NDK_VERSION }}
+          key: ndk-${{ env.NDK_VERSION }}-linux
+
+      - name: Download NDK
+        if: steps.cache-ndk.outputs.cache-hit != 'true'
+        run: |
+          wget --no-verbose https://dl.google.com/android/repository/android-ndk-${NDK_VERSION}-linux.zip
+          unzip -q android-ndk-${NDK_VERSION}-linux.zip
+
+      - name: Configure
+        run: |
+          export ANDROID_NDK_HOME="$PWD/android-ndk-${NDK_VERSION}"
+          python3 ./waf configure -T release \
+            --android=${{ matrix.arch }},clang,${{ matrix.api }} \
+            --disable-goldsrc-support --disable-werror
+
+      - name: Build
+        run: python3 ./waf build -j"$(nproc)"
+
+      - name: Install
+        run: python3 ./waf install --destdir="$PWD/dist"
+
+      - name: Show result
+        run: find dist -type f -exec ls -l {} \;
+
+      - name: Assemble mod files
+        run: |
+          GAMEDIR=$(grep -E '^GAMEDIR=' mod_options.txt | cut -d= -f2 | cut -d' ' -f1)
+          mkdir -p "pack/${GAMEDIR}"
+          cp -r features "pack/${GAMEDIR}/"
+          cp fgd/halflife.fgd "pack/${GAMEDIR}/halflife_featureful.fgd"
+          # libs go under lib/<abi>/ exactly as an APK expects them
+          mkdir -p "pack/lib/${{ matrix.abi }}"
+          cp dist/lib/*/*.so "pack/lib/${{ matrix.abi }}/"
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: induction-android-${{ matrix.abi }}
+          path: pack

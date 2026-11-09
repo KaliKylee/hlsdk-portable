@@ -59,6 +59,15 @@ else()
 	option(GOLDSOURCE_SUPPORT "Build goldsource compatible client library" OFF)
 endif()
 
+# FreeVGUI (git submodule in ./freevgui). Only Xash3D FWGS can load it, so it is used
+# whenever the build is not GoldSource compatible: it is linked statically into the client
+# library and only matters when USE_VGUI is ON.
+if(GOLDSOURCE_SUPPORT)
+	set(USE_STATIC_FREEVGUI OFF)
+else()
+	set(USE_STATIC_FREEVGUI ON)
+endif()
+
 #-----------------
 # MAIN BUILD CODE \
 ###################\
@@ -146,6 +155,15 @@ endif()
 
 if(BUILD_CLIENT)
 	message(STATUS "Building client enabled")
+
+	if(USE_VGUI AND USE_STATIC_FREEVGUI)
+		if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/freevgui/CMakeLists.txt")
+			message(FATAL_ERROR "freevgui submodule is missing. Run: git submodule update --init --recursive")
+		endif()
+		message(STATUS "Using statically linked FreeVGUI")
+		add_subdirectory(freevgui)
+	endif()
+
 	add_subdirectory(cl_dll)
 endif()
 

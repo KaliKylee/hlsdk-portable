@@ -1,0 +1,51 @@
+name: Build Induction (APK)
+
+on:
+  push:
+    branches: [ Induction-1.4 ]
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive   # fetches freevgui
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install NDK and CMake
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;26.1.10909125" "cmake;3.22.1" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Build APK (launcher + libs)
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Collect APK and libs
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/debug/*.apk dist/Induction-1.4.apk
+          unzip -o -q dist/Induction-1.4.apk 'lib/*' -d dist/apk-libs
+          find dist/apk-libs -name '*.so' | sort
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Induction-apk
+          path: dist/Induction-1.4.apk
+
+      - name: Upload native libs
+        uses: actions/upload-artifact@v4
+        with:
+          name: Induction-libs
+          path: dist/apk-libs/lib

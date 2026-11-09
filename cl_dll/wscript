@@ -43,6 +43,7 @@ def build(bld):
 		'../game_shared',
 		'../public']
 	excluded_files = ['GameStudioModelRenderer_Sample.cpp',
+		'parsetext.cpp', # stale copy, game_shared/parsetext.cpp is used instead (see CMakeLists.txt)
 		'game_shared/voice_vgui_tweakdlg.cpp',
 		'game_shared/voice_gamemgr.cpp',
 		'game_shared/voice_status.cpp']
@@ -71,6 +72,7 @@ def build(bld):
 	source += bld.path.parent.ant_glob([
 		'pm_shared/*.c',
 		'game_shared/tex_materials.c',
+		'dlls/weapons_shared.cpp',
 		'dlls/crossbow.cpp',
 		'dlls/crowbar.cpp',
 		'dlls/egon.cpp',

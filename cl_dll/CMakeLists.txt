@@ -46,6 +46,9 @@ endif()
 
 if (USE_VGUI)
 	add_definitions(-DUSE_VGUI)
+	if (USE_STATIC_FREEVGUI)
+		add_definitions(-DINTERNAL_VGUI_SUPPORT)
+	endif()
 	if (USE_NOVGUI_MOTD)
 		add_definitions(-DUSE_NOVGUI_MOTD)
 	endif()
@@ -171,7 +174,10 @@ endif()
 
 include_directories (. hl/ ../dlls ../dlls/wpn_shared ../common ../engine ../pm_shared ../game_shared ../public)
 
-if (USE_VGUI)
+if (USE_VGUI AND USE_STATIC_FREEVGUI)
+	# original VGUI1 headers, the implementation comes from freevgui
+	include_directories(../utils/vgui/include)
+elseif (USE_VGUI)
 	SET(CMAKE_SKIP_RPATH TRUE)
 	link_directories(${CMAKE_SOURCE_DIR}/vgui_support/vgui-dev/lib)
 	include_directories(../vgui_support/vgui-dev/include)
@@ -192,7 +198,9 @@ if (GOLDSOURCE_SUPPORT)
 	target_link_libraries( ${CLDLL_LIBRARY} ${CMAKE_DL_LIBS} )
 endif()
 
-if (USE_VGUI)
+if (USE_VGUI AND USE_STATIC_FREEVGUI)
+	target_link_libraries(${CLDLL_LIBRARY} vgui)
+elseif (USE_VGUI)
 	if (WIN32)
 		add_library(vgui SHARED IMPORTED)
 		set_property(TARGET vgui PROPERTY IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/vgui_support/vgui-dev/lib/win32_vc6/vgui.dll")
@@ -215,11 +223,10 @@ endif()
 set_target_properties (${CLDLL_LIBRARY} PROPERTIES
 	POSITION_INDEPENDENT_CODE 1)
 
+set(CLDLL_NAME "client")
+set_target_properties(${CLDLL_LIBRARY} PROPERTIES OUTPUT_NAME ${CLDLL_NAME})
 if(NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Android")
-	set(CLDLL_NAME "client")
-	set_target_properties(${CLDLL_LIBRARY} PROPERTIES
-		OUTPUT_NAME ${CLDLL_NAME}
-		PREFIX "")
+	set_target_properties(${CLDLL_LIBRARY} PROPERTIES PREFIX "")
 endif()
 
 if(MSVC)
