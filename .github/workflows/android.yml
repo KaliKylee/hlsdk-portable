@@ -41,12 +41,21 @@ jobs:
         shell: bash
         run: |
           {
-            echo '## Erros de compilacao'
+            echo '## Resumo dos erros'
+            echo "Linhas com erro no log: $(grep -cE 'error:|CMake Error' build.log)"
+            echo
+            echo '### Mensagens distintas (quantas vezes cada uma aparece)'
             echo '```'
             grep -E 'error:|undefined (reference|symbol)|ld.lld: error|CMake Error' build.log \
-              | sed 's#/home/runner/work/[^/]*/[^/]*/##' | sort -u | head -80
+              | sed -E 's#^.*(error:|CMake Error)#\1#' | sed -E 's#:[0-9]+:[0-9]+##' \
+              | sort | uniq -c | sort -rn | head -25
             echo '```'
-          } | tee -a "$GITHUB_STEP_SUMMARY"
+            echo '### Primeiros arquivos com erro'
+            echo '```'
+            grep -E 'error:' build.log | sed -E 's#/home/runner/work/[^/]*/[^/]*/##' | cut -c1-200 \
+              | awk '!seen[$0]++' | head -15
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Stage libs
         shell: bash
