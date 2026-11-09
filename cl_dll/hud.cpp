@@ -530,6 +530,10 @@ int __MsgFunc_AllowSpec( const char *pszName, int iSize, void *pbuf )
 // This is called every time the DLL is loaded
 void CHud::Init( void )
 {
+	// Xash3D FWGS: captions/HUD text are UTF-8, tell the engine to decode it
+	if( IsXashFWGS() )
+		gEngfuncs.pfnClientCmd( "hud_utf8 1\n" );
+
 	HOOK_MESSAGE( Logo );
 	HOOK_MESSAGE( ResetHUD );
 	HOOK_MESSAGE( GameMode );

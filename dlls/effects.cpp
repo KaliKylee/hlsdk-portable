@@ -1519,6 +1519,20 @@ void CEnvModel::Precache( void )
 
 void CEnvModel::Use( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value )
 {
+	// work.bsp (Induction): env_model used as slider adjuster (target=func_slider, speed=+-N)
+	if( pev->target && pev->speed != 0 )
+	{
+		CBaseEntity *pTarget = NULL;
+		while( ( pTarget = UTIL_FindEntityByTargetname( pTarget, STRING( pev->target ) ) ) != NULL )
+		{
+			if( FClassnameIs( pTarget->pev, "func_slider" ) )
+			{
+				pTarget->Use( pActivator, this, USE_SET, pev->speed );
+				return;
+			}
+		}
+	}
+
 	if (ShouldToggle(useType, !(pev->spawnflags & SF_ENVMODEL_OFF)))
 	{
 		if (pev->spawnflags & SF_ENVMODEL_OFF)
