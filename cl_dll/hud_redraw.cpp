@@ -318,7 +318,9 @@ static bool StripAccentsEnabled()
 	return stripAccents->value != 0;
 }
 
-// Engine font is cp1251 only: replace UTF-8 Latin-1 letters (C3 xx) by base ASCII letters.
+// Engine font is cp1251 only: replace accented Latin letters by the base ASCII letter.
+// Handles both UTF-8 (C3 xx) and legacy single-byte Latin-1/cp1252 text (some mod texts
+// are not UTF-8; with hud_utf8 1 the engine would swallow the letters after such bytes).
 // Returns src itself when nothing to do, otherwise a static buffer.
 const char *HudStripLatinAccents( const char *src )
 {
@@ -327,16 +329,53 @@ const char *HudStripLatinAccents( const char *src )
 		return src;
 	size_t o = 0;
 	bool changed = false;
-	for( const unsigned char *p = (const unsigned char *)src; *p && o < sizeof( buf ) - 1; p++ )
+	const unsigned char *p = (const unsigned char *)src;
+	while( *p && o < sizeof( buf ) - 1 )
 	{
-		if( p[0] == 0xC3 && p[1] >= 0x80 && p[1] <= 0xBF )
+		unsigned char c = *p;
+		if( c < 0x80 )
 		{
-			buf[o++] = latin1BaseLetters[p[1] - 0x80];
+			buf[o++] = (char)c;
 			p++;
-			changed = true;
+			continue;
+		}
+		// how many continuation bytes would a valid UTF-8 sequence need?
+		int need = ( c >= 0xC2 && c <= 0xDF ) ? 1 : ( c >= 0xE0 && c <= 0xEF ) ? 2 : ( c >= 0xF0 && c <= 0xF4 ) ? 3 : 0;
+		bool valid = need > 0;
+		for( int i = 1; valid && i <= need; i++ )
+			if( ( p[i] & 0xC0 ) != 0x80 )
+				valid = false;
+		if( valid )
+		{
+			if( c == 0xC3 )
+			{
+				buf[o++] = latin1BaseLetters[p[1] - 0x80];
+				changed = true;
+				p += 2;
+			}
+			else
+			{
+				for( int i = 0; i <= need && o < sizeof( buf ) - 1; i++ )
+					buf[o++] = (char)p[i];
+				p += need + 1;
+			}
 		}
 		else
-			buf[o++] = (char)*p;
+		{
+			// not UTF-8: treat as a single Latin-1 byte
+			if( c >= 0xC0 )
+				buf[o++] = latin1BaseLetters[c - 0xC0];
+			else if( c == 0xAA )
+				buf[o++] = 'a';
+			else if( c == 0xBA )
+				buf[o++] = 'o';
+			else if( c == 0xA0 )
+				buf[o++] = ' ';
+			else
+				buf[o++] = '?';
+			changed = true;
+			p++;
+		}
 	}
 	buf[o] = 0;
 	return changed ? buf : src;
