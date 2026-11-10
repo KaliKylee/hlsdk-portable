@@ -48,7 +48,7 @@ public class MainActivity extends Activity {
 
     private static final String MOD_VERSION = "1.0";
 
-    private static final String URL_GITHUB = "https://github.com/KaliKylee/hlsdk-portable/tree/invasion";
+    private static final String URL_GITHUB = "https://github.com/KaliKylee/hlsdk-portable/tree/invasion-new";
     private static final String URL_YOUTUBE = "https://youtube.com/@kalikyle3";
     private static final String URL_DISCORD = "https://discord.gg/fUnXU4RZgn";
     private static final String URL_ENGINE = "https://github.com/FWGS/xash3d-fwgs/releases/tag/continuous";
