@@ -365,6 +365,14 @@ void V_DriftPitch(struct ref_params_s* pparams)
 {
 	float delta;
 	float move;
+#ifdef AZ_ANDROID
+	// Toque/gamepad: o engine move a camera sem passar pelo IN_MouseMove, que e quem cancelava o pitch drift.
+	// Sem isso a camera volta sozinha para o centro (estilo Doom). O hlsdk-portable tambem removeu esse recentramento.
+	pd.driftmove = 0;
+	pd.pitchvel = 0;
+	pd.nodrift = 1;
+	return;
+#endif
 
 	if (gEngfuncs.IsNoClipping() || !pparams->onground || pparams->demoplayback || pparams->spectator)
 	{
