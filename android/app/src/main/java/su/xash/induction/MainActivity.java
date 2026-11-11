@@ -48,10 +48,10 @@ public class MainActivity extends Activity {
 
     private static final String MOD_VERSION = "1.4";
 
-    private static final String URL_GITHUB = "https://github.com/KaliKylee/hlsdk-portable/tree/half-force";
+    private static final String URL_GITHUB = "https://github.com/KaliKylee/hlsdk-portable/tree/induction_1.4";
     private static final String URL_YOUTUBE = "https://youtube.com/@kalikyle3";
     private static final String URL_DISCORD = "https://discord.gg/fUnXU4RZgn";
-    private static final String URL_ENGINE = "https://github.com/FWGS/xash3d-fwgs/releases/tag/continuous";
+    private static final String URL_ENGINE = "https://github.com/yalnie/xash3d-fwgs/releases/tag/continuous";
 
     private static final String[][] WALLETS = {
         {"USDT  \u2022  Polygon", "0xe3c825c7eF4a3609E66b5D92C671d5C23dE78368"},
