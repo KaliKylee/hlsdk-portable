@@ -184,6 +184,7 @@ void CShotgun::Holster( int skiplocal /* = 0 */ )
 
 	//Ha!  Got you.
 	m_fInSpecialReload = 0;
+	m_bIdleAfterReload = FALSE;
 
 	//CBasePlayerWeapon::Holster(skiplocal);
 	
@@ -305,6 +306,12 @@ void CShotgun::ItemPostFrame( void )
 				//MODDD - times changed for new (restored?) model.
 				int iAnim;
 				float flRand = UTIL_SharedRandomFloat(m_pPlayer->random_seed, 0, 1);
+				if (m_bIdleAfterReload) {
+					// Acabou de recarregar: volta direto para a idle normal (curta). A idle "deep" dura ~4,8 s e deixa a arma
+					// inclinada, o que parecia a arma "travada" depois da recarga.  (o sorteio acima continua sendo consumido)
+					flRand = 0.9f; // cai no ramo SHOTGUN_IDLE
+					m_bIdleAfterReload = FALSE;
+				}
 				if (flRand <= 0.8)
 				{
 					iAnim = SHOTGUN_IDLE_DEEP;
@@ -638,6 +645,7 @@ void CShotgun::FireShotgun(BOOL isPrimary) {
 	*/
 
 	m_fInSpecialReload = 0;
+	m_bIdleAfterReload = FALSE;
 }
 
 
@@ -777,6 +785,7 @@ void CShotgun::reloadFinishPump(){
 		}
 
 		m_fInSpecialReload = 0;
+		m_bIdleAfterReload = TRUE; // proxima idle = a curta
 				
 		//m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + 1.5;
 		m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + (12.0 / 12.0) + randomIdleAnimationDelay();
@@ -805,6 +814,7 @@ void CShotgun::reloadFinishPump(){
 		}
 
 		m_fInSpecialReload = 0;
+		m_bIdleAfterReload = TRUE; // proxima idle = a curta
 				
 		//m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + 1.5;
 		m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + (11.0 / 13.0) + randomIdleAnimationDelay();

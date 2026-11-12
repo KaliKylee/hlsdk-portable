@@ -42,6 +42,8 @@ private:
 
 public:
 	BOOL queueReload;
+	// Logo apos terminar de recarregar, a proxima idle e a curta (SHOTGUN_IDLE), nao a "deep" de ~4,8 s.
+	BOOL m_bIdleAfterReload;
 
 
 #ifndef CLIENT_DLL
