@@ -27,6 +27,8 @@
 #include "StudioModelRenderer.h"
 #include "GameStudioModelRenderer.h"
 
+int g_azAnimLogCl = 0; // az_animlog_cl (diagnostico das animacoes do viewmodel)
+
 
 
 // MODDD - TODO, low priority:
@@ -2062,6 +2064,15 @@ void CStudioModelRenderer::StudioSetupBones ( byte isReflection )
 
 	if( g_drawType == DRAWTYPE_VIEWMODEL){
 		easyPrintLineDummy("O its a viewmodel??? id:%d seq:%d", m_pCurrentEntity->index, m_pCurrentEntity->curstate.sequence  );
+	}
+
+	// Diagnostico: "az_animlog_cl 1" imprime cada troca de sequencia do viewmodel (valor bruto, com o bit 128 de reverso).
+	if( g_drawType == DRAWTYPE_VIEWMODEL && g_azAnimLogCl ){
+		static int s_lastSeq = -1;
+		if( m_pCurrentEntity->curstate.sequence != s_lastSeq ){
+			gEngfuncs.Con_Printf("[AZ-CL] t=%.2f viewmodel seq %d -> %d (rev=%d)\n", gEngfuncs.GetClientTime(), s_lastSeq, m_pCurrentEntity->curstate.sequence & 127, (m_pCurrentEntity->curstate.sequence & 128) ? 1 : 0);
+			s_lastSeq = m_pCurrentEntity->curstate.sequence;
+		}
 	}
 
 

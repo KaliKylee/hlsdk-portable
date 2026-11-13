@@ -864,6 +864,13 @@ void command_test4(void) {
 // MODDD - NOTE. 
 // See cl_dlls/cdll_int.cpp for the HUD_Init call that leads here, although there isn't anything
 // special there.
+extern int g_azAnimLogCl;
+static void AZ_AnimLogCl_f(void)
+{
+	g_azAnimLogCl = (gEngfuncs.Cmd_Argc() > 1) ? atoi(gEngfuncs.Cmd_Argv(1)) : !g_azAnimLogCl;
+	gEngfuncs.Con_Printf("az_animlog_cl (client) = %d\n", g_azAnimLogCl);
+}
+
 void CHud::Init( void )
 {
 	//MODDD - HOOK_MESSAGE calls for hud_msg.cpp methods moved
@@ -894,6 +901,7 @@ void CHud::Init( void )
 
 
 	gEngfuncs.pfnAddCommand( "noclipalt", command_noclip2 );
+	gEngfuncs.pfnAddCommand( "az_animlog_cl", AZ_AnimLogCl_f );
 	gEngfuncs.pfnAddCommand( "godalt", command_god2 );
 	gEngfuncs.pfnAddCommand( "_noclip", command_noclip2 );
 	gEngfuncs.pfnAddCommand( "_god", command_god2 );
