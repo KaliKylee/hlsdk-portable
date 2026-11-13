@@ -1201,7 +1201,14 @@ void CBasePlayerWeapon::SendWeaponAnimServerOnlyReverse( int iAnim, int body )
 	
 }
 
+// Diagnostico: "az_animlog 1" no console imprime cada animacao de arma enviada pelo servidor.
+int g_azAnimLog = 0;
+
 void CBasePlayerWeapon::SendWeaponAnimMessageFromServer(int iAnim, int body) {
+	if (g_azAnimLog) {
+		ALERT(at_console, "[AZ-SV] t=%.2f anim=%d (raw=%d rev=%d) idleTimer=%.2f inSpecialReload=%d clip=%d\n",
+			gpGlobals->time, iAnim & 127, iAnim, (iAnim & 128) ? 1 : 0, m_flTimeWeaponIdle, (int)m_fInSpecialReload, (int)m_iClip);
+	}
 	MESSAGE_BEGIN(MSG_ONE, SVC_WEAPONANIM, NULL, m_pPlayer->pev);
 		WRITE_BYTE(iAnim);						// sequence number
 		//WRITE_BYTE( pev->body );					// weaponmodel bodygroup.

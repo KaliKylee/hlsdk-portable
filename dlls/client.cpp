@@ -1367,7 +1367,14 @@ void ClientCommand( edict_t *pEntity )
 		return;
 
 		// "spawn" is an engine command, can't use it
-	}else if (FStrEq(pcmdRefinedRef, "az_ents")) {
+	}else if (FStrEq(pcmdRefinedRef, "az_animlog")) {
+		// Diagnostico das animacoes da arma (servidor).  Uso: az_animlog 1 / az_animlog 0
+		extern int g_azAnimLog;
+		g_azAnimLog = (CMD_ARGC() > 1) ? atoi(CMD_ARGV(1)) : !g_azAnimLog;
+		easyForcePrintLineClient(pEntity, "az_animlog (servidor) = %d", g_azAnimLog);
+		return;
+	
+		}else if (FStrEq(pcmdRefinedRef, "az_ents")) {
 		// Diagnostico: lista as entidades perto do jogador.  Uso: az_ents [raio]   (padrao 300)
 		// ts = estado de porta/botao (0 = aberta/em cima, 1 = fechada/embaixo; so vale para portas e similares)
 		float radius = 300;
