@@ -3694,6 +3694,15 @@ void CSave::BufferData( const char *pdata, int size )
 //
 // --------------------------------------------------------------
 
+// O buffer do save tem strings de tamanho variavel, entao os numeros ficam em enderecos desalinhados.
+// ARM de 32 bits (ARMv7) da SIGBUS em leitura desalinhada de float (vldr); x86/arm64 toleram. Por isso a copia por memcpy.
+template <typename T> static inline T az_read_unaligned( const void *p )
+{
+	T v;
+	memcpy( &v, p, sizeof( T ) );
+	return v;
+}
+
 int CRestore::ReadField( void *pBaseData, TYPEDESCRIPTION *pFields, int fieldCount, int startField, int size, char *pName, void *pData )
 {
 	int i, j, stringCount, fieldNumber, entityIndex;
@@ -3729,13 +3738,13 @@ int CRestore::ReadField( void *pBaseData, TYPEDESCRIPTION *pFields, int fieldCou
 					switch( pTest->fieldType )
 					{
 					case FIELD_TIME:
-						timeData = *(float *)pInputData;
+						timeData = az_read_unaligned<float>(pInputData);
 						// Re-base time variables
 						timeData += time;
 						*((float *)pOutputData) = timeData;
 					break;
 					case FIELD_FLOAT:
-						*((float *)pOutputData) = *(float *)pInputData;
+						*((float *)pOutputData) = az_read_unaligned<float>(pInputData);
 					break;
 					case FIELD_MODELNAME:
 					case FIELD_SOUNDNAME:
@@ -3771,7 +3780,7 @@ int CRestore::ReadField( void *pBaseData, TYPEDESCRIPTION *pFields, int fieldCou
 					case FIELD_EVARS:
 						// Entrada (save) usa int de 4 bytes; a saida e um ponteiro (8 bytes em 64 bits). Ajusta o passo dos arrays.
 						pOutputData = (char *)pOutputData + j*(sizeof(entvars_t *) - gSizes[pTest->fieldType]);
-						entityIndex = *( int *)pInputData;
+						entityIndex = az_read_unaligned<int>(pInputData);
 						pent = EntityFromIndex( entityIndex );
 						if ( pent )
 							*((entvars_t **)pOutputData) = VARS(pent);
@@ -3781,7 +3790,7 @@ int CRestore::ReadField( void *pBaseData, TYPEDESCRIPTION *pFields, int fieldCou
 					case FIELD_CLASSPTR:
 						// Entrada (save) usa int de 4 bytes; a saida e um ponteiro (8 bytes em 64 bits). Ajusta o passo dos arrays.
 						pOutputData = (char *)pOutputData + j*(sizeof(CBaseEntity *) - gSizes[pTest->fieldType]);
-						entityIndex = *( int *)pInputData;
+						entityIndex = az_read_unaligned<int>(pInputData);
 						pent = EntityFromIndex( entityIndex );
 						if ( pent )
 							*((CBaseEntity **)pOutputData) = CBaseEntity::Instance(pent);
@@ -3791,14 +3800,14 @@ int CRestore::ReadField( void *pBaseData, TYPEDESCRIPTION *pFields, int fieldCou
 					case FIELD_EDICT:
 						// Entrada (save) usa int de 4 bytes; a saida e um ponteiro (8 bytes em 64 bits). Ajusta o passo dos arrays.
 						pOutputData = (char *)pOutputData + j*(sizeof(edict_t *) - gSizes[pTest->fieldType]);
-						entityIndex = *( int *)pInputData;
+						entityIndex = az_read_unaligned<int>(pInputData);
 						pent = EntityFromIndex( entityIndex );
 						*((edict_t **)pOutputData) = pent;
 					break;
 					case FIELD_EHANDLE:
 						// Input and Output sizes are different!
 						pOutputData = (char *)pOutputData + j*(sizeof(EHANDLE) - gSizes[pTest->fieldType]);
-						entityIndex = *( int *)pInputData;
+						entityIndex = az_read_unaligned<int>(pInputData);
 						pent = EntityFromIndex( entityIndex );
 						if ( pent )
 							*((EHANDLE *)pOutputData) = CBaseEntity::Instance(pent);
@@ -3806,7 +3815,7 @@ int CRestore::ReadField( void *pBaseData, TYPEDESCRIPTION *pFields, int fieldCou
 							*((EHANDLE *)pOutputData) = NULL;
 					break;
 					case FIELD_ENTITY:
-						entityIndex = *( int *)pInputData;
+						entityIndex = az_read_unaligned<int>(pInputData);
 						pent = EntityFromIndex( entityIndex );
 						if ( pent )
 							*((EOFFSET *)pOutputData) = OFFSET(pent);
@@ -3814,23 +3823,23 @@ int CRestore::ReadField( void *pBaseData, TYPEDESCRIPTION *pFields, int fieldCou
 							*((EOFFSET *)pOutputData) = 0;
 					break;
 					case FIELD_VECTOR:
-						((float *)pOutputData)[0] = ((float *)pInputData)[0];
-						((float *)pOutputData)[1] = ((float *)pInputData)[1];
-						((float *)pOutputData)[2] = ((float *)pInputData)[2];
+						((float *)pOutputData)[0] = az_read_unaligned<float>((const float *)pInputData + 0);
+						((float *)pOutputData)[1] = az_read_unaligned<float>((const float *)pInputData + 1);
+						((float *)pOutputData)[2] = az_read_unaligned<float>((const float *)pInputData + 2);
 					break;
 					case FIELD_POSITION_VECTOR:
-						((float *)pOutputData)[0] = ((float *)pInputData)[0] + position.x;
-						((float *)pOutputData)[1] = ((float *)pInputData)[1] + position.y;
-						((float *)pOutputData)[2] = ((float *)pInputData)[2] + position.z;
+						((float *)pOutputData)[0] = az_read_unaligned<float>((const float *)pInputData + 0) + position.x;
+						((float *)pOutputData)[1] = az_read_unaligned<float>((const float *)pInputData + 1) + position.y;
+						((float *)pOutputData)[2] = az_read_unaligned<float>((const float *)pInputData + 2) + position.z;
 					break;
 
 					case FIELD_BOOLEAN:
 					case FIELD_INTEGER:
-						*((int *)pOutputData) = *( int *)pInputData;
+						*((int *)pOutputData) = az_read_unaligned<int>(pInputData);
 					break;
 
 					case FIELD_SHORT:
-						*((short *)pOutputData) = *( short *)pInputData;
+						*((short *)pOutputData) = az_read_unaligned<short>(pInputData);
 					break;
 
 					case FIELD_CHARACTER:
@@ -3838,7 +3847,7 @@ int CRestore::ReadField( void *pBaseData, TYPEDESCRIPTION *pFields, int fieldCou
 					break;
 
 					case FIELD_POINTER:
-						*((int *)pOutputData) = *( int *)pInputData;
+						*((int *)pOutputData) = az_read_unaligned<int>(pInputData);
 					break;
 					case FIELD_FUNCTION:
 						if ( strlen( (char *)pInputData ) == 0 )
