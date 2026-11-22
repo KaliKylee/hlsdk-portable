@@ -30,7 +30,7 @@
 #define M_PI		3.14159265358979323846	// matches value in gcc v2 math.h
 #endif
 
-vec3_t vec3_origin( 0, 0, 0 );
+// vec3_origin e definido em pm_shared/pm_math.c
 
 double sqrt(double x);
 
