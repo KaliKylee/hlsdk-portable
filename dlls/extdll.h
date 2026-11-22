@@ -13,6 +13,7 @@
 *
 ****/
 #ifndef EXTDLL_H
+#include "build.h"
 #define EXTDLL_H
 
 

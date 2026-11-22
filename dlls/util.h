@@ -29,8 +29,22 @@ inline void MESSAGE_BEGIN( int msg_dest, int msg_type, const float *pOrigin, ent
 extern globalvars_t				*gpGlobals;
 
 // Use this instead of ALLOC_STRING on constant strings
-#define STRING(offset)		((const char *)(gpGlobals->pStringBase + (unsigned int)(offset)))
-#define MAKE_STRING(str)	((uint64)(str) - (uint64)(STRING(0)))
+#define STRING(offset)		((const char *)(gpGlobals->pStringBase + (int)(offset)))
+
+// string_t e um offset de 32 bits a partir de pStringBase. Em 64 bits o endereco de um
+// literal pode ficar longe demais da base: nesse caso o engine aloca uma copia (ALLOC_STRING).
+#if !XASH_64BIT || CLIENT_DLL
+#define MAKE_STRING(str)	((int)(long int)str - (int)(long int)STRING(0))
+#else
+static inline int MAKE_STRING(const char *szValue)
+{
+	long long ptrdiff = szValue - STRING(0);
+	if( ptrdiff > INT_MAX || ptrdiff < INT_MIN )
+		return ALLOC_STRING( szValue );
+	else
+		return (int)ptrdiff;
+}
+#endif
 
 inline edict_t *FIND_ENTITY_BY_CLASSNAME(edict_t *entStart, const char *pszName) 
 {
