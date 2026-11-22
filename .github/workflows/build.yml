@@ -22,11 +22,14 @@ jobs:
         distribution: temurin
         java-version: "17"
 
-    - name: Set up Android SDK
-      uses: android-actions/setup-android@v3
-
     - name: Install NDK and CMake
-      run: sdkmanager "ndk;26.1.10909125" "cmake;3.22.1"
+      run: |
+        SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+        SDKMANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
+        [ -x "$SDKMANAGER" ] || SDKMANAGER="$(ls -d "$SDK"/cmdline-tools/*/bin/sdkmanager | head -n 1)"
+        echo "sdkmanager: $SDKMANAGER"
+        yes | "$SDKMANAGER" --licenses > /dev/null || true
+        "$SDKMANAGER" "ndk;26.1.10909125" "cmake;3.22.1"
 
     - name: Build APK (armeabi-v7a, arm64-v8a, x86, x86_64)
       working-directory: android
