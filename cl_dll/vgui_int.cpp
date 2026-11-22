@@ -6,6 +6,7 @@
 //=============================================================================
 
 #include"vgui_int.h"
+#include "hr_log.h"
 #include<VGUI_Label.h>
 #include<VGUI_BorderLayout.h>
 #include<VGUI_LineBorder.h>
@@ -84,7 +85,13 @@ void* VGui_GetPanel()
 
 void VGui_Startup()
 {
+	HR_Log( "cliente: VGui_Startup" );
 	Panel* root=(Panel*)VGui_GetPanel();
+	if ( !root )
+	{
+		HR_Log( "cliente: VGui_Startup - painel raiz nulo (VGUI nao iniciou)" );
+		return;
+	}
 	root->setBgColor(128,128,0,0);
 	//root->setNonPainted(false);
 	//root->setBorder(new LineBorder());
@@ -107,6 +114,7 @@ void VGui_Startup()
 	{
 		gViewPort = new TeamFortressViewport(0,0,root->getWide(),root->getTall());
 		gViewPort->setParent(root);
+		HR_Log( "cliente: TeamFortressViewport criado" );
 	}
 
 	/*

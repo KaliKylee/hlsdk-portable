@@ -43,7 +43,15 @@ extern "C"
 #
 #include "tri.h"
 #include "vgui_TeamFortressViewport.h"
+#include "hr_log.h"
 #include "../public/interface.h"
+
+#if defined( INTERNAL_VGUI_SUPPORT )
+// O Xash chama InitVGUISupportAPI (freevgui embutida) para iniciar o VGUI desta lib.
+// Sem esta referencia o linker remove a funcao e o primeiro Label do VGUI crasha (App nulo).
+extern "C" void InitVGUISupportAPI( void *api );
+void *g_pKeepVGUISupport = (void *)InitVGUISupportAPI;
+#endif
 
 cl_enginefunc_t gEngfuncs;
 CHud gHUD;
@@ -156,6 +164,7 @@ int CL_DLLEXPORT Initialize( cl_enginefunc_t *pEnginefuncs, int iVersion )
 	else
 		gEngfuncs.pfnFilteredClientCmd = pEnginefuncs->pfnFilteredClientCmd;
 
+	HR_Log( "cliente: Initialize (versao da interface %d)", iVersion );
 	EV_HookEvents();
 	CL_LoadParticleMan();
 
@@ -175,6 +184,7 @@ so the HUD can reinitialize itself.
 
 int CL_DLLEXPORT HUD_VidInit( void )
 {
+	HR_Log( "cliente: HUD_VidInit (novo mapa)" );
 //	RecClHudVidInit();
 	gHUD.VidInit();
 

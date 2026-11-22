@@ -124,6 +124,7 @@ set (CLDLL_SOURCES
 	tri.cpp
 	util.cpp
 	view.cpp
+	../dlls/hr_crash.cpp
 	../pm_shared/pm_debug.c
 	../pm_shared/pm_math.c
 	../pm_shared/pm_shared.c
@@ -179,6 +180,9 @@ include_directories(../utils/vgui/include)
 
 add_library (${CLDLL_LIBRARY} SHARED ${CLDLL_SOURCES})
 target_link_libraries(${CLDLL_LIBRARY} vcs_info)
+if(ANDROID)
+	target_link_libraries(${CLDLL_LIBRARY} log)
+endif()
 
 if (GOLDSOURCE_SUPPORT)
 	target_link_libraries( ${CLDLL_LIBRARY} ${CMAKE_DL_LIBS} )

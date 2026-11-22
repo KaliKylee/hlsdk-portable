@@ -24,6 +24,7 @@
 */
 
 #include "extdll.h"
+#include "hr_log.h"
 #include "util.h"
 #include "cbase.h"
 #include "saverestore.h"
@@ -211,6 +212,7 @@ called each time a player is spawned
 */
 void ClientPutInServer( edict_t *pEntity )
 {
+	HR_Log( "ClientPutInServer: jogador entrou (mapa %s)", STRING( gpGlobals->mapname ) );
 	CBasePlayer *pPlayer;
 
 	entvars_t *pev = &pEntity->v;
@@ -1034,6 +1036,7 @@ static int g_serveractive = 0;
 
 void ServerDeactivate( void )
 {
+	HR_Log( "ServerDeactivate" );
 	// It's possible that the engine will call this function more times than is necessary
 	//  Therefore, only run it one time for each call to ServerActivate 
 	if ( g_serveractive != 1 )
@@ -1049,6 +1052,7 @@ void ServerDeactivate( void )
 
 void ServerActivate( edict_t *pEdictList, int edictCount, int clientMax )
 {
+	HR_Log( "ServerActivate: mapa=%s clientMax=%d edicts=%d", STRING( gpGlobals->mapname ), clientMax, edictCount );
 	int				i;
 	CBaseEntity		*pClass;
 

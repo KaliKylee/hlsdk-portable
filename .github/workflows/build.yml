@@ -44,6 +44,16 @@ jobs:
         unzip -o out/hlrats-parasomnia.apk "lib/*" -d out/libs
         find out/libs -type f | sort
 
+    - name: Collect libs with symbols (para analise de crash)
+      run: |
+        mkdir -p out/symbols
+        for f in $(find android/app/build/intermediates -path "*cxx*" -path "*/obj/*" -name "*.so" 2>/dev/null); do
+          abi=$(basename "$(dirname "$f")")
+          mkdir -p "out/symbols/$abi"
+          cp "$f" "out/symbols/$abi/"
+        done
+        find out/symbols -type f | sort
+
     - name: Upload APK (launcher)
       uses: actions/upload-artifact@v4
       with:
@@ -55,3 +65,9 @@ jobs:
       with:
         name: hlrats-android-libs
         path: out/libs
+
+    - name: Upload libs com simbolos (crash)
+      uses: actions/upload-artifact@v4
+      with:
+        name: hlrats-libs-symbols
+        path: out/symbols

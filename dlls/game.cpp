@@ -13,6 +13,7 @@
 *
 ****/
 #include "extdll.h"
+#include "hr_log.h"
 #include "eiface.h"
 #include "util.h"
 #include "game.h"
@@ -362,6 +363,7 @@ cvar_t sk_zombie_health3 = { "sk_zombie_health3", "0" };
 // This gets called one time when the game is initialied
 void GameDLLInit( void )
 {
+	HR_Log( "GameDLLInit" );
 	// Register cvars here:
 
 	g_psv_gravity = CVAR_GET_POINTER( "sv_gravity" );

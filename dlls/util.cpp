@@ -21,6 +21,7 @@
 */
 
 #include "extdll.h"
+#include "hr_log.h"
 #include "util.h"
 #include "cbase.h"
 #include "saverestore.h"
@@ -1611,6 +1612,8 @@ BOOL UTIL_IsValidEntity( edict_t *pent )
 
 void UTIL_PrecacheOther( const char *szClassname )
 {
+	HR_Breadcrumb( "precache %s", szClassname );
+
 	edict_t	*pent;
 
 	pent = CREATE_NAMED_ENTITY( MAKE_STRING( szClassname ) );
