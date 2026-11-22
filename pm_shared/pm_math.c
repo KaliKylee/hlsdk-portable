@@ -311,7 +311,6 @@ void CrossProduct (const vec3_t v1, const vec3_t v2, vec3_t cross)
 }
 #endif
 
-double sqrt(double x);
 
 #ifndef DISABLE_VEC_FUNCS
 float Length(const vec3_t v)

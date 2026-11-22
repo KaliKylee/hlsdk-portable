@@ -9,7 +9,7 @@ android {
     namespace 'com.example.hlsdk'
 
     defaultConfig {
-        applicationId 'com.example.hlsdk'
+        applicationId 'com.hlrats.parasomnia'
         versionName '1.0'
         versionCode getBuildNum()
         minSdkVersion 3
@@ -43,6 +43,7 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.txt'
         }
         release {
+            signingConfig signingConfigs.debug   // APK instalavel sem keystore propria
             minifyEnabled false
             shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.txt'
