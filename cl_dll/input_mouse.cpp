@@ -96,3 +96,8 @@ AbstractInput* CurrentMouseInput()
 {
 	return currentInput;
 }
+
+void IN_SetVisibleMouse( bool visible )
+{
+	currentInput->IN_SetVisibleMouse( visible );
+}

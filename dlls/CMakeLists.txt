@@ -27,7 +27,6 @@ set (SVDLL_LIBRARY server)
 
 if(NOT MSVC)
 	add_compile_options(-fno-exceptions) # GCC/Clang flag
-	add_compile_options(-fno-rtti) # GCC/Clang flag
 	add_compile_options(-Wno-invalid-offsetof) # GCC/Clang flag
 	add_compile_options(-fvisibility=hidden) # GCC/Clang flag
 	add_definitions(-D_LINUX) # It seems enough for all non-Win32 systems
@@ -45,111 +44,111 @@ else()
 endif()
 
 set (SVDLL_SOURCES
-	agrunt.cpp
-	airtank.cpp
-	aflock.cpp
 	animating.cpp
 	animation.cpp
-	apache.cpp
-	barnacle.cpp
-	barney.cpp
-	bigmomma.cpp
-	bloater.cpp
 	bmodels.cpp
-	bullsquid.cpp
 	buttons.cpp
 	cbase.cpp
 	client.cpp
 	combat.cpp
-	controller.cpp
-	crossbow.cpp
-	crowbar.cpp
 	defaultai.cpp
 	doors.cpp
 	effects.cpp
-	egon.cpp
 	explode.cpp
-	flyingmonster.cpp
 	func_break.cpp
 	func_tank.cpp
 	game.cpp
 	gamerules.cpp
-	gargantua.cpp
-	gauss.cpp
 	genericmonster.cpp
 	ggrenade.cpp
 	globals.cpp
-	glock.cpp
-	gman.cpp
 	h_ai.cpp
-	h_battery.cpp
 	h_cine.cpp
 	h_cycler.cpp
 	h_export.cpp
-	handgrenade.cpp
-	hassassin.cpp
-	headcrab.cpp
-	healthkit.cpp
-	hgrunt.cpp
-	hornet.cpp
-	hornetgun.cpp
-	houndeye.cpp
-	ichthyosaur.cpp
-	islave.cpp
+	hrp_ammo_45.cpp
+	hrp_ammo_buckshot.cpp
+	hrp_ammo_dynamitebox.cpp
+	hrp_effects.cpp
+	hrp_entity_ai_marker.cpp
+	hrp_entity_baph_fire_ball.cpp
+	hrp_entity_bernard_puke.cpp
+	hrp_entity_bow_arrow.cpp
+	hrp_entity_doktor_dart.cpp
+	hrp_entity_huntsman_bolt.cpp
+	hrp_items.cpp
+	hrp_monster_armorman.cpp
+	hrp_monster_baph.cpp
+	hrp_monster_barnaby.cpp
+	hrp_monster_bear.cpp
+	hrp_monster_bernard.cpp
+	hrp_monster_caleb.cpp
+	hrp_monster_clown.cpp
+	hrp_monster_culthermit.cpp
+	hrp_monster_dog.cpp
+	hrp_monster_doktor.cpp
+	hrp_monster_duck.cpp
+	hrp_monster_halfcat.cpp
+	hrp_monster_halfcat_snark.cpp
+	hrp_monster_halfrats.cpp
+	hrp_monster_huntsman.cpp
+	hrp_monster_man.cpp
+	hrp_monster_maskboy.cpp
+	hrp_monster_pig.cpp
+	hrp_monster_publican.cpp
+	hrp_monster_teddy.cpp
+	hrp_monster_trask.cpp
+	hrp_monster_traskboss.cpp
+	hrp_monster_udcop.cpp
+	hrp_monster_upperclassman.cpp
+	hrp_monster_woman.cpp
+	hrp_player.cpp
+	hrp_triggers.cpp
+	hrp_weapon_bow.cpp
+	hrp_weapon_colt.cpp
+	hrp_weapon_debug.cpp
+	hrp_weapon_dynamite.cpp
+	hrp_weapon_gatling.cpp
+	hrp_weapon_halfcat.cpp
+	hrp_weapon_henry.cpp
+	hrp_weapon_saber.cpp
+	hrp_weapon_shotgun.cpp
 	items.cpp
-	leech.cpp
 	lights.cpp
 	maprules.cpp
 	monstermaker.cpp
 	monsters.cpp
 	monsterstate.cpp
 	mortar.cpp
-	mp5.cpp
 	multiplay_gamerules.cpp
-	nihilanth.cpp
 	nodes.cpp
 	observer.cpp
-	osprey.cpp
 	pathcorner.cpp
 	plane.cpp
 	plats.cpp
 	player.cpp
-	playermonster.cpp
-	python.cpp
 	rat.cpp
-	roach.cpp
-	rpg.cpp
-	satchel.cpp
 	schedule.cpp
 	scientist.cpp
 	scripted.cpp
-	shotgun.cpp
 	singleplay_gamerules.cpp
 	skill.cpp
 	sound.cpp
 	soundent.cpp
 	spectator.cpp
 	squadmonster.cpp
-	squeakgrenade.cpp
 	subs.cpp
 	talkmonster.cpp
 	teamplay_gamerules.cpp
-	tempmonster.cpp
-	tentacle.cpp
 	triggers.cpp
-	tripmine.cpp
-	turret.cpp
 	util.cpp
-	vehicle.cpp
 	weapons.cpp
 	world.cpp
-	xen.cpp
 	zombie.cpp
-	../game_shared/voice_gamemgr.cpp
-	../pm_shared/pm_debug.c
-	../pm_shared/pm_math.c
 	../pm_shared/pm_shared.c
-	../public/safe_snprintf.c
+	../pm_shared/pm_math.c
+	../pm_shared/pm_debug.c
+	../game_shared/voice_gamemgr.cpp
 )
 
 if (HAVE_STRLCPY)

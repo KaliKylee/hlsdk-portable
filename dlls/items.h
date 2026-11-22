@@ -1,6 +1,6 @@
 /***
 *
-*	Copyright (c) 1996-2002, Valve LLC. All rights reserved.
+*	Copyright (c) 1996-2001, Valve LLC. All rights reserved.
 *	
 *	This product contains software technology licensed from Id 
 *	Software, Inc. ("Id Technology").  Id Technology (c) 1996 Id Software, Inc. 
@@ -12,20 +12,23 @@
 *   without written permission from Valve LLC.
 *
 ****/
-#pragma once
-#if !defined(ITEMS_H)
+#ifndef ITEMS_H
 #define ITEMS_H
+
+// Shepard
+#define ITEM_MONEY_GIVE_AMOUNT_NORMAL 50
+#define ITEM_MONEY_GIVE_AMOUNT_GOLD 150
+#define MAX_ITEM_CARRY 9
+#define MAX_MONEY_CARRY 999
 
 class CItem : public CBaseEntity
 {
 public:
-	void Spawn( void );
-	CBaseEntity *Respawn( void );
-	void EXPORT ItemTouch( CBaseEntity *pOther );
-	void EXPORT Materialize( void );
-	virtual BOOL MyTouch( CBasePlayer *pPlayer )
-	{
-		return FALSE;
-	};
+	void	Spawn( void );
+	CBaseEntity*	Respawn( void );
+	void	EXPORT ItemTouch( CBaseEntity *pOther );
+	void	EXPORT Materialize( void );
+	virtual BOOL MyTouch( CBasePlayer *pPlayer ) { return FALSE; };
 };
+
 #endif // ITEMS_H

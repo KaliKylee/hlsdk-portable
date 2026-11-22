@@ -1,4 +1,4 @@
-//========= Copyright (c) 1996-2001, Valve LLC, All rights reserved. ============
+//========= Copyright © 1996-2001, Valve LLC, All rights reserved. ============
 //
 // Purpose: 
 //
@@ -11,8 +11,11 @@
 
 
 #include "VGUI_Label.h"
+#include "VGUI_LineBorder.h"
 #include "VGUI_ImagePanel.h"
 #include "VGUI_BitmapTGA.h"
+#include "VGUI_InputSignal.h"
+#include "VGUI_Button.h"
 #include "voice_common.h"
 #include "cl_entity.h"
 #include "voice_banmgr.h"
@@ -189,7 +192,7 @@ public:
 	// Squelch mode stuff.
 	bool				m_bInSquelchMode;
 	
-	HSPRITE				m_VoiceHeadModel;		// Voice head model (goes above players who are speaking).
+	HLSPRITE			m_VoiceHeadModel;		// Voice head model (goes above players who are speaking).
 	float				m_VoiceHeadModelHeight;	// Height above their head to place the model.
 
 	vgui::Image			*m_pSpeakerLabelIcon;	// Icon next to speaker labels.

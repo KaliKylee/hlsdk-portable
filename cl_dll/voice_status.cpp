@@ -5,7 +5,16 @@
 // $NoKeywords: $
 //=============================================================================
 
-#include "hud.h"
+// There are hud.h's coming out of the woodwork so this ensures that we get the right one.
+#if defined(THREEWAVE) || defined(DMC_BUILD)
+	#include "../dmc/cl_dll/hud.h"
+#elif defined(CSTRIKE)
+	#include "../cstrike/cl_dll/hud.h"
+#elif defined(DOD)
+	#include "../dod/cl_dll/hud.h"
+#else
+	#include "hud.h"
+#endif
 
 #include "cl_util.h"
 #include <assert.h>
@@ -17,9 +26,12 @@
 #include "voice_status.h"
 #include "r_efx.h"
 #include "entity_types.h"
+#include "VGUI_ActionSignal.h"
 #include "VGUI_Scheme.h"
+#include "VGUI_TextImage.h"
 #include "vgui_loadtga.h"
 #include "vgui_helpers.h"
+#include "VGUI_MouseCode.h"
 
 
 
@@ -77,14 +89,16 @@ int g_BannedPlayerPrintCount;
 void ForEachBannedPlayer(char id[16])
 {
 	char str[256];
-	sprintf(str, "BAN %d: %2X%2X%2X%2X%2X%2X%2X%2X%2X%2X%2X%2X%2X%2X%2X%2X\n",
+	sprintf(str, "Ban %d: %2x%2x%2x%2x%2x%2x%2x%2x%2x%2x%2x%2x%2x%2x%2x%2x\n",
 		g_BannedPlayerPrintCount++,
 		id[0], id[1], id[2], id[3], 
 		id[4], id[5], id[6], id[7], 
 		id[8], id[9], id[10], id[11], 
 		id[12], id[13], id[14], id[15]
 		);
-
+#ifdef _WIN32
+	strupr(str);
+#endif
 	gEngfuncs.pfnConsolePrint(str);
 }
 
@@ -187,7 +201,7 @@ int CVoiceStatus::Init(
 	g_pInternalVoiceStatus = this;
 
 	m_BlinkTimer = 0;
-	m_VoiceHeadModel = 0;
+	m_VoiceHeadModel = NULL;
 	memset(m_Labels, 0, sizeof(m_Labels));
 	
 	for(int i=0; i < MAX_VOICE_SPEAKERS; i++)
@@ -196,7 +210,7 @@ int CVoiceStatus::Init(
 
 		pLabel->m_pBackground = new Label("");
 
-		if((pLabel->m_pLabel = new Label("")) != 0)
+		if(pLabel->m_pLabel = new Label(""))
 		{
 			pLabel->m_pLabel->setVisible( true );
 			pLabel->m_pLabel->setFont( Scheme::sf_primary2 );
@@ -205,7 +219,7 @@ int CVoiceStatus::Init(
 			pLabel->m_pLabel->setParent( pLabel->m_pBackground );
 		}
 
-		if( (pLabel->m_pIcon = new ImagePanel( NULL )) != 0 )
+		if( pLabel->m_pIcon = new ImagePanel( NULL ) )
 		{
 			pLabel->m_pIcon->setVisible( true );
 			pLabel->m_pIcon->setParent( pLabel->m_pBackground );
@@ -239,12 +253,12 @@ int CVoiceStatus::VidInit()
 	FreeBitmaps();
 
 
-	if( (m_pLocalBitmap = vgui_LoadTGA("gfx/vgui/icntlk_pl.tga")) != 0 )
+	if( m_pLocalBitmap = vgui_LoadTGA("gfx/vgui/icntlk_pl.tga") )
 	{
 		m_pLocalBitmap->setColor(Color(255,255,255,135));
 	}
 
-	if( (m_pAckBitmap = vgui_LoadTGA("gfx/vgui/icntlk_sv.tga")) != 0 )
+	if( m_pAckBitmap = vgui_LoadTGA("gfx/vgui/icntlk_sv.tga") )
 	{
 		m_pAckBitmap->setColor(Color(255,255,255,135));	// Give just a tiny bit of translucency so software draws correctly.
 	}
@@ -253,25 +267,25 @@ int CVoiceStatus::VidInit()
 	m_pLocalLabel->setVisible( false );
 
 
-	if( (m_pSpeakerLabelIcon = vgui_LoadTGANoInvertAlpha("gfx/vgui/speaker4.tga" )) != 0 )
+	if( m_pSpeakerLabelIcon = vgui_LoadTGANoInvertAlpha("gfx/vgui/speaker4.tga" ) )
 		m_pSpeakerLabelIcon->setColor( Color(255,255,255,1) );		// Give just a tiny bit of translucency so software draws correctly.
 
-	if ((m_pScoreboardNeverSpoken = vgui_LoadTGANoInvertAlpha("gfx/vgui/640_speaker1.tga")) != 0)
+	if (m_pScoreboardNeverSpoken = vgui_LoadTGANoInvertAlpha("gfx/vgui/640_speaker1.tga"))
 		m_pScoreboardNeverSpoken->setColor(Color(255,255,255,1));	// Give just a tiny bit of translucency so software draws correctly.
 
-	if((m_pScoreboardNotSpeaking = vgui_LoadTGANoInvertAlpha("gfx/vgui/640_speaker2.tga")) != 0)
+	if(m_pScoreboardNotSpeaking = vgui_LoadTGANoInvertAlpha("gfx/vgui/640_speaker2.tga"))
 		m_pScoreboardNotSpeaking->setColor(Color(255,255,255,1));	// Give just a tiny bit of translucency so software draws correctly.
 	
-	if((m_pScoreboardSpeaking = vgui_LoadTGANoInvertAlpha("gfx/vgui/640_speaker3.tga")) != 0)
+	if(m_pScoreboardSpeaking = vgui_LoadTGANoInvertAlpha("gfx/vgui/640_speaker3.tga"))
 		m_pScoreboardSpeaking->setColor(Color(255,255,255,1));	// Give just a tiny bit of translucency so software draws correctly.
 	
-	if((m_pScoreboardSpeaking2 = vgui_LoadTGANoInvertAlpha("gfx/vgui/640_speaker4.tga")) != 0)
+	if(m_pScoreboardSpeaking2 = vgui_LoadTGANoInvertAlpha("gfx/vgui/640_speaker4.tga"))
 		m_pScoreboardSpeaking2->setColor(Color(255,255,255,1));	// Give just a tiny bit of translucency so software draws correctly.
 	
-	if((m_pScoreboardSquelch  = vgui_LoadTGA("gfx/vgui/icntlk_squelch.tga")) != 0)
+	if(m_pScoreboardSquelch  = vgui_LoadTGA("gfx/vgui/icntlk_squelch.tga"))
 		m_pScoreboardSquelch->setColor(Color(255,255,255,1));	// Give just a tiny bit of translucency so software draws correctly.
 
-	if((m_pScoreboardBanned = vgui_LoadTGA("gfx/vgui/640_voiceblocked.tga")) != 0)
+	if(m_pScoreboardBanned = vgui_LoadTGA("gfx/vgui/640_voiceblocked.tga"))
 		m_pScoreboardBanned->setColor(Color(255,255,255,1));	// Give just a tiny bit of translucency so software draws correctly.
 
 	// Figure out the voice head model height.
@@ -386,7 +400,7 @@ void CVoiceStatus::UpdateSpeakerStatus( int entindex, qboolean bTalking )
 	if ( gEngfuncs.pfnGetCvarFloat( "voice_clientdebug" ) )
 	{
 		char msg[256];
-		sprintf( msg, "CVoiceStatus::UpdateSpeakerStatus: ent %d talking = %d\n", entindex, bTalking );
+		_snprintf( msg, sizeof( msg ), "CVoiceStatus::UpdateSpeakerStatus: ent %d talking = %d\n", entindex, bTalking );
 		gEngfuncs.pfnConsolePrint( msg );
 	}
 
@@ -433,7 +447,7 @@ void CVoiceStatus::UpdateSpeakerStatus( int entindex, qboolean bTalking )
 				// if this isn't the local player (unless they have voice_loopback on)
 				if ( ( entindex != iLocalPlayerIndex ) || ( pVoiceLoopback && pVoiceLoopback->value ) )
 				{
-					if ( (pLabel = GetFreeVoiceLabel()) != 0 )
+					if ( pLabel = GetFreeVoiceLabel() )
 					{
 						// Get the name from the engine.
 						hud_player_info_t info;
@@ -441,7 +455,7 @@ void CVoiceStatus::UpdateSpeakerStatus( int entindex, qboolean bTalking )
 						gEngfuncs.pfnGetPlayerInfo( entindex, &info );
 
 						char paddedName[512];
-						safe_snprintf( paddedName, sizeof( paddedName ), "%s   ", info.name );
+						_snprintf( paddedName, sizeof( paddedName ), "%s   ", info.name );
 
 						int color[3];
 						m_pHelper->GetPlayerTextColor( entindex, color );
@@ -502,27 +516,26 @@ void CVoiceStatus::UpdateServerState(bool bForce)
 		m_bServerModEnable = bCVarModEnable;
 
 		char str[256];
-		sprintf(str, "VModEnable %d", m_bServerModEnable);
+		_snprintf(str, sizeof(str), "VModEnable %d", m_bServerModEnable);
 		ServerCmd(str);
 
 		if(gEngfuncs.pfnGetCvarFloat("voice_clientdebug"))
 		{
-			int len;
 			char msg[256];
-			len = safe_snprintf(msg, sizeof( msg ), "CVoiceStatus::UpdateServerState: Sending '%s'\n", str);
-			if( len < 0 ) strcpy(&msg[sizeof( msg ) - 2], "\n" );
+			sprintf(msg, "CVoiceStatus::UpdateServerState: Sending '%s'\n", str);
 			gEngfuncs.pfnConsolePrint(msg);
 		}
 	}
 
-	char str[2048] = "vban";
+	char str[2048];
+	sprintf(str, "vban");
 	bool bChange = false;
 
 	for(unsigned long dw=0; dw < VOICE_MAX_PLAYERS_DW; dw++)
 	{	
-		unsigned int serverBanMask = 0;
-		unsigned int banMask = 0;
-		for(unsigned int i=0; i < 32; i++)
+		unsigned long serverBanMask = 0;
+		unsigned long banMask = 0;
+		for(unsigned long i=0; i < 32; i++)
 		{
 			char playerID[16];
 			if(!gEngfuncs.GetPlayerUniqueID(i+1, playerID))
@@ -623,7 +636,7 @@ void CVoiceStatus::HandleVoiceMaskMsg(int iSize, void *pbuf)
 {
 	BEGIN_READ( pbuf, iSize );
 
-	unsigned int dw;
+	unsigned long dw;
 	for(dw=0; dw < VOICE_MAX_PLAYERS_DW; dw++)
 	{
 		m_AudiblePlayers.SetDWord(dw, (unsigned long)READ_LONG());
@@ -727,7 +740,7 @@ void CVoiceStatus::RepositionLabels()
 		// Setup the background label to fit everything in.
 		int border = 2;
 		int bgWide = textWide + iconWide + border*3;
-		int bgTall = Q_max( textTall, iconTall ) + border*2;
+		int bgTall = V_max( textTall, iconTall ) + border*2;
 		pLabel->m_pBackground->setBounds( ScreenWidth - bgWide - 8, y, bgWide, bgTall );
 
 		// Put the text at the left.

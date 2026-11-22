@@ -41,6 +41,7 @@ typedef struct cmdalias_s
 // so make sure engine declarations aren't done twice
 
 typedef int HSPRITE;	// handle to a graphic
+typedef int HLSPRITE;	// mod (Steam SDK) alias, ABI-identical to HSPRITE
 typedef int (*pfnUserMsgHook)( const char *pszName, int iSize, void *pbuf );
 
 #include "wrect.h"

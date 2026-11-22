@@ -1,6 +1,6 @@
 /***
 *
-*	Copyright (c) 1996-2002, Valve LLC. All rights reserved.
+*	Copyright (c) 1996-2001, Valve LLC. All rights reserved.
 *	
 *	This product contains software technology licensed from Id 
 *	Software, Inc. ("Id Technology").  Id Technology (c) 1996 Id Software, Inc. 
@@ -28,8 +28,8 @@
 
 extern edict_t *EntSelectSpawnPoint( CBaseEntity *pPlayer );
 
-DLL_GLOBAL CGameRules *g_pGameRules = NULL;
-extern DLL_GLOBAL BOOL g_fGameOver;
+DLL_GLOBAL CGameRules*	g_pGameRules = NULL;
+extern DLL_GLOBAL BOOL	g_fGameOver;
 extern int gmsgDeathMsg;	// client dll messages
 extern int gmsgMOTD;
 
@@ -41,13 +41,13 @@ BOOL CGameRules::CanHaveAmmo( CBasePlayer *pPlayer, const char *pszAmmoName, int
 {
 	int iAmmoIndex;
 
-	if( pszAmmoName )
+	if ( pszAmmoName )
 	{
 		iAmmoIndex = pPlayer->GetAmmoIndex( pszAmmoName );
 
-		if( iAmmoIndex > -1 )
+		if ( iAmmoIndex > -1 )
 		{
-			if( pPlayer->AmmoInventory( iAmmoIndex ) < iMaxCarry )
+			if ( pPlayer->AmmoInventory( iAmmoIndex ) < iMaxCarry )
 			{
 				// player has room for more of this type of ammo
 				return TRUE;
@@ -60,17 +60,17 @@ BOOL CGameRules::CanHaveAmmo( CBasePlayer *pPlayer, const char *pszAmmoName, int
 
 //=========================================================
 //=========================================================
-edict_t *CGameRules::GetPlayerSpawnSpot( CBasePlayer *pPlayer )
+edict_t *CGameRules :: GetPlayerSpawnSpot( CBasePlayer *pPlayer )
 {
 	edict_t *pentSpawnSpot = EntSelectSpawnPoint( pPlayer );
 
-	pPlayer->pev->origin = VARS( pentSpawnSpot )->origin + Vector( 0, 0, 1 );
+	pPlayer->pev->origin = VARS(pentSpawnSpot)->origin + Vector(0,0,1);
 	pPlayer->pev->v_angle  = g_vecZero;
 	pPlayer->pev->velocity = g_vecZero;
-	pPlayer->pev->angles = VARS( pentSpawnSpot )->angles;
+	pPlayer->pev->angles = VARS(pentSpawnSpot)->angles;
 	pPlayer->pev->punchangle = g_vecZero;
 	pPlayer->pev->fixangle = TRUE;
-
+	
 	return pentSpawnSpot;
 }
 
@@ -79,16 +79,16 @@ edict_t *CGameRules::GetPlayerSpawnSpot( CBasePlayer *pPlayer )
 BOOL CGameRules::CanHavePlayerItem( CBasePlayer *pPlayer, CBasePlayerItem *pWeapon )
 {
 	// only living players can have items
-	if( pPlayer->pev->deadflag != DEAD_NO )
+	if ( pPlayer->pev->deadflag != DEAD_NO )
 		return FALSE;
 
-	if( pWeapon->pszAmmo1() )
+	if ( pWeapon->pszAmmo1() )
 	{
-		if( !CanHaveAmmo( pPlayer, pWeapon->pszAmmo1(), pWeapon->iMaxAmmo1() ) )
+		if ( !CanHaveAmmo( pPlayer, pWeapon->pszAmmo1(), pWeapon->iMaxAmmo1() ) )
 		{
 			// we can't carry anymore ammo for this gun. We can only 
 			// have the gun if we aren't already carrying one of this type
-			if( pPlayer->HasPlayerItem( pWeapon ) )
+			if ( pPlayer->HasPlayerItem( pWeapon ) )
 			{
 				return FALSE;
 			}
@@ -97,7 +97,7 @@ BOOL CGameRules::CanHavePlayerItem( CBasePlayer *pPlayer, CBasePlayerItem *pWeap
 	else
 	{
 		// weapon doesn't use ammo, don't take another if you already have it.
-		if( pPlayer->HasPlayerItem( pWeapon ) )
+		if ( pPlayer->HasPlayerItem( pWeapon ) )
 		{
 			return FALSE;
 		}
@@ -112,181 +112,57 @@ BOOL CGameRules::CanHavePlayerItem( CBasePlayer *pPlayer, CBasePlayerItem *pWeap
 //=========================================================
 void CGameRules::RefreshSkillData ( void )
 {
-	int iSkill;
+	int	iSkill;
 
-	iSkill = (int)CVAR_GET_FLOAT( "skill" );
+	iSkill = (int)CVAR_GET_FLOAT("skill");
 	g_iSkillLevel = iSkill;
 
-	if( iSkill < 1 )
+	if ( iSkill < 1 )
 	{
 		iSkill = 1;
 	}
-	else if( iSkill > 3 )
+	else if ( iSkill > 3 )
 	{
 		iSkill = 3; 
 	}
 
 	gSkillData.iSkillLevel = iSkill;
 
-	ALERT( at_console, "\nGAME SKILL LEVEL:%d\n",iSkill );
+	ALERT ( at_console, "\nGAME SKILL LEVEL:%d\n",iSkill );
 
-	//Agrunt		
-	gSkillData.agruntHealth = GetSkillCvar( "sk_agrunt_health" );
-	gSkillData.agruntDmgPunch = GetSkillCvar( "sk_agrunt_dmg_punch" );
+// PLAYER WEAPONS
 
-	// Apache 
-	gSkillData.apacheHealth = GetSkillCvar( "sk_apache_health" );
+	// Cavalry saber whack
+	gSkillData.plrDmgSaber = GetSkillCvar( "sk_plr_saber" );
 
-	// Barney
-	gSkillData.barneyHealth = GetSkillCvar( "sk_barney_health" );
+	// Colt SAA Round
+	gSkillData.plrDmgColt = GetSkillCvar( "sk_plr_colt_bullet" );
 
-	// Big Momma
-	gSkillData.bigmommaHealthFactor = GetSkillCvar( "sk_bigmomma_health_factor" );
-	gSkillData.bigmommaDmgSlash = GetSkillCvar( "sk_bigmomma_dmg_slash" );
-	gSkillData.bigmommaDmgBlast = GetSkillCvar( "sk_bigmomma_dmg_blast" );
-	gSkillData.bigmommaRadiusBlast = GetSkillCvar( "sk_bigmomma_radius_blast" );
+	// Henry rifle Round
+	gSkillData.plrDmgHenry = GetSkillCvar( "sk_plr_henry_bullet" );
 
-	// Bullsquid
-	gSkillData.bullsquidHealth = GetSkillCvar( "sk_bullsquid_health" );
-	gSkillData.bullsquidDmgBite = GetSkillCvar( "sk_bullsquid_dmg_bite" );
-	gSkillData.bullsquidDmgWhip = GetSkillCvar( "sk_bullsquid_dmg_whip" );
-	gSkillData.bullsquidDmgSpit = GetSkillCvar( "sk_bullsquid_dmg_spit" );
-
-	// Gargantua
-	gSkillData.gargantuaHealth = GetSkillCvar( "sk_gargantua_health" );
-	gSkillData.gargantuaDmgSlash = GetSkillCvar( "sk_gargantua_dmg_slash" );
-	gSkillData.gargantuaDmgFire = GetSkillCvar( "sk_gargantua_dmg_fire" );
-	gSkillData.gargantuaDmgStomp = GetSkillCvar( "sk_gargantua_dmg_stomp" );
-
-	// Hassassin
-	gSkillData.hassassinHealth = GetSkillCvar( "sk_hassassin_health" );
-
-	// Headcrab
-	gSkillData.headcrabHealth = GetSkillCvar( "sk_headcrab_health" );
-	gSkillData.headcrabDmgBite = GetSkillCvar( "sk_headcrab_dmg_bite" );
-
-	// Hgrunt 
-	gSkillData.hgruntHealth = GetSkillCvar( "sk_hgrunt_health" );
-	gSkillData.hgruntDmgKick = GetSkillCvar( "sk_hgrunt_kick" );
-	gSkillData.hgruntShotgunPellets = GetSkillCvar( "sk_hgrunt_pellets" );
-	gSkillData.hgruntGrenadeSpeed = GetSkillCvar( "sk_hgrunt_gspeed" );
-
-	// Houndeye
-	gSkillData.houndeyeHealth = GetSkillCvar( "sk_houndeye_health" );
-	gSkillData.houndeyeDmgBlast = GetSkillCvar( "sk_houndeye_dmg_blast" );
-
-	// ISlave
-	gSkillData.slaveHealth = GetSkillCvar( "sk_islave_health" );
-	gSkillData.slaveDmgClaw = GetSkillCvar( "sk_islave_dmg_claw" );
-	gSkillData.slaveDmgClawrake = GetSkillCvar( "sk_islave_dmg_clawrake" );
-	gSkillData.slaveDmgZap = GetSkillCvar( "sk_islave_dmg_zap" );
-
-	// Icthyosaur
-	gSkillData.ichthyosaurHealth = GetSkillCvar( "sk_ichthyosaur_health" );
-	gSkillData.ichthyosaurDmgShake = GetSkillCvar( "sk_ichthyosaur_shake" );
-
-	// Leech
-	gSkillData.leechHealth = GetSkillCvar( "sk_leech_health" );
-
-	gSkillData.leechDmgBite = GetSkillCvar( "sk_leech_dmg_bite" );
-
-	// Controller
-	gSkillData.controllerHealth = GetSkillCvar( "sk_controller_health" );
-	gSkillData.controllerDmgZap = GetSkillCvar( "sk_controller_dmgzap" );
-	gSkillData.controllerSpeedBall = GetSkillCvar( "sk_controller_speedball" );
-	gSkillData.controllerDmgBall = GetSkillCvar( "sk_controller_dmgball" );
-
-	// Nihilanth
-	gSkillData.nihilanthHealth = GetSkillCvar( "sk_nihilanth_health" );
-	gSkillData.nihilanthZap = GetSkillCvar( "sk_nihilanth_zap" );
-
-	// Scientist
-	gSkillData.scientistHealth = GetSkillCvar( "sk_scientist_health" );
-
-	// Snark
-	gSkillData.snarkHealth = GetSkillCvar( "sk_snark_health" );
-	gSkillData.snarkDmgBite = GetSkillCvar( "sk_snark_dmg_bite" );
-	gSkillData.snarkDmgPop = GetSkillCvar( "sk_snark_dmg_pop" );
-
-	// Zombie
-	gSkillData.zombieHealth = GetSkillCvar( "sk_zombie_health" );
-	gSkillData.zombieDmgOneSlash = GetSkillCvar( "sk_zombie_dmg_one_slash" );
-	gSkillData.zombieDmgBothSlash = GetSkillCvar( "sk_zombie_dmg_both_slash" );
-
-	//Turret
-	gSkillData.turretHealth = GetSkillCvar( "sk_turret_health" );
-
-	// MiniTurret
-	gSkillData.miniturretHealth = GetSkillCvar( "sk_miniturret_health" );
-
-	// Sentry Turret
-	gSkillData.sentryHealth = GetSkillCvar( "sk_sentry_health" );
-
-	// PLAYER WEAPONS
-
-	// Crowbar whack
-	gSkillData.plrDmgCrowbar = GetSkillCvar( "sk_plr_crowbar" );
-
-	// Glock Round
-	gSkillData.plrDmg9MM = GetSkillCvar( "sk_plr_9mm_bullet" );
-
-	// 357 Round
-	gSkillData.plrDmg357 = GetSkillCvar( "sk_plr_357_bullet" );
-
-	// MP5 Round
-	gSkillData.plrDmgMP5 = GetSkillCvar( "sk_plr_9mmAR_bullet" );
-
-	// M203 grenade
-	gSkillData.plrDmgM203Grenade = GetSkillCvar( "sk_plr_9mmAR_grenade" );
-
-	// Shotgun buckshot
+	// Double barrel shotgun buckshot
 	gSkillData.plrDmgBuckshot = GetSkillCvar( "sk_plr_buckshot" );
 
-	// Crossbow
-	gSkillData.plrDmgCrossbowClient = GetSkillCvar( "sk_plr_xbow_bolt_client" );
-	gSkillData.plrDmgCrossbowMonster = GetSkillCvar( "sk_plr_xbow_bolt_monster" );
+#ifdef USE_MP_WEAPONS
+	// Bow Arrow
+	gSkillData.plrDmgBowArrow = GetSkillCvar( "sk_plr_bow_arrow" );
+#endif
 
-	// RPG
-	gSkillData.plrDmgRPG = GetSkillCvar( "sk_plr_rpg" );
+	// Gatling Round
+	gSkillData.plrDmgGatling = GetSkillCvar( "sk_plr_gatling_bullet" );
 
-	// Gauss gun
-	gSkillData.plrDmgGauss = GetSkillCvar( "sk_plr_gauss" );
-
-	// Egon Gun
-	gSkillData.plrDmgEgonNarrow = GetSkillCvar( "sk_plr_egon_narrow" );
-	gSkillData.plrDmgEgonWide = GetSkillCvar( "sk_plr_egon_wide" );
-
-	// Hand Grendade
-	gSkillData.plrDmgHandGrenade = GetSkillCvar( "sk_plr_hand_grenade" );
-
-	// Satchel Charge
-	gSkillData.plrDmgSatchel = GetSkillCvar( "sk_plr_satchel" );
-
-	// Tripmine
-	gSkillData.plrDmgTripmine = GetSkillCvar( "sk_plr_tripmine" );
+	// Dynamite
+	gSkillData.plrDmgDynamite = GetSkillCvar( "sk_plr_dynamite" );
 
 	// MONSTER WEAPONS
-	gSkillData.monDmg12MM = GetSkillCvar( "sk_12mm_bullet" );
-	gSkillData.monDmgMP5 = GetSkillCvar ("sk_9mmAR_bullet" );
-	gSkillData.monDmg9MM = GetSkillCvar( "sk_9mm_bullet" );
+	gSkillData.monDmgColt = GetSkillCvar( "sk_colt_bullet" );
+	gSkillData.monDmgHenry = GetSkillCvar( "sk_henry_bullet" );
+	gSkillData.monDmg12MM = GetSkillCvar( "sk_12mm_bullet");
 
-	// MONSTER HORNET
-	gSkillData.monDmgHornet = GetSkillCvar( "sk_hornet_dmg" );
-
-	// PLAYER HORNET
-// Up to this point, player hornet damage and monster hornet damage were both using
-// monDmgHornet to determine how much damage to do. In tuning the hivehand, we now need
-// to separate player damage and monster hivehand damage. Since it's so late in the project, we've
-// added plrDmgHornet to the SKILLDATA struct, but not to the engine CVar list, so it's inaccesible
-// via SKILLS.CFG. Any player hivehand tuning must take place in the code. (sjb)
-	gSkillData.plrDmgHornet = 7;
 
 	// HEALTH/CHARGE
-	gSkillData.suitchargerCapacity = GetSkillCvar( "sk_suitcharger" );
-	gSkillData.batteryCapacity = GetSkillCvar( "sk_battery" );
-	gSkillData.healthchargerCapacity = GetSkillCvar ( "sk_healthcharger" );
-	gSkillData.healthkitCapacity = GetSkillCvar ( "sk_healthkit" );
-	gSkillData.scientistHeal = GetSkillCvar ( "sk_scientist_heal" );
+	gSkillData.whaleOilCapacity = GetSkillCvar( "sk_whaleoil" );
 
 	// monster damage adj
 	gSkillData.monHead = GetSkillCvar( "sk_monster_head" );
@@ -301,11 +177,83 @@ void CGameRules::RefreshSkillData ( void )
 	gSkillData.plrStomach = GetSkillCvar( "sk_player_stomach" );
 	gSkillData.plrLeg = GetSkillCvar( "sk_player_leg" );
 	gSkillData.plrArm = GetSkillCvar( "sk_player_arm" );
-}
 
-void CGameRules::ClientUserInfoChanged( CBasePlayer *pPlayer, char *infobuffer )
-{
-	pPlayer->SetPrefsFromUserinfo( infobuffer );
+// HR:P MONSTERS
+
+	// Armored Fucker
+	gSkillData.armormanHealth = GetSkillCvar( "sk_armorman_health" );
+
+	// Baph
+	gSkillData.baphDmgSlash = GetSkillCvar( "sk_baph_dmg_slash" );
+	gSkillData.baphHealth = GetSkillCvar( "sk_baph_health" );
+
+	// Bear
+	gSkillData.bearDmgBothSlash = GetSkillCvar( "sk_bear_dmg_both_slash" );
+	gSkillData.bearDmgOneSlash = GetSkillCvar( "sk_bear_dmg_one_slash" );
+	gSkillData.bearHealth = GetSkillCvar( "sk_bear_health" );
+
+	// Bernard
+	gSkillData.bernardDmgPuke = GetSkillCvar( "sk_bernard_dmg_puke" );
+	gSkillData.bernardDmgSlash = GetSkillCvar( "sk_bernard_dmg_slash" );
+	gSkillData.bernardHealth = GetSkillCvar( "sk_bernard_health" );
+
+	// Caleb
+	gSkillData.calebDmgBothSlash = GetSkillCvar( "sk_caleb_dmg_both_slash" );
+	gSkillData.calebDmgOneSlash = GetSkillCvar( "sk_caleb_dmg_one_slash" );
+	gSkillData.calebHealth = GetSkillCvar( "sk_caleb_health" );
+
+	// Clown
+	gSkillData.clownDmgBothSlash = GetSkillCvar( "sk_clown_dmg_both_slash" );
+	gSkillData.clownDmgOneSlash = GetSkillCvar( "sk_clown_dmg_one_slash" );
+	gSkillData.clownHealth = GetSkillCvar( "sk_clown_health" );
+
+	// Dog
+	gSkillData.dogDmgBite = GetSkillCvar( "sk_dog_dmg_bite" );
+	gSkillData.dogHealth = GetSkillCvar( "sk_dog_health" );
+
+	// Doktor
+	gSkillData.doktorDmgBothSlash = GetSkillCvar( "sk_doktor_dmg_both_slash" );
+	gSkillData.doktorDmgDart = GetSkillCvar( "sk_doktor_dmg_dart" );
+	gSkillData.doktorDmgOneSlash = GetSkillCvar( "sk_doktor_dmg_one_slash" );
+	gSkillData.doktorHealth = GetSkillCvar( "sk_doktor_health" );
+
+	// Duck
+	gSkillData.duckDmgSlash = GetSkillCvar( "sk_duck_dmg_slash" );
+	gSkillData.duckHealth = GetSkillCvar( "sk_duck_health" );
+
+	// Half-Cat
+	gSkillData.halfcatDmgBite = GetSkillCvar( "sk_halfcat_dmg_bite" );
+
+#ifdef USE_MP_WEAPONS
+	// Half-Cat (as a Snark)
+	gSkillData.hcSnarkDmgBite = GetSkillCvar( "sk_hc_snark_dmg_bite" );
+#endif
+
+	// Huntsman
+	gSkillData.huntsmanDmgBolt = GetSkillCvar( "sk_huntsman_dmg_bolt" );
+	gSkillData.huntsmanDmgMelee = GetSkillCvar( "sk_huntsman_dmg_melee" );
+	gSkillData.huntsmanHealth = GetSkillCvar( "sk_huntsman_health" );
+
+	// Maskboy
+	gSkillData.maskboyDmgSlash = GetSkillCvar( "sk_maskboy_dmg_slash" );
+	gSkillData.maskboyHealth = GetSkillCvar( "sk_maskboy_health" );
+
+	// Pig
+	gSkillData.pigDmgBite = GetSkillCvar( "sk_pig_dmg_bite" );
+	gSkillData.pigHealth = GetSkillCvar( "sk_pig_health" );
+
+	// Teddy
+	gSkillData.teddyDmgBite = GetSkillCvar( "sk_teddy_dmg_bite" );
+	gSkillData.teddyHealth = GetSkillCvar( "sk_teddy_health" );
+
+	// UD Cop
+	gSkillData.udcopDmgKick = GetSkillCvar( "sk_udcop_dmg_kick" );
+	gSkillData.udcopHealth = GetSkillCvar( "sk_udcop_health" );
+
+	// Zombie
+	gSkillData.zombieDmgBothSlash = GetSkillCvar( "sk_zombie_dmg_both_slash" );
+	gSkillData.zombieDmgOneSlash = GetSkillCvar( "sk_zombie_dmg_one_slash" );
+	gSkillData.zombieHealth = GetSkillCvar( "sk_zombie_health" );
 }
 
 //=========================================================
@@ -315,9 +263,9 @@ void CGameRules::ClientUserInfoChanged( CBasePlayer *pPlayer, char *infobuffer )
 CGameRules *InstallGameRules( void )
 {
 	SERVER_COMMAND( "exec game.cfg\n" );
-	SERVER_EXECUTE();
+	SERVER_EXECUTE( );
 
-	if( !gpGlobals->deathmatch )
+	if ( !gpGlobals->deathmatch )
 	{
 		// generic half-life
 		g_teamplay = 0;
@@ -325,18 +273,17 @@ CGameRules *InstallGameRules( void )
 	}
 	else
 	{
-		if( teamplay.value > 0 )
+		ALERT( at_console, "We are working on making multiplayer better!\n" );
+		SERVER_COMMAND( "quit\n" );
+		return NULL;
+		/*if ( teamplay.value > 0 )
 		{
 			// teamplay
+
 			g_teamplay = 1;
 			return new CHalfLifeTeamplay;
 		}
-		if( sv_busters.value > 0 )
-		{
-			g_teamplay = 0;
-			return new CMultiplayBusters;
-		}
-		if( (int)gpGlobals->deathmatch == 1 )
+		if ((int)gpGlobals->deathmatch == 1)
 		{
 			// vanilla deathmatch
 			g_teamplay = 0;
@@ -347,6 +294,9 @@ CGameRules *InstallGameRules( void )
 			// vanilla deathmatch??
 			g_teamplay = 0;
 			return new CHalfLifeMultiplay;
-		}
+		}*/
 	}
 }
+
+
+

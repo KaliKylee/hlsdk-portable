@@ -57,28 +57,21 @@ if (USE_STATIC_FREEVGUI)
 endif()
 
 set (CLDLL_SOURCES
-	../dlls/crossbow.cpp
-	../dlls/crowbar.cpp
-	../dlls/egon.cpp
-	../dlls/gauss.cpp
-	../dlls/handgrenade.cpp
-	../dlls/hornetgun.cpp
-	../dlls/mp5.cpp
-	../dlls/python.cpp
-	../dlls/rpg.cpp
-	../dlls/satchel.cpp
-	../dlls/shotgun.cpp
-	../dlls/squeakgrenade.cpp
-	../dlls/tripmine.cpp
-	../dlls/glock.cpp
-	ev_hldm.cpp
-	hl/hl_baseentity.cpp
-	hl/hl_events.cpp
-	hl/hl_objects.cpp
-	hl/hl_weapons.cpp
+	../dlls/hrp_weapon_bow.cpp
+	../dlls/hrp_weapon_colt.cpp
+	../dlls/hrp_weapon_debug.cpp
+	../dlls/hrp_weapon_dynamite.cpp
+	../dlls/hrp_weapon_gatling.cpp
+	../dlls/hrp_weapon_halfcat.cpp
+	../dlls/hrp_weapon_henry.cpp
+	../dlls/hrp_weapon_saber.cpp
+	../dlls/hrp_weapon_shotgun.cpp
+	CVGUIDebugOverlay.cpp
+	GameStudioModelRenderer.cpp
+	StudioModelRenderer.cpp
+	am_music_engine.cpp
 	ammo.cpp
 	ammo_secondary.cpp
-	ammohistory.cpp
 	battery.cpp
 	cdll_int.cpp
 	com_weapons.cpp
@@ -86,12 +79,28 @@ set (CLDLL_SOURCES
 	demo.cpp
 	entity.cpp
 	ev_common.cpp
+	ev_hldm.cpp
 	events.cpp
 	flashlight.cpp
-	GameStudioModelRenderer.cpp
-	geiger.cpp
 	health.cpp
+	hl/hl_baseentity.cpp
+	hl/hl_events.cpp
+	hl/hl_weapons.cpp
+	hrp_hud_buy_zone.cpp
+	hrp_hud_item_cocaine.cpp
+	hrp_hud_item_drymeat.cpp
+	hrp_hud_item_meatpie.cpp
+	hrp_hud_item_selected.cpp
+	hrp_hud_item_whale_oil.cpp
+	hrp_hud_item_whiskey.cpp
+	hrp_hud_money.cpp
+	hrp_hud_weapon_shotgun.cpp
+	hrp_vgui_buy_menu.cpp
+	hrp_vgui_credits.cpp
+	hrp_vgui_new_game.cpp
 	hud.cpp
+	hud_bench.cpp
+	hud_benchtrace.cpp
 	hud_msg.cpp
 	hud_redraw.cpp
 	hud_spectator.cpp
@@ -104,23 +113,22 @@ set (CLDLL_SOURCES
 	interpolation.cpp
 	menu.cpp
 	message.cpp
-	MOTD.cpp
+	paranoia_vgui_subtitles.cpp
 	parsemsg.cpp
-	../pm_shared/pm_debug.c
-	../pm_shared/pm_math.c
-	../pm_shared/pm_shared.c
 	saytext.cpp
-	scoreboard.cpp
 	status_icons.cpp
 	statusbar.cpp
 	studio_util.cpp
-	StudioModelRenderer.cpp
 	text_message.cpp
 	train.cpp
 	tri.cpp
 	util.cpp
 	view.cpp
+	../pm_shared/pm_debug.c
+	../pm_shared/pm_math.c
+	../pm_shared/pm_shared.c
 	../public/safe_snprintf.c
+	../public/interface.cpp
 )
 
 list(APPEND CLDLL_SOURCES

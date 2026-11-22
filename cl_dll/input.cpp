@@ -649,12 +649,8 @@ void IN_Impulse( void )
 void IN_ScoreDown( void )
 {
 	KeyDown( &in_score );
-	if ( gHUD.UseVguiScoreBoard() && gViewPort )
-	{
+	if ( gViewPort )
 		gViewPort->ShowScoreBoard();
-		return;
-	}
-	gHUD.m_Scoreboard.UserCmd_ShowScores();
 }
 
 void IN_ScoreUp( void )
@@ -664,7 +660,6 @@ void IN_ScoreUp( void )
 	{
 		gViewPort->HideScoreBoard();
 	}
-	gHUD.m_Scoreboard.UserCmd_HideScores();
 }
 
 void IN_MLookUp( void )
@@ -920,10 +915,7 @@ int CL_ButtonBits( int bResetState )
 
 	if( in_attack.state & 3 )
 	{
-		if( gHUD.m_MOTD.m_bShow )
-			gHUD.m_MOTD.Reset();
-		else
-			bits |= IN_ATTACK;
+		bits |= IN_ATTACK;
 	}
 
 	if( in_duck.state & 3 )

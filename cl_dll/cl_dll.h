@@ -44,6 +44,15 @@ typedef float vec_t;
 #define _cdecl
 #endif
 #include "exportdef.h"
+#include "vminmax.h"
+#ifndef _WIN32
+#include <alloca.h>
+#define _alloca alloca
+#endif
+bool IsXashFWGS();
+#ifndef CL_DLLEXPORT
+#define CL_DLLEXPORT EXPORT
+#endif
 #include <string.h>
 #include "safe_snprintf.h"
 #ifndef __restrict
