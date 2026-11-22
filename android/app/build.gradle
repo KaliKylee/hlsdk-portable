@@ -18,7 +18,9 @@ android {
 
         externalNativeBuild {
             cmake {
-                arguments '-DPOLLY=ON'
+                arguments '-DPOLLY=ON',
+                        '-DCMAKE_C_FLAGS=-Wno-error=format-security',
+                        '-DCMAKE_CXX_FLAGS=-Wno-error=format-security -Wno-c++11-narrowing'
             }
         }
     }
