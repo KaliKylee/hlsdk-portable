@@ -478,7 +478,7 @@ void CHud::VidInit( void )
 			client_sprite_t *p = m_pSpriteList;
 			for( j = 0; j < m_iSpriteCountAllRes; j++ )
 			{
-				if( p->iRes == m_iRes )
+				if( ( p->iRes == m_iRes || p->iRes == 0 ) )
 					m_iSpriteCount++;
 				p++;
 			}
@@ -492,7 +492,7 @@ void CHud::VidInit( void )
 			int index = 0;
 			for( j = 0; j < m_iSpriteCountAllRes; j++ )
 			{
-				if( p->iRes == m_iRes )
+				if( ( p->iRes == m_iRes || p->iRes == 0 ) )
 				{
 					char sz[256];
 					sprintf( sz, "sprites/%s.spr", p->szSprite );
@@ -516,7 +516,7 @@ void CHud::VidInit( void )
 		m_iSpriteCount = 0;
 		for( j = 0; j < m_iSpriteCountAllRes; j++ )
 		{
-			if( p->iRes == m_iRes )
+			if( ( p->iRes == m_iRes || p->iRes == 0 ) )
 				m_iSpriteCount++;
 			p++;
 		}
@@ -534,7 +534,7 @@ void CHud::VidInit( void )
 		int index = 0;
 		for( j = 0; j < m_iSpriteCountAllRes; j++ )
 		{
-			if( p->iRes == m_iRes )
+			if( ( p->iRes == m_iRes || p->iRes == 0 ) )
 			{
 				char sz[256];
 				sprintf( sz, "sprites/%s.spr", p->szSprite );
@@ -550,6 +550,13 @@ void CHud::VidInit( void )
 
 	// assumption: number_1, number_2, etc, are all listed and loaded sequentially
 	m_HUD_number_0 = GetSpriteIndex( "number_0" );
+
+	// ThrillEX: the mod's hud.txt names its digit sprites differently
+	// (HUD style 1 and the Quake style), so try those before giving up
+	if( m_HUD_number_0 == -1 )
+		m_HUD_number_0 = GetSpriteIndex( "Hud1_Num0" );
+	if( m_HUD_number_0 == -1 )
+		m_HUD_number_0 = GetSpriteIndex( "num_0" );
 
 	if( m_HUD_number_0 == -1 )
 	{

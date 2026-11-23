@@ -586,7 +586,9 @@ public:
 
 	wrect_t& GetSpriteRect( int index )
 	{
-		return m_rgrcRects[index];
+		// ThrillEX: hud.txt does not define every stock sprite, so guard missing ones
+		static wrect_t emptyRect = { 0, 0, 0, 0 };
+		return ( index < 0 ) ? emptyRect : m_rgrcRects[index];
 	}
 
 	inline bool IsHL25( void )
