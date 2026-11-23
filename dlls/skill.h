@@ -136,6 +136,36 @@ struct skilldata_t
 	float plrStomach;
 	float plrLeg;
 	float plrArm;
+
+	// ThrillEX additions
+	float adrenalineCarry;
+	float antidoteCarry;
+	float archerDmgBite;
+	float archerDmgZap;
+	float archerHealth;
+	float archerMinBeamDelay;
+	float bloaterDmgBolt;
+	float bloaterHealth;
+	float chubtoadHealth;
+	float diabloDmgJump;
+	float diabloDmgSlash;
+	float diabloHealth;
+	float friendlyDmgSlash;
+	float friendlyDmgSpit;
+	float friendlyHealth;
+	float hassaultDmgCannon;
+	float hassaultHealth;
+	float hassaultSpinupDelay;
+	float kingpinDmgClaw;
+	float kingpinDmgZap;
+	float kingpinHealth;
+	float longjumpbat;
+	float radiationCarry;
+	float snapbugDmgBite;
+	float snapbugHealth;
+	float stukaDmgBomb;
+	float stukaDmgSlash;
+	float stukaHealth;
 };
 
 extern	DLL_GLOBAL	skilldata_t	gSkillData;

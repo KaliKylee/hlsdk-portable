@@ -303,6 +303,7 @@ class CMP5AmmoClip : public CBasePlayerAmmo
 
 LINK_ENTITY_TO_CLASS( ammo_mp5clip, CMP5AmmoClip )
 LINK_ENTITY_TO_CLASS( ammo_9mmAR, CMP5AmmoClip )
+LINK_ENTITY_TO_CLASS( ammo_9mmARclip, CMP5AmmoClip )
 
 class CMP5Chainammo : public CBasePlayerAmmo
 {

@@ -27,6 +27,8 @@
 #include "saverestore.h"
 #include "trains.h"			// trigger_camera has train functionality
 #include "gamerules.h"
+#include "func_break.h"
+#include "monsters.h"
 
 #define	SF_TRIGGER_PUSH_START_OFF	2//spawnflag that makes trigger_push spawn turned OFF
 #define SF_TRIGGER_HURT_TARGETONCE	1// Only fire hurt target once
@@ -2385,3 +2387,510 @@ void CTriggerCamera::Move()
 	float fraction = 2 * gpGlobals->frametime;
 	pev->velocity = ( ( pev->movedir * pev->speed ) * fraction ) + ( pev->velocity * ( 1 - fraction ) );
 }
+
+//=========================================================
+// ThrillEX additions (reconstructed from decompiled hl.dll)
+//=========================================================
+
+//---------------------------------------------------------
+// env_size - resizes the entity named by 'target' when used
+//---------------------------------------------------------
+class CSizeModifier : public CBaseEntity
+{
+public:
+	void KeyValue( KeyValueData *pkvd );
+	void Spawn( void );
+	void Use( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value );
+
+	Vector m_vecMins;
+	Vector m_vecMaxs;
+};
+
+LINK_ENTITY_TO_CLASS( env_size, CSizeModifier )
+
+void CSizeModifier::KeyValue( KeyValueData *pkvd )
+{
+	int a, b, c;
+
+	if( FStrEq( pkvd->szKeyName, "mins" ) )
+	{
+		if( sscanf( pkvd->szValue, "%d %d %d\n", &a, &b, &c ) == 3 )
+			m_vecMins = Vector( (float)a, (float)b, (float)c );
+		else
+			ALERT( at_console, "Failed to read mins for env_size!\n" );
+		pkvd->fHandled = TRUE;
+	}
+	else if( FStrEq( pkvd->szKeyName, "maxs" ) )
+	{
+		if( sscanf( pkvd->szValue, "%d %d %d\n", &a, &b, &c ) == 3 )
+			m_vecMaxs = Vector( (float)a, (float)b, (float)c );
+		else
+			ALERT( at_console, "Failed to read maxs for env_size!\n" );
+		pkvd->fHandled = TRUE;
+	}
+	else
+		pkvd->fHandled = FALSE;
+}
+
+void CSizeModifier::Spawn( void )
+{
+	pev->solid = SOLID_NOT;
+}
+
+void CSizeModifier::Use( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value )
+{
+	if( !pev->target )
+		return;
+
+	CBaseEntity *pTarget = UTIL_FindEntityByTargetname( NULL, STRING( pev->target ) );
+	if( pTarget )
+	{
+		UTIL_SetSize( pTarget->pev, m_vecMins, m_vecMaxs );
+		ALERT( at_console, "Set size for %s to %f, %f, %f and %f, %f, %f\n", STRING( pTarget->pev->targetname ),
+			m_vecMins.x, m_vecMins.y, m_vecMins.z, m_vecMaxs.x, m_vecMaxs.y, m_vecMaxs.z );
+	}
+}
+
+//---------------------------------------------------------
+// teledeath - kills anything overlapping its owner (telefrag)
+//---------------------------------------------------------
+class CTeleDeath : public CBaseTrigger
+{
+public:
+	void Spawn( void );
+	void EXPORT DeathTouch( CBaseEntity *pOther );
+};
+
+LINK_ENTITY_TO_CLASS( teledeath, CTeleDeath )
+
+void CTeleDeath::Spawn( void )
+{
+	pev->movetype = MOVETYPE_NONE;
+	pev->solid = SOLID_TRIGGER;
+	pev->angles = g_vecZero;
+
+	CBaseEntity *pOwner = CBaseEntity::Instance( pev->owner );
+	if( pOwner )
+	{
+		UTIL_SetSize( pev, pOwner->pev->mins - Vector( 1, 1, 1 ), pOwner->pev->maxs + Vector( 1, 1, 1 ) );
+		UTIL_SetOrigin( pev, pev->origin );
+		SetTouch( &CTeleDeath::DeathTouch );
+		pev->nextthink = gpGlobals->time + 0.2f;
+		SetThink( &CBaseEntity::SUB_Remove );
+		gpGlobals->force_retouch = 2;
+	}
+}
+
+void CTeleDeath::DeathTouch( CBaseEntity *pOther )
+{
+	CBaseEntity *pOwner = CBaseEntity::Instance( pev->owner );
+
+	if( pOther != pOwner && pOther->pev->movetype != MOVETYPE_NOCLIP && pOther->pev->health != 0 )
+	{
+		ALERT( at_aiconsole, "TELEFRAGGED %s\n", STRING( pOther->pev->classname ) );
+		entvars_t *pevAttacker = pOwner ? pOwner->pev : pev;
+		pOther->TakeDamage( pOther->pev, pevAttacker, 1000.0f, DMG_ALWAYSGIB );
+	}
+}
+
+//---------------------------------------------------------
+// target_command / trigger_command - sends a console command
+// to player 1 when fired (single player only)
+//---------------------------------------------------------
+class CTargetCommand : public CBaseToggle
+{
+public:
+	void KeyValue( KeyValueData *pkvd );
+	void Spawn( void );
+	void Use( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value );
+	int Save( CSave &save );
+	int Restore( CRestore &restore );
+	static TYPEDESCRIPTION m_SaveData[];
+
+	string_t m_iszCommand;
+};
+
+LINK_ENTITY_TO_CLASS( target_command, CTargetCommand )
+LINK_ENTITY_TO_CLASS( trigger_command, CTargetCommand )
+
+TYPEDESCRIPTION CTargetCommand::m_SaveData[] =
+{
+	DEFINE_FIELD( CTargetCommand, m_iszCommand, FIELD_STRING ),
+};
+
+IMPLEMENT_SAVERESTORE( CTargetCommand, CBaseToggle )
+
+void CTargetCommand::KeyValue( KeyValueData *pkvd )
+{
+	if( FStrEq( pkvd->szKeyName, "command" ) )
+	{
+		m_iszCommand = ALLOC_STRING( pkvd->szValue );
+		pkvd->fHandled = TRUE;
+	}
+	else
+		CBaseToggle::KeyValue( pkvd );
+}
+
+void CTargetCommand::Spawn( void )
+{
+	if( !FStrEq( STRING( pev->classname ), "target_command" ) )
+		pev->classname = MAKE_STRING( "target_command" );
+
+	if( g_pGameRules->IsMultiplayer() )
+	{
+		ALERT( at_aiconsole, "target_command in deathmatch!\n" );
+		UTIL_Remove( this );
+		return;
+	}
+
+	char c = STRING( m_iszCommand )[0];
+	if( c == '+' || c == '-' )
+	{
+		ALERT( at_aiconsole, "Action in target_command!\n" );
+		UTIL_Remove( this );
+		return;
+	}
+
+	pev->movetype = MOVETYPE_NONE;
+	pev->solid = SOLID_NOT;
+}
+
+void CTargetCommand::Use( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value )
+{
+	edict_t *pPlayer = INDEXENT( 1 );
+	if( pPlayer )
+	{
+		char szCommand[128];
+		sprintf( szCommand, "%s\n", STRING( m_iszCommand ) );
+		CLIENT_COMMAND( pPlayer, szCommand );
+	}
+}
+
+//---------------------------------------------------------
+// trigger_shower - cures a time-based damage type (dmgtype)
+//---------------------------------------------------------
+class CTriggerShower : public CBaseTrigger
+{
+public:
+	void KeyValue( KeyValueData *pkvd );
+	void Spawn( void );
+	void EXPORT HealTouch( CBaseEntity *pOther );
+	int Save( CSave &save );
+	int Restore( CRestore &restore );
+	static TYPEDESCRIPTION m_SaveData[];
+
+	int m_iDmgType;
+};
+
+LINK_ENTITY_TO_CLASS( trigger_shower, CTriggerShower )
+
+TYPEDESCRIPTION CTriggerShower::m_SaveData[] =
+{
+	DEFINE_FIELD( CTriggerShower, m_iDmgType, FIELD_INTEGER ),
+};
+
+IMPLEMENT_SAVERESTORE( CTriggerShower, CBaseTrigger )
+
+void CTriggerShower::KeyValue( KeyValueData *pkvd )
+{
+	if( FStrEq( pkvd->szKeyName, "dmgtype" ) )
+	{
+		m_iDmgType = atoi( pkvd->szValue );
+		pkvd->fHandled = TRUE;
+	}
+	else
+		CBaseTrigger::KeyValue( pkvd );
+}
+
+void CTriggerShower::Spawn( void )
+{
+	InitTrigger();
+	SetTouch( &CTriggerShower::HealTouch );
+
+	if( !FStringNull( pev->targetname ) )
+	{
+		SetUse( &CBaseTrigger::ToggleUse );
+		pev->solid = SOLID_NOT;
+	}
+	else
+		SetUse( NULL );
+
+	UTIL_SetOrigin( pev, pev->origin );
+}
+
+void CTriggerShower::HealTouch( CBaseEntity *pOther )
+{
+	if( !pOther->IsPlayer() )
+		return;
+
+	CBasePlayer *pPlayer = (CBasePlayer *)pOther;
+
+	if( pPlayer->m_bitsDamageType & DMG_TIMEBASED )
+	{
+		for( int i = 0; i < CDMG_TIMEBASED; i++ )
+		{
+			if( i == m_iDmgType && pPlayer->m_rgbTimeBasedDamage[i] )
+			{
+				pPlayer->m_rgbTimeBasedDamage[i] = 0;
+				// TODO(verify): original uses (0x8000 << i), stock SDK uses (DMG_PARALYZE << i)
+				pPlayer->m_bitsDamageType &= ~( 0x8000 << i );
+			}
+		}
+	}
+}
+
+//---------------------------------------------------------
+// trigger_suitupdate - plays a suit (HEV) sentence on touch
+//---------------------------------------------------------
+class CTriggerSuitUpdate : public CBaseTrigger
+{
+public:
+	void KeyValue( KeyValueData *pkvd );
+	void Spawn( void );
+	void EXPORT UpdateTouch( CBaseEntity *pOther );
+	void EXPORT UpdateThink( void );
+	void PlaySentence( CBasePlayer *pPlayer );
+	int Save( CSave &save );
+	int Restore( CRestore &restore );
+	static TYPEDESCRIPTION m_SaveData[];
+
+	string_t m_iszSentence;
+	int m_iRepeat;
+};
+
+LINK_ENTITY_TO_CLASS( trigger_suitupdate, CTriggerSuitUpdate )
+
+TYPEDESCRIPTION CTriggerSuitUpdate::m_SaveData[] =
+{
+	DEFINE_FIELD( CTriggerSuitUpdate, m_iszSentence, FIELD_STRING ),
+	DEFINE_FIELD( CTriggerSuitUpdate, m_iRepeat, FIELD_INTEGER ),
+};
+
+IMPLEMENT_SAVERESTORE( CTriggerSuitUpdate, CBaseTrigger )
+
+void CTriggerSuitUpdate::KeyValue( KeyValueData *pkvd )
+{
+	if( FStrEq( pkvd->szKeyName, "sentence" ) )
+	{
+		m_iszSentence = ALLOC_STRING( pkvd->szValue );
+		pkvd->fHandled = TRUE;
+	}
+	else if( FStrEq( pkvd->szKeyName, "repeat" ) )
+	{
+		m_iRepeat = atoi( pkvd->szValue );
+		if( m_iRepeat < 0 )
+			m_iRepeat = 0;
+		pkvd->fHandled = TRUE;
+	}
+	else if( FStrEq( pkvd->szKeyName, "wait" ) )
+	{
+		m_flWait = atof( pkvd->szValue );
+		pkvd->fHandled = TRUE;
+	}
+	else if( FStrEq( pkvd->szKeyName, "delay" ) )
+	{
+		m_flDelay = atof( pkvd->szValue );
+		pkvd->fHandled = TRUE;
+	}
+	else
+		CBaseDelay::KeyValue( pkvd );
+}
+
+void CTriggerSuitUpdate::Spawn( void )
+{
+	if( m_flWait <= 0 )
+		m_flWait = 0.2f;
+
+	InitTrigger();
+	SetTouch( &CTriggerSuitUpdate::UpdateTouch );
+
+	if( !FStringNull( pev->targetname ) )
+		SetUse( &CBaseTrigger::ToggleUse );
+	else
+		SetUse( NULL );
+
+	if( FBitSet( pev->spawnflags, 2 ) )
+		pev->solid = SOLID_NOT;
+
+	UTIL_SetOrigin( pev, pev->origin );
+}
+
+void CTriggerSuitUpdate::PlaySentence( CBasePlayer *pPlayer )
+{
+	if( !FStringNull( m_iszSentence ) && pPlayer )
+	{
+		char szBuf[64];
+		sprintf( szBuf, "%s", STRING( m_iszSentence ) );
+		pPlayer->SetSuitUpdate( szBuf, FALSE, m_iRepeat );
+	}
+}
+
+void CTriggerSuitUpdate::UpdateTouch( CBaseEntity *pOther )
+{
+	if( !pOther->IsPlayer() )
+		return;
+
+	CBasePlayer *pPlayer = (CBasePlayer *)pOther;
+
+	if( pPlayer->pev->weapons < 0 ) // has the suit
+	{
+		if( m_flDelay == 0 )
+		{
+			PlaySentence( pPlayer );
+			if( FBitSet( pev->spawnflags, 1 ) )
+				UTIL_Remove( this );
+		}
+		else
+		{
+			SetThink( &CTriggerSuitUpdate::UpdateThink );
+			SetTouch( NULL );
+			pev->nextthink = gpGlobals->time + m_flDelay;
+			pev->solid = SOLID_NOT;
+		}
+	}
+}
+
+void CTriggerSuitUpdate::UpdateThink( void )
+{
+	CBaseEntity *pEntity = CBaseEntity::Instance( INDEXENT( 1 ) );
+	PlaySentence( pEntity && pEntity->IsPlayer() ? (CBasePlayer *)pEntity : NULL );
+
+	SetThink( NULL );
+
+	if( FBitSet( pev->spawnflags, 1 ) )
+	{
+		UTIL_Remove( this );
+	}
+	else
+	{
+		SetTouch( &CTriggerSuitUpdate::UpdateTouch );
+		pev->solid = SOLID_TRIGGER;
+	}
+}
+
+//---------------------------------------------------------
+// trigger_pardon - releases the named prisoner monster when used
+//---------------------------------------------------------
+class CTriggerPardon : public CBaseDelay
+{
+public:
+	void Spawn( void );
+	void Use( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value );
+	void EXPORT PardonThink( void );
+};
+
+LINK_ENTITY_TO_CLASS( trigger_pardon, CTriggerPardon )
+
+void CTriggerPardon::Spawn( void )
+{
+	if( FStringNull( pev->targetname ) )
+	{
+		UTIL_Remove( this );
+		return;
+	}
+	pev->solid = SOLID_NOT;
+}
+
+void CTriggerPardon::Use( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value )
+{
+	SetThink( &CTriggerPardon::PardonThink );
+	pev->nextthink = gpGlobals->time + m_flDelay;
+}
+
+void CTriggerPardon::PardonThink( void )
+{
+	SetThink( &CBaseEntity::SUB_Remove );
+	pev->nextthink = gpGlobals->time + 0.1f;
+
+	if( pev->target )
+	{
+		CBaseEntity *pTarget = UTIL_FindEntityByTargetname( NULL, STRING( pev->target ) );
+		// frees a monster that was spawned as a prisoner (spawnflag 0x10)
+		if( pTarget && FBitSet( pTarget->pev->flags, FL_MONSTER ) )
+			ClearBits( pTarget->pev->spawnflags, SF_MONSTER_PRISONER );
+	}
+}
+
+//---------------------------------------------------------
+// target_killclient - kills player 1 when fired (single player only)
+//---------------------------------------------------------
+class CTargetKillClient : public CBaseDelay
+{
+public:
+	void Spawn( void );
+	void Use( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value );
+};
+
+LINK_ENTITY_TO_CLASS( target_killclient, CTargetKillClient )
+
+void CTargetKillClient::Spawn( void )
+{
+	if( g_pGameRules->IsMultiplayer() )
+	{
+		UTIL_Remove( this );
+		return;
+	}
+	pev->solid = SOLID_NOT;
+}
+
+void CTargetKillClient::Use( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value )
+{
+	SetThink( &CBaseEntity::SUB_Remove );
+	pev->nextthink = gpGlobals->time + 0.1f;
+
+	CBaseEntity *pEntity = CBaseEntity::Instance( INDEXENT( 1 ) );
+	if( pEntity && pEntity->IsPlayer() )
+	{
+		pEntity->pev->health = 0;
+		// TODO(verify): original also zeroes one CBasePlayer int field here
+		pEntity->Killed( pev, GIB_NEVER );
+	}
+}
+
+//---------------------------------------------------------
+// trigger_speed - MultiTouch only when the toucher is fast enough
+//---------------------------------------------------------
+class CTriggerSpeed : public CBaseTrigger
+{
+public:
+	void KeyValue( KeyValueData *pkvd );
+	void Spawn( void );
+	void EXPORT MyTouch( CBaseEntity *pOther );
+};
+
+LINK_ENTITY_TO_CLASS( trigger_speed, CTriggerSpeed )
+
+void CTriggerSpeed::KeyValue( KeyValueData *pkvd )
+{
+	if( FStrEq( pkvd->szKeyName, "targetspeed" ) )
+	{
+		pev->speed = (float)atoi( pkvd->szValue );
+		pkvd->fHandled = TRUE;
+	}
+	else
+		CBaseTrigger::KeyValue( pkvd );
+}
+
+void CTriggerSpeed::Spawn( void )
+{
+	InitTrigger();
+	SetTouch( &CTriggerSpeed::MyTouch );
+}
+
+void CTriggerSpeed::MyTouch( CBaseEntity *pOther )
+{
+	if( pOther->pev->velocity.Length() >= pev->speed )
+		MultiTouch( pOther );
+}
+
+//---------------------------------------------------------
+// test_grenade - empty leftover entity class in the original
+//---------------------------------------------------------
+class CTestGrenade : public CBaseDelay
+{
+};
+
+LINK_ENTITY_TO_CLASS( test_grenade, CTestGrenade )
+
+// func_glass is just a breakable
+LINK_ENTITY_TO_CLASS( func_glass, CBreakable )

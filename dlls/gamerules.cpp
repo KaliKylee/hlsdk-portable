@@ -136,6 +136,34 @@ void CGameRules::RefreshSkillData ( void )
 
 	// Apache 
 	gSkillData.apacheHealth = GetSkillCvar( "sk_apache_health" );
+	gSkillData.adrenalineCarry = GetSkillCvar( "sk_adrenaline_carry" );
+	gSkillData.antidoteCarry = GetSkillCvar( "sk_antidote_carry" );
+	gSkillData.archerDmgBite = GetSkillCvar( "sk_archer_dmg_bite" );
+	gSkillData.archerDmgZap = GetSkillCvar( "sk_archer_dmg_zap" );
+	gSkillData.archerHealth = GetSkillCvar( "sk_archer_health" );
+	gSkillData.archerMinBeamDelay = GetSkillCvar( "sk_archer_min_beam_delay" );
+	gSkillData.bloaterDmgBolt = GetSkillCvar( "sk_bloater_dmg_bolt" );
+	gSkillData.bloaterHealth = GetSkillCvar( "sk_bloater_health" );
+	gSkillData.chubtoadHealth = GetSkillCvar( "sk_chubtoad_health" );
+	gSkillData.diabloDmgJump = GetSkillCvar( "sk_diablo_dmg_jump" );
+	gSkillData.diabloDmgSlash = GetSkillCvar( "sk_diablo_dmg_slash" );
+	gSkillData.diabloHealth = GetSkillCvar( "sk_diablo_health" );
+	gSkillData.friendlyDmgSlash = GetSkillCvar( "sk_friendly_dmg_slash" );
+	gSkillData.friendlyDmgSpit = GetSkillCvar( "sk_friendly_dmg_spit" );
+	gSkillData.friendlyHealth = GetSkillCvar( "sk_friendly_health" );
+	gSkillData.hassaultDmgCannon = GetSkillCvar( "sk_hassault_dmg_cannon" );
+	gSkillData.hassaultHealth = GetSkillCvar( "sk_hassault_health" );
+	gSkillData.hassaultSpinupDelay = GetSkillCvar( "sk_hassault_spinup_delay" );
+	gSkillData.kingpinDmgClaw = GetSkillCvar( "sk_kingpin_dmg_claw" );
+	gSkillData.kingpinDmgZap = GetSkillCvar( "sk_kingpin_dmg_zap" );
+	gSkillData.kingpinHealth = GetSkillCvar( "sk_kingpin_health" );
+	gSkillData.longjumpbat = GetSkillCvar( "sk_longjumpbat" );
+	gSkillData.radiationCarry = GetSkillCvar( "sk_radiation_carry" );
+	gSkillData.snapbugDmgBite = GetSkillCvar( "sk_snapbug_dmg_bite" );
+	gSkillData.snapbugHealth = GetSkillCvar( "sk_snapbug_health" );
+	gSkillData.stukaDmgBomb = GetSkillCvar( "sk_stuka_dmg_bomb" );
+	gSkillData.stukaDmgSlash = GetSkillCvar( "sk_stuka_dmg_slash" );
+	gSkillData.stukaHealth = GetSkillCvar( "sk_stuka_health" );
 
 	// Barney
 	gSkillData.barneyHealth = GetSkillCvar( "sk_barney_health" );

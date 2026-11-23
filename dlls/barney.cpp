@@ -824,3 +824,81 @@ void CDeadBarney::Spawn()
 
 	MonsterInitDead();
 }
+
+//=========================================================
+// ThrillEX additions (reconstructed from decompiled hl.dll)
+//=========================================================
+
+//=========================================================
+// monster_barney_evil - hostile Barney using the traitor model.
+// Dislikes everything that has a class.
+//=========================================================
+class CEvilBarney : public CBarney
+{
+public:
+	void Spawn( void );
+	int TakeDamage( entvars_t *pevInflictor, entvars_t *pevAttacker, float flDamage, int bitsDamageType );
+	void Killed( entvars_t *pevAttacker, int iGib );
+	int IRelationship( CBaseEntity *pTarget );
+};
+
+LINK_ENTITY_TO_CLASS( monster_barney_evil, CEvilBarney )
+
+void CEvilBarney::Spawn( void )
+{
+	CBarney::Spawn();
+
+	SET_MODEL( ENT( pev ), "models/barney_traitor.mdl" );
+	UTIL_SetSize( pev, Vector( -12, -12, 0 ), Vector( 12, 12, 72 ) );
+	SetUse( NULL ); // can't be recruited
+}
+
+int CEvilBarney::TakeDamage( entvars_t *pevInflictor, entvars_t *pevAttacker, float flDamage, int bitsDamageType )
+{
+	// skip CBarney's "player hurt a friend" handling
+	return CTalkMonster::TakeDamage( pevInflictor, pevAttacker, flDamage, bitsDamageType );
+}
+
+void CEvilBarney::Killed( entvars_t *pevAttacker, int iGib )
+{
+	// TODO(verify): original also clears a handle member and calls one extra virtual before CTalkMonster::Killed
+	if( pev->body < BARNEY_BODY_GUNGONE )
+	{
+		Vector vecGunPos;
+		Vector vecGunAngles;
+
+		pev->body = BARNEY_BODY_GUNGONE;
+		GetAttachment( 0, vecGunPos, vecGunAngles );
+		DropItem( "weapon_9mmhandgun", vecGunPos, vecGunAngles );
+	}
+
+	SetUse( NULL );
+	CTalkMonster::Killed( pevAttacker, iGib );
+}
+
+int CEvilBarney::IRelationship( CBaseEntity *pTarget )
+{
+	if( pTarget->Classify() != CLASS_NONE )
+		return R_DL;
+
+	return CBaseMonster::IRelationship( pTarget );
+}
+
+//=========================================================
+// monster_barney_traitor - same as the evil barney but uses
+// Barney's relationship table.
+//=========================================================
+class CTraitorBarney : public CEvilBarney
+{
+public:
+	int Classify( void );
+	int IRelationship( CBaseEntity *pTarget ) { return CBarney::IRelationship( pTarget ); }
+};
+
+LINK_ENTITY_TO_CLASS( monster_barney_traitor, CTraitorBarney )
+
+int CTraitorBarney::Classify( void )
+{
+	// TODO(verify): original overrides Classify; value not recoverable from the decompile
+	return CLASS_HUMAN_MILITARY;
+}

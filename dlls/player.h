@@ -165,6 +165,9 @@ public:
 
 	BOOL			m_fNoPlayerSound;	// a debugging feature. Player makes no sound if this is true. 
 	BOOL			m_fLongJump; // does this player have the longjump module?
+	int				m_iAdrenaline; // ThrillEX: adrenaline canisters carried
+	int				m_iRadiation; // ThrillEX: anti-radiation canisters carried
+	BOOL			m_fShield; // ThrillEX: has alien shield
 
 	float       m_tSneaking;
 	int			m_iUpdateTime;		// stores the number of frame ticks before sending HUD update messages

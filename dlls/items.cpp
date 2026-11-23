@@ -335,3 +335,101 @@ class CItemLongJump : public CItem
 };
 
 LINK_ENTITY_TO_CLASS( item_longjump, CItemLongJump )
+
+//=========================================================
+// ThrillEX additions (reconstructed from decompiled hl.dll)
+//=========================================================
+class CItemAdrenaline : public CItem
+{
+	void Spawn( void )
+	{
+		Precache();
+		SET_MODEL( ENT( pev ), "models/w_adrenaline.mdl" );
+		pev->netname = MAKE_STRING( "Adrenaline Canister" );
+		CItem::Spawn();
+	}
+	void Precache( void )
+	{
+		PRECACHE_MODEL( "models/w_adrenaline.mdl" );
+	}
+	BOOL MyTouch( CBasePlayer *pPlayer )
+	{
+		if( pPlayer->m_iAdrenaline > 0 )
+			return FALSE;
+
+		pPlayer->SetSuitUpdate( "!HEV_ADRENALINE", FALSE, 60 );
+		EMIT_SOUND_DYN( ENT( pPlayer->pev ), CHAN_ITEM, "items/gunpickup2.wav", 1, ATTN_NORM, 0, 100 );
+		pPlayer->m_iAdrenaline++;
+
+		MESSAGE_BEGIN( MSG_ONE, gmsgItemPickup, NULL, pPlayer->pev );
+			WRITE_STRING( STRING( pev->classname ) );
+		MESSAGE_END();
+		return TRUE;
+	}
+};
+
+LINK_ENTITY_TO_CLASS( item_adrenaline, CItemAdrenaline )
+
+class CItemRadiation : public CItem
+{
+	void Spawn( void )
+	{
+		Precache();
+		SET_MODEL( ENT( pev ), "models/w_rad.mdl" );
+		pev->netname = MAKE_STRING( "Anti-Radiation Canister" );
+		CItem::Spawn();
+	}
+	void Precache( void )
+	{
+		PRECACHE_MODEL( "models/w_rad.mdl" );
+	}
+	BOOL MyTouch( CBasePlayer *pPlayer )
+	{
+		if( pPlayer->m_iRadiation >= 5 )
+			return FALSE;
+
+		// TODO(verify): original builds the sentence name from "!HEV_RAD" and the current count
+		pPlayer->SetSuitUpdate( "!HEV_RAD", FALSE, 0 );
+		EMIT_SOUND_DYN( ENT( pPlayer->pev ), CHAN_ITEM, "items/gunpickup2.wav", 1, ATTN_NORM, 0, 100 );
+		pPlayer->m_iRadiation++;
+
+		MESSAGE_BEGIN( MSG_ONE, gmsgItemPickup, NULL, pPlayer->pev );
+			WRITE_STRING( STRING( pev->classname ) );
+		MESSAGE_END();
+		return TRUE;
+	}
+};
+
+LINK_ENTITY_TO_CLASS( item_rad, CItemRadiation )
+LINK_ENTITY_TO_CLASS( item_radiation, CItemRadiation )
+
+class CItemShield : public CItem
+{
+	void Spawn( void )
+	{
+		Precache();
+		SET_MODEL( ENT( pev ), "models/w_shield.mdl" );
+		pev->netname = MAKE_STRING( "Alien Shield" );
+		CItem::Spawn();
+	}
+	void Precache( void )
+	{
+		PRECACHE_MODEL( "models/w_shield.mdl" );
+	}
+	BOOL MyTouch( CBasePlayer *pPlayer )
+	{
+		if( pPlayer->m_fShield )
+			return FALSE;
+
+		pPlayer->SetSuitUpdate( "!HEV_A2", FALSE, 0 );
+		EMIT_SOUND_DYN( ENT( pPlayer->pev ), CHAN_ITEM, "items/gunpickup2.wav", 1, ATTN_NORM, 0, 100 );
+		pPlayer->m_fShield = TRUE;
+
+		MESSAGE_BEGIN( MSG_ONE, gmsgItemPickup, NULL, pPlayer->pev );
+			WRITE_STRING( STRING( pev->classname ) );
+		MESSAGE_END();
+		return TRUE;
+	}
+};
+
+LINK_ENTITY_TO_CLASS( item_shield, CItemShield )
