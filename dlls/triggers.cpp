@@ -2543,7 +2543,8 @@ void CTargetCommand::Spawn( void )
 		return;
 	}
 
-	char c = STRING( m_iszCommand )[0];
+	const char *pszCmd = STRING( m_iszCommand );
+	char c = pszCmd[0];
 	if( c == '+' || c == '-' )
 	{
 		ALERT( at_aiconsole, "Action in target_command!\n" );
