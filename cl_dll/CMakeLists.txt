@@ -180,6 +180,10 @@ endif()
 
 target_link_libraries(${CLDLL_LIBRARY} vgui)
 
+if(ANDROID)
+	target_link_libraries(${CLDLL_LIBRARY} log)
+endif()
+
 if(WIN32)
 	target_link_libraries( ${CLDLL_LIBRARY} user32.lib )
 	if (GOLDSOURCE_SUPPORT)
