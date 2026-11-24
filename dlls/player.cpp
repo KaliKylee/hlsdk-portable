@@ -1514,7 +1514,7 @@ void CBasePlayer::StartObserver( Vector vecPosition, Vector vecViewAngle )
 //
 // PlayerUse - handles USE keypress
 //
-#define	PLAYER_SEARCH_RADIUS	(float)64
+#define	PLAYER_SEARCH_RADIUS	(float)80 // original: 64 (increased for touch controls)
 
 void CBasePlayer::PlayerUse( void )
 {
@@ -1575,7 +1575,7 @@ void CBasePlayer::PlayerUse( void )
 	CBaseEntity *pObject = NULL;
 	CBaseEntity *pClosest = NULL;
 	Vector vecLOS;
-	float flMaxDot = VIEW_FIELD_NARROW;
+	float flMaxDot = 0.55f; // original: VIEW_FIELD_NARROW (0.7), relaxed for touch aiming
 	float flDot;
 
 	UTIL_MakeVectors( pev->v_angle );// so we know which way we are facing
