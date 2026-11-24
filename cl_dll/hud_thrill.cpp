@@ -7,12 +7,15 @@
 
 extern WeaponsResource gWR;
 
+static cvar_t *g_pThrillViewSize = NULL;
+
 int CHudThrill::Init( void )
 {
 	m_bActive = false;
 	m_fHealthFade = 0.0f;
 	m_iLastHealth = -1;
 	m_pStyle = CVAR_CREATE( "hud_style", "3", FCVAR_ARCHIVE );
+	g_pThrillViewSize = CVAR_CREATE( "scr_viewsize", "120", FCVAR_ARCHIVE );
 	m_iFlags |= HUD_ACTIVE;
 	gHUD.AddHudElem( this );
 	return 1;
@@ -111,9 +114,8 @@ int CHudThrill::Draw( float flTime )
 	int style = m_pStyle ? (int)m_pStyle->value : 3;
 	int s = ( style == 2 ) ? 0 : 1; // 0 = Hud1 sprites, 1 = Hud2 sprites
 	int viewsize = 120;
-	cvar_t *pViewSize = gEngfuncs.pfnGetCvarPointer( "scr_viewsize" );
-	if( pViewSize )
-		viewsize = (int)pViewSize->value;
+	if( g_pThrillViewSize )
+		viewsize = (int)g_pThrillViewSize->value;
 
 	// --- health + battery ---
 	if( !( gHUD.m_iHideHUDDisplay & ( HIDEHUD_HEALTH | HIDEHUD_ALL ) ) )
