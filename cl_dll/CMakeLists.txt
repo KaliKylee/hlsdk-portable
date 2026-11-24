@@ -93,6 +93,7 @@ set (CLDLL_SOURCES
 	health.cpp
 	hud.cpp
 	hud_thrill.cpp
+	../dlls/trex_crash.cpp
 	hud_msg.cpp
 	hud_redraw.cpp
 	hud_spectator.cpp

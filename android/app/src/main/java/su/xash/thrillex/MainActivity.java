@@ -46,7 +46,7 @@ public class MainActivity extends Activity {
 
     private EditText gameArgsInput;
 
-    private static final String MOD_VERSION = "1.0";
+    private static final String MOD_VERSION = "v1.0.3_1";
 
     private static final String URL_GITHUB = "https://github.com/KaliKylee/hlsdk-portable/tree/ThrillEX";
     private static final String URL_YOUTUBE = "https://youtube.com/@kalikyle3";
@@ -343,7 +343,7 @@ public class MainActivity extends Activity {
         supLp.topMargin = dp(12);
         col.addView(support, supLp);
 
-        TextView credit = text("Build by Kali Kyle", 14, TEXT_DIM, false);
+        TextView credit = text("Port by Kali Kyle", 14, TEXT_DIM, false);
         credit.setGravity(Gravity.CENTER);
 
         LinearLayout.LayoutParams crLp = wrap();

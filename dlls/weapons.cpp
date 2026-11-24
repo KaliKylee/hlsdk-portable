@@ -21,6 +21,7 @@
 */
 
 #include "extdll.h"
+#include "trex_log.h"
 #include "util.h"
 #include "cbase.h"
 #include "player.h"
@@ -250,6 +251,8 @@ void AddAmmoNameToAmmoRegistry( const char *szAmmoname )
 // Precaches the weapon and queues the weapon info for sending to clients
 void UTIL_PrecacheOtherWeapon( const char *szClassname )
 {
+	TREX_Breadcrumb( "precache weapon %s", szClassname );
+
 	edict_t	*pent;
 
 	pent = CREATE_NAMED_ENTITY( MAKE_STRING( szClassname ) );

@@ -21,6 +21,7 @@
 #include	"decals.h"
 #include	"gamerules.h"
 #include	"game.h"
+#include "trex_log.h"
 
 bool g_fIsXash3D = false;
 
@@ -146,6 +147,7 @@ int DispatchSpawn( edict_t *pent )
 		pEntity->pev->absmin = pEntity->pev->origin - Vector( 1.0f, 1.0f, 1.0f );
 		pEntity->pev->absmax = pEntity->pev->origin + Vector( 1.0f, 1.0f, 1.0f );
 
+		TREX_Breadcrumb( "spawn %s (%s) idx=%d", STRING( pEntity->pev->classname ), STRING( pEntity->pev->model ), ENTINDEX( pent ) );
 		pEntity->Spawn();
 
 		// Try to get the pointer again, in case the spawn function deleted the entity.

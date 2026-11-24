@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId 'su.xash.thrillex'
-        versionName '1.0'
+        versionName 'v1.0.3_1'
         versionCode getBuildNum()
         minSdkVersion 3
         targetSdk 34

@@ -24,6 +24,7 @@
 */
 
 #include "extdll.h"
+#include "trex_log.h"
 #include "util.h"
 #include "cbase.h"
 #include "saverestore.h"
@@ -188,6 +189,7 @@ called each time a player is spawned
 */
 void ClientPutInServer( edict_t *pEntity )
 {
+	TREX_Log( "ClientPutInServer: jogador entrou (mapa %s)", STRING( gpGlobals->mapname ) );
 	CBasePlayer *pPlayer;
 
 	entvars_t *pev = &pEntity->v;
@@ -703,6 +705,7 @@ static int g_serveractive = 0;
 
 void ServerDeactivate( void )
 {
+	TREX_Log( "ServerDeactivate" );
 	//ALERT( at_console, "ServerDeactivate()\n" );
 
 	// It's possible that the engine will call this function more times than is necessary
@@ -720,6 +723,7 @@ void ServerDeactivate( void )
 
 void ServerActivate( edict_t *pEdictList, int edictCount, int clientMax )
 {
+	TREX_Log( "ServerActivate: mapa=%s clientMax=%d edicts=%d", STRING( gpGlobals->mapname ), clientMax, edictCount );
 	int		i;
 	CBaseEntity	*pClass;
 

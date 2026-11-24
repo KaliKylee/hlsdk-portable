@@ -19,6 +19,7 @@
 //
 
 #include "hud.h"
+#include "trex_log.h"
 #include "cl_util.h"
 #include "netadr.h"
 #include "parsemsg.h"
@@ -149,6 +150,8 @@ int DLLEXPORT Initialize( cl_enginefunc_t *pEnginefuncs, int iVersion )
 {
 	gEngfuncs = *pEnginefuncs;
 
+	TREX_Log( "cliente: Initialize (versao da interface %d)", iVersion );
+
 	if( iVersion != CLDLL_INTERFACE_VERSION )
 		return 0;
 
@@ -203,6 +206,7 @@ so the HUD can reinitialize itself.
 
 int DLLEXPORT HUD_VidInit( void )
 {
+	TREX_Log( "cliente: HUD_VidInit (novo mapa)" );
 	gHUD.VidInit();
 
 	VGui_Startup();

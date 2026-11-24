@@ -38,6 +38,22 @@ jobs:
           unzip -o -q dist/ThrillEX.apk 'lib/*' -d dist/apk-libs
           find dist/apk-libs -name '*.so' | sort
 
+      - name: Collect libs with symbols (for crash analysis)
+        run: |
+          mkdir -p dist/symbols
+          for f in $(find android/app/build/intermediates -path '*cxx*' -path '*/obj/*' -name '*.so' 2>/dev/null); do
+            abi=$(basename "$(dirname "$f")")
+            mkdir -p "dist/symbols/$abi"
+            cp "$f" "dist/symbols/$abi/"
+          done
+          find dist/symbols -type f | sort
+
+      - name: Upload libs with symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: ThrillEX-libs-symbols
+          path: dist/symbols
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
