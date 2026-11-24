@@ -74,6 +74,9 @@ int CHudBattery::Draw( float flTime )
 	if( gHUD.m_iHideHUDDisplay & HIDEHUD_HEALTH )
 		return 1;
 
+	if( gHUD.m_Thrill.IsActive() )
+		return 1; // ThrillEX HUD draws the battery
+
 	int r, g, b, x, y, a;
 	wrect_t rc;
 

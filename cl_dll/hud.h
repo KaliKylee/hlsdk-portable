@@ -131,6 +131,7 @@ public:
 	void _cdecl UserCmd_NextWeapon( void );
 	void _cdecl UserCmd_PrevWeapon( void );
 
+	WEAPON *GetCurrentWeapon( void ) { return m_pWeapon; }
 private:
 	float m_fFade;
 	RGBA  m_rgba;
@@ -381,6 +382,7 @@ public:
 	int Draw( float flTime );
 	int MsgFunc_Battery( const char *pszName,  int iSize, void *pbuf );
 	
+	int GetBat( void ) { return m_iBat; }
 private:
 	HSPRITE m_hSprite1;
 	HSPRITE m_hSprite2;
@@ -528,6 +530,23 @@ private:
 //
 //-----------------------------------------------------
 //
+// ThrillEX custom HUD (original hud_style 2/3): health, suit battery, ammo
+class CHudThrill : public CHudBase
+{
+public:
+	int Init( void );
+	int VidInit( void );
+	int Draw( float flTime );
+	bool IsActive( void ) { return m_bActive; }
+private:
+	int DrawNumber( int x, int y, int flags, int value, int r, int g, int b, int alpha, int idx );
+	bool m_bActive;
+	cvar_t *m_pStyle;
+	int m_iNum[2], m_iANum[2], m_iBatEmpty[2], m_iBatFull[2], m_iDivider[2];
+	float m_fHealthFade;
+	int m_iLastHealth;
+};
+
 class CHud
 {
 private:
@@ -602,6 +621,7 @@ public:
 
 	CHudAmmo		m_Ammo;
 	CHudHealth		m_Health;
+	CHudThrill		m_Thrill;
 	CHudSpectator		m_Spectator;
 	CHudGeiger		m_Geiger;
 	CHudBattery		m_Battery;

@@ -72,8 +72,8 @@ public class MainActivity extends Activity {
     private static final int TEXT_DIM = 0xFFB9B9B5;
 
     // cor secundaria: amarelo tropical suave
-    private static final int YELLOW = 0xFFE8D983;
-    private static final int YELLOW_DEEP = 0xFF8D8344;
+    private static final int YELLOW = 0xFFE5E4E2;
+    private static final int YELLOW_DEEP = 0xFF8E9298;
 
     private static final String ACTION_MOD = "su.xash.engine.MOD";
 

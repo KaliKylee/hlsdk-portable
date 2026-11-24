@@ -92,6 +92,7 @@ set (CLDLL_SOURCES
 	geiger.cpp
 	health.cpp
 	hud.cpp
+	hud_thrill.cpp
 	hud_msg.cpp
 	hud_redraw.cpp
 	hud_spectator.cpp

@@ -861,6 +861,9 @@ int CHudAmmo::Draw( float flTime )
 	// Draw ammo pickup history
 	gHR.DrawAmmoHistory( flTime );
 
+	if( gHUD.m_Thrill.IsActive() )
+		return 0; // ThrillEX HUD draws the ammo counters
+
 	if( !( m_iFlags & HUD_ACTIVE ) )
 		return 0;
 
