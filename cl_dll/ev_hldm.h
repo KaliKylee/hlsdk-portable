@@ -66,14 +66,16 @@ enum mp5_e
 
 enum python_e
 {
+	// ThrillEX sequence order (from original hl.dll)
 	PYTHON_IDLE1 = 0,
-	PYTHON_FIDGET,
-	PYTHON_FIRE1,
-	PYTHON_RELOAD,
-	PYTHON_HOLSTER,
-	PYTHON_DRAW,
-	PYTHON_IDLE2,
-	PYTHON_IDLE3
+	PYTHON_FIDGET = 1,
+	PYTHON_IDLE3 = 2,
+	PYTHON_IDLE2 = 3,
+	PYTHON_FIRE1 = 4,
+	PYTHON_RELOAD = 5,
+	PYTHON_DRAW = 6,
+	PYTHON_HOLSTER = 7,
+	PYTHON_FIRE_LASER = 8
 };
 
 #define	GAUSS_PRIMARY_CHARGE_VOLUME	256// how loud gauss is while charging

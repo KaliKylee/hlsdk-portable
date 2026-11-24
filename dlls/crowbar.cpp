@@ -29,21 +29,16 @@ LINK_ENTITY_TO_CLASS( weapon_crowbar, CCrowbar )
 
 enum crowbar_e
 {
+	// ThrillEX sequence order (from original hl.dll)
 	CROWBAR_IDLE = 0,
-	CROWBAR_DRAW,
-	CROWBAR_HOLSTER,
-	CROWBAR_ATTACK1HIT,
-	CROWBAR_ATTACK1MISS,
-	CROWBAR_ATTACK2MISS,
-	CROWBAR_ATTACK2HIT,
-	CROWBAR_ATTACK3MISS,
-#if !CROWBAR_IDLE_ANIM	
-	CROWBAR_ATTACK3HIT
-#else
-	CROWBAR_ATTACK3HIT,
-	CROWBAR_IDLE2,
-	CROWBAR_IDLE3
-#endif
+	CROWBAR_ATTACK1HIT = 1,
+	CROWBAR_ATTACK2HIT = 2,
+	CROWBAR_DRAW = 3,
+	CROWBAR_HOLSTER = 4,
+	CROWBAR_ATTACK1MISS = 1,
+	CROWBAR_ATTACK2MISS = 2,
+	CROWBAR_ATTACK3MISS = 1,
+	CROWBAR_ATTACK3HIT = 2
 };
 
 void CCrowbar::Spawn()
@@ -223,7 +218,7 @@ int CCrowbar::Swing( int fFirst )
 	}
 	else
 	{
-		switch( ( ( m_iSwing++ ) % 2 ) + 1 )
+		switch( ( m_iSwing++ ) % 2 )
 		{
 		case 0:
 			SendWeaponAnim( CROWBAR_ATTACK1HIT );

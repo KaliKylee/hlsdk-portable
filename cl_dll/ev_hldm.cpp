@@ -747,7 +747,7 @@ void EV_FirePython( event_args_t *args )
 
 		// Add muzzle flash to current weapon model
 		EV_MuzzleFlash();
-		gEngfuncs.pEventAPI->EV_WeaponAnimation( PYTHON_FIRE1, multiplayer ? 1 : 0 );
+		gEngfuncs.pEventAPI->EV_WeaponAnimation( PYTHON_FIRE1, 0 ); (void)multiplayer;
 
 		V_PunchAxis( 0, -10.0 );
 	}
@@ -1093,21 +1093,12 @@ void EV_FireGauss( event_args_t *args )
 //======================
 enum crowbar_e
 {
+	// ThrillEX sequence order (from original hl.dll)
 	CROWBAR_IDLE = 0,
-	CROWBAR_DRAW,
-	CROWBAR_HOLSTER,
-	CROWBAR_ATTACK1HIT,
-	CROWBAR_ATTACK1MISS,
-	CROWBAR_ATTACK2MISS,
-	CROWBAR_ATTACK2HIT,
-	CROWBAR_ATTACK3MISS,
-#if !CROWBAR_IDLE_ANIM
-	CROWBAR_ATTACK3HIT
-#else
-	CROWBAR_ATTACK3HIT,
-	CROWBAR_IDLE2,
-	CROWBAR_IDLE3
-#endif
+	CROWBAR_ATTACK1MISS = 1,
+	CROWBAR_ATTACK2MISS = 2,
+	CROWBAR_DRAW = 3,
+	CROWBAR_HOLSTER = 4
 };
 
 int g_iSwing;
@@ -1129,16 +1120,13 @@ void EV_Crowbar( event_args_t *args )
 
 	if( EV_IsLocal( idx ) )
 	{
-		switch( (g_iSwing++) % 3 )
+		switch( (g_iSwing++) % 2 )
 		{
 			case 0:
 				gEngfuncs.pEventAPI->EV_WeaponAnimation( CROWBAR_ATTACK1MISS, 0 );
 				break;
 			case 1:
 				gEngfuncs.pEventAPI->EV_WeaponAnimation( CROWBAR_ATTACK2MISS, 0 );
-				break;
-			case 2:
-				gEngfuncs.pEventAPI->EV_WeaponAnimation( CROWBAR_ATTACK3MISS, 0 );
 				break;
 		}
 	}
