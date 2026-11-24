@@ -51,7 +51,7 @@ int CHudThrill::DrawNumber( int x, int y, int flags, int value, int r, int g, in
 #define THR_DRAW( digit, cr, cg, cb ) \
 	do { \
 		SPR_Set( gHUD.GetSprite( idx + ( digit ) ), cr, cg, cb ); \
-		SPR_Draw( 0, x, y, &gHUD.GetSpriteRect( idx + ( digit ) ) ); \
+		SPR_DrawAdditive( 0, x, y, &gHUD.GetSpriteRect( idx + ( digit ) ) ); \
 	} while( 0 )
 
 	if( value > 0 )
@@ -170,14 +170,14 @@ int CHudThrill::Draw( float flTime )
 			ScaleColors( cr, cg, cb, alpha );
 
 			SPR_Set( gHUD.GetSprite( m_iBatEmpty[s] ), cr, cg, cb );
-			SPR_Draw( 0, 14, by, &gHUD.GetSpriteRect( m_iBatEmpty[s] ) );
+			SPR_DrawAdditive( 0, 14, by, &gHUD.GetSpriteRect( m_iBatEmpty[s] ) );
 
 			wrect_t full = gHUD.GetSpriteRect( m_iBatFull[0] );
 			full.right = (int)( (double)full.right - (double)( 100 - armor ) * 0.01 * (double)batW );
 			if( full.right > full.left )
 			{
 				SPR_Set( gHUD.GetSprite( m_iBatFull[s] ), cr, cg, cb );
-				SPR_Draw( 0, s ? 19 : 18, by + ( s ? 5 : 4 ), &full );
+				SPR_DrawAdditive( 0, s ? 19 : 18, by + ( s ? 5 : 4 ), &full );
 			}
 		}
 	}
@@ -211,7 +211,7 @@ int CHudThrill::Draw( float flTime )
 					if( m_iDivider[s] >= 0 )
 					{
 						SPR_Set( gHUD.GetSprite( m_iDivider[s] ), cr, cg, cb );
-						SPR_Draw( 0, dx, y, &gHUD.GetSpriteRect( m_iDivider[s] ) );
+						SPR_DrawAdditive( 0, dx, y, &gHUD.GetSpriteRect( m_iDivider[s] ) );
 					}
 					DrawNumber( dx - 3 * aw, y, 5, pw->iClip, 5, 125, 5, alpha, m_iANum[s] );
 				}

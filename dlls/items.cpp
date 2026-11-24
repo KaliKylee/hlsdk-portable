@@ -88,13 +88,29 @@ void CWorldItem::Spawn( void )
 
 void CItem::Spawn( void )
 {
-	pev->movetype = MOVETYPE_TOSS;
+	// ThrillEX: spawnflags 2 = no physics (stay where placed), 4 = "drawer" (small box, picked up when the player is close)
+	if( pev->spawnflags & 2 )
+		pev->movetype = MOVETYPE_NONE;
+	else
+		pev->movetype = MOVETYPE_TOSS;
+
 	pev->solid = SOLID_TRIGGER;
+
+	if( pev->spawnflags & 4 )
+	{
+		UTIL_SetSize( pev, Vector( -4, -4, 0 ), Vector( 4, 4, 4 ) );
+		SetThink( &CItem::DrawerThink );
+		pev->nextthink = gpGlobals->time + 0.1f;
+	}
+	else
+	{
+		UTIL_SetSize( pev, Vector( -16, -16, 0 ), Vector( 16, 16, 16 ) );
+	}
+
 	UTIL_SetOrigin( pev, pev->origin );
-	UTIL_SetSize( pev, Vector( -16, -16, 0 ), Vector( 16, 16, 16 ) );
 	SetTouch( &CItem::ItemTouch );
 
-	if( DROP_TO_FLOOR(ENT( pev ) ) == 0 )
+	if( !( pev->spawnflags & 2 ) && DROP_TO_FLOOR(ENT( pev ) ) == 0 )
 	{
 		ALERT(at_error, "Item %s fell out of level at %f,%f,%f\n", STRING( pev->classname ), (double)pev->origin.x, (double)pev->origin.y, (double)pev->origin.z);
 		UTIL_Remove( this );
@@ -103,6 +119,29 @@ void CItem::Spawn( void )
 }
 
 extern int gEvilImpulse101;
+
+void CItem::DrawerThink( void )
+{
+	Vector vecSrc = pev->origin;
+	vecSrc.z += 2.0f;
+
+	CBaseEntity *pEnt = UTIL_FindEntityInSphere( NULL, vecSrc, 12.0f );
+	if( pEnt && pEnt->IsPlayer() )
+	{
+		ItemTouch( pEnt );
+		return;
+	}
+
+	TraceResult tr;
+	Vector vecEnd = pev->origin;
+	vecEnd.z += 24.0f;
+	UTIL_TraceLine( pev->origin, vecEnd, dont_ignore_monsters, ENT( pev ), &tr );
+	pEnt = CBaseEntity::Instance( tr.pHit );
+	if( pEnt && pEnt->IsPlayer() )
+		ItemTouch( pEnt );
+	else
+		pev->nextthink = gpGlobals->time + 0.1f;
+}
 
 void CItem::ItemTouch( CBaseEntity *pOther )
 {
