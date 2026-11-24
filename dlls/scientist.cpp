@@ -1114,7 +1114,7 @@ public:
 
 	void KeyValue( KeyValueData *pkvd );
 	int m_iPose;// which sequence to display
-	static const char *m_szPoses[7];
+	static const char *m_szPoses[10];
 
 private:
 	const char *GetScientistModel( void );
@@ -1128,7 +1128,10 @@ const char *CDeadScientist::m_szPoses[] =
 	"dead_hang",
 	"dead_table1",
 	"dead_table2",
-	"dead_table3"
+	"dead_table3",
+	"corpsefloat1",
+	"corpsefloat2",
+	"dead_grate"
 };
 
 void CDeadScientist::KeyValue( KeyValueData *pkvd )
@@ -1172,6 +1175,9 @@ void CDeadScientist::Spawn()
 		pev->skin = 1;
 	else
 		pev->skin = 0;
+
+	if( m_iPose < 0 || m_iPose >= (int)( sizeof( m_szPoses ) / sizeof( m_szPoses[0] ) ) )
+		m_iPose = 0; // protects against invalid pose values in maps
 
 	pev->sequence = LookupSequence( m_szPoses[m_iPose] );
 	if( pev->sequence == -1 )
