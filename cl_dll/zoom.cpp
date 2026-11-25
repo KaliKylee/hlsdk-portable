@@ -59,7 +59,8 @@ int CHudZoom::MsgFunc_ZoomHUD(const char* pszName, int iSize, void* pbuf)
 
 int CHudZoom::Draw(float flTime)
 {
-	if (!IEngineStudio.IsHardware() || !m_hBottom_Left || !m_hBottom_Right || !m_hTop_Left || !m_hTop_Right) return 0;
+	// IEngineStudio fica zerado quando o renderer proprio do HL:E esta desligado (Xash3D/Android): so chama se existir
+	if ((IEngineStudio.IsHardware && !IEngineStudio.IsHardware()) || !m_hBottom_Left || !m_hBottom_Right || !m_hTop_Left || !m_hTop_Right) return 0;
 
 	if (!m_iHudMode) return 0;//draw scope
 

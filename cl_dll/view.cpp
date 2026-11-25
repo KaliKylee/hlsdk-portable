@@ -1763,7 +1763,7 @@ int V_FindViewModelByWeaponModel(int weaponindex)
 		{ "models/p_satchel.mdl",		"models/v_satchel.mdl"		},
 		{ NULL, NULL } };
 
-	struct model_s * weaponModel = IEngineStudio.GetModelByIndex( weaponindex );
+	struct model_s * weaponModel = gEngfuncs.hudGetModelByIndex( weaponindex );
 
 	if ( weaponModel )
 	{
@@ -1863,7 +1863,7 @@ void V_CalcSpectatorRefdef ( struct ref_params_s * pparams )
 
 			if ( lastViewModelIndex )
 			{
-				gunModel->model = IEngineStudio.GetModelByIndex( lastViewModelIndex );
+				gunModel->model = gEngfuncs.hudGetModelByIndex( lastViewModelIndex );
 				gunModel->curstate.modelindex = lastViewModelIndex;
 				gunModel->curstate.frame = 0;
 				gunModel->curstate.colormap = 0; 
