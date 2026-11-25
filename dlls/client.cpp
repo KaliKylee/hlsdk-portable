@@ -722,6 +722,7 @@ void ServerDeactivate( void )
 }
 
 extern void SyncGlassDoors( void );
+extern void UpdateGlassDoors( void );
 
 void ServerActivate( edict_t *pEdictList, int edictCount, int clientMax )
 {
@@ -818,6 +819,8 @@ void StartFrame( void )
 
 	if( g_pGameRules )
 		g_pGameRules->Think();
+
+	UpdateGlassDoors();
 
 	if( g_fGameOver )
 		return;

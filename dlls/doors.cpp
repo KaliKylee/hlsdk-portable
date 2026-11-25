@@ -1141,8 +1141,52 @@ void CMomentaryDoor::StopMoveSound()
 // follow exactly the same movement as the frame.
 // Every adjustment is written to the trex log.
 //=========================================================
+struct GlassPair_t
+{
+	EHANDLE glass;
+	EHANDLE frame;
+	Vector offset;	// glass origin - frame origin while both are at rest
+};
+
+static GlassPair_t g_GlassPairs[64];
+static int g_iGlassPairs = 0;
+
+static void RegisterGlassPair( CBaseDoor *glass, CBaseDoor *frame, bool atRest )
+{
+	if( !atRest || g_iGlassPairs >= 64 )
+		return;
+
+	GlassPair_t &p = g_GlassPairs[g_iGlassPairs++];
+	p.glass = glass;
+	p.frame = frame;
+	p.offset = glass->pev->origin - frame->pev->origin;
+}
+
+// Runs every server frame (StartFrame): the pane copies the frame's position
+// and speed, so it can never drift away whatever the map data says.
+void UpdateGlassDoors( void )
+{
+	for( int i = 0; i < g_iGlassPairs; i++ )
+	{
+		CBaseEntity *glass = CBaseEntity::Instance( g_GlassPairs[i].glass.Get() );
+		CBaseEntity *frame = CBaseEntity::Instance( g_GlassPairs[i].frame.Get() );
+
+		if( !glass || !frame )
+			continue;
+
+		Vector target = frame->pev->origin + g_GlassPairs[i].offset;
+
+		if( ( target - glass->pev->origin ).Length() > 0.05f )
+			UTIL_SetOrigin( glass->pev, target );
+
+		glass->pev->velocity = frame->pev->velocity;
+	}
+}
+
 void SyncGlassDoors( void )
 {
+	g_iGlassPairs = 0;
+
 	static cvar_t thrill_syncglass = { "thrill_syncglass", "1", FCVAR_SERVER };
 	static bool registered = false;
 	if( !registered )
@@ -1166,6 +1210,7 @@ void SyncGlassDoors( void )
 	}
 
 	int fixed = 0;
+	int pairs = 0;
 
 	for( int i = 0; i < count; i++ )
 	{
@@ -1209,12 +1254,19 @@ void SyncGlassDoors( void )
 			if( glass->m_toggle_state != frame->m_toggle_state )
 				continue;
 
+			// remember the pair: from now on the pane mirrors the frame every frame
+			bool atRest = ( glass->m_toggle_state == TS_AT_TOP || glass->m_toggle_state == TS_AT_BOTTOM );
+
 			bool distDiffers = fabs( glassDist - frameDist ) > 0.5f;
 			bool speedDiffers = fabs( glass->pev->speed - frame->pev->speed ) > 0.5f;
 			bool waitDiffers = fabs( glass->m_flWait - frame->m_flWait ) > 0.01f;
 
 			if( !distDiffers && !speedDiffers && !waitDiffers )
+			{
+				RegisterGlassPair( glass, frame, atRest );
+				pairs++;
 				break;
+			}
 
 			TREX_Log( "glass door sync: %s (%s) dist %.1f->%.1f speed %.1f->%.1f wait %.1f->%.1f",
 				STRING( glass->pev->targetname ), STRING( glass->pev->model ),
@@ -1234,10 +1286,12 @@ void SyncGlassDoors( void )
 			glass->pev->speed = frame->pev->speed;
 			glass->m_flWait = frame->m_flWait;
 			fixed++;
+			RegisterGlassPair( glass, frame, atRest );
+			pairs++;
 			break;
 		}
 	}
 
-	if( fixed )
-		TREX_Log( "glass door sync: %d pane(s) adjusted", fixed );
+	if( pairs )
+		TREX_Log( "glass door sync: %d pane(s) paired, %d adjusted, %d mirrored", pairs, fixed, g_iGlassPairs );
 }
