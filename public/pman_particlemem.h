@@ -5,7 +5,12 @@
 #pragma once
 #endif
 
+// HL:E: Platform.h defines a clamp() macro that breaks libc++ (NDK) <algorithm>; hide it while the STL is included
+#pragma push_macro("clamp")
+#undef clamp
 #include <vector>
+#include <algorithm>
+#pragma pop_macro("clamp")
 
 class CCoreTriangleEffect;
 
