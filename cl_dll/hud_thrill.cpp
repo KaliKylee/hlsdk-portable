@@ -16,6 +16,9 @@ int CHudThrill::Init( void )
 	m_iLastHealth = -1;
 	m_pStyle = CVAR_CREATE( "hud_style", "3", FCVAR_ARCHIVE );
 	g_pThrillViewSize = CVAR_CREATE( "scr_viewsize", "120", FCVAR_ARCHIVE );
+	// ThrillEX draws a plain white crosshair; Xash3D paints it orange/translucent by default
+	gEngfuncs.pfnClientCmd( "cl_crosshair_color \"255 255 255\"\n" );
+	gEngfuncs.pfnClientCmd( "cl_crosshair_translucent 0\n" );
 	m_iFlags |= HUD_ACTIVE;
 	gHUD.AddHudElem( this );
 	return 1;

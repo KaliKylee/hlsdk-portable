@@ -27,6 +27,56 @@
 #define	SF_MONSTERMAKER_START_ON	1 // start active ( if has targetname )
 #define	SF_MONSTERMAKER_CYCLIC		4 // drop one monster every time fired.
 #define SF_MONSTERMAKER_MONSTERCLIP	8 // Children are blocked by monsterclip
+#define SF_MONSTERMAKER_TELEPORT	16 // ThrillEX: lightning effect + fade-in when spawning
+
+
+//=========================================================
+// ThrillEX: fades a freshly spawned monster in (flag 16)
+// All state lives in entvars so it survives save/restore.
+//=========================================================
+class CSpawnFade : public CBaseEntity
+{
+public:
+	void Spawn( void );
+	void EXPORT FadeThink( void );
+};
+
+LINK_ENTITY_TO_CLASS( thrill_spawnfade, CSpawnFade )
+
+void CSpawnFade::Spawn( void )
+{
+	pev->solid = SOLID_NOT;
+	pev->movetype = MOVETYPE_NONE;
+	pev->effects |= EF_NODRAW;
+	pev->fuser1 = gpGlobals->time;
+	SetThink( &CSpawnFade::FadeThink );
+	pev->nextthink = gpGlobals->time + 0.05f;
+}
+
+void CSpawnFade::FadeThink( void )
+{
+	CBaseEntity *pMonster = CBaseEntity::Instance( pev->owner );
+
+	if( !pMonster || !pMonster->pev || pMonster->pev->deadflag != DEAD_NO )
+	{
+		UTIL_Remove( this );
+		return;
+	}
+
+	float t = ( gpGlobals->time - pev->fuser1 ) / 2.5f;
+
+	if( t >= 1.0f )
+	{
+		pMonster->pev->rendermode = kRenderNormal;
+		pMonster->pev->renderamt = 255;
+		UTIL_Remove( this );
+		return;
+	}
+
+	pMonster->pev->rendermode = kRenderTransTexture;
+	pMonster->pev->renderamt = 255.0f * t;
+	pev->nextthink = gpGlobals->time + 0.05f;
+}
 
 //=========================================================
 // MonsterMaker - this ent creates monsters during the game.
@@ -152,6 +202,9 @@ void CMonsterMaker::Precache( void )
 	CBaseMonster::Precache();
 
 	UTIL_PrecacheOther( STRING( m_iszMonsterClassname ) );
+
+	if( pev->spawnflags & SF_MONSTERMAKER_TELEPORT )
+		UTIL_PrecacheOther( "test_effect" );
 }
 
 //=========================================================
@@ -183,11 +236,15 @@ void CMonsterMaker::MakeMonster( void )
 	mins.z = m_flGround;
 
 	CBaseEntity *pList[2];
-	int count = UTIL_EntitiesInBox( pList, 2, mins, maxs, FL_CLIENT | FL_MONSTER );
-	if( count )
+	// ThrillEX: the stack check is skipped for teleport-style makers
+	if( !( pev->spawnflags & SF_MONSTERMAKER_TELEPORT ) )
 	{
-		// don't build a stack of monsters!
-		return;
+		int count = UTIL_EntitiesInBox( pList, 2, mins, maxs, FL_CLIENT | FL_MONSTER );
+		if( count )
+		{
+			// don't build a stack of monsters!
+			return;
+		}
 	}
 
 	pent = CREATE_NAMED_ENTITY( m_iszMonsterClassname );
@@ -216,6 +273,21 @@ void CMonsterMaker::MakeMonster( void )
 
 	DispatchSpawn( ENT( pevCreate ) );
 	pevCreate->owner = edict();
+
+	if( pev->spawnflags & SF_MONSTERMAKER_TELEPORT )
+	{
+		// lightning effect at the spawn point
+		CBaseEntity *pEffect = Create( "test_effect", pev->origin + Vector( 0, 0, 32 ), g_vecZero );
+		if( pEffect )
+			pEffect->Use( this, this, USE_ON, 0 );
+
+		// monster materializes
+		pevCreate->rendermode = kRenderTransTexture;
+		pevCreate->renderamt = 0;
+
+		CBaseEntity *pFade = CBaseEntity::Create( "thrill_spawnfade", pev->origin, g_vecZero, pent );
+		(void)pFade;
+	}
 
 	if( !FStringNull( pev->netname ) )
 	{
