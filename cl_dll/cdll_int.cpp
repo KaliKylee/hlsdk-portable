@@ -33,6 +33,7 @@
 
 #include "Platform.h"
 #include "Exports.h"
+#include "hlext_log.h"
 
 #include "tri.h"
 #include "vgui_TeamFortressViewport.h"
@@ -145,6 +146,8 @@ int DLLEXPORT Initialize( cl_enginefunc_t *pEnginefuncs, int iVersion )
 {
 	gEngfuncs = *pEnginefuncs;
 
+	HLEXT_Log( "cliente: Initialize (versao da interface %d)", iVersion );
+
 //	RecClInitialize(pEnginefuncs, iVersion);
 
 	if (iVersion != CLDLL_INTERFACE_VERSION)
@@ -172,6 +175,7 @@ so the HUD can reinitialize itself.
 
 int DLLEXPORT HUD_VidInit()
 {
+	HLEXT_Log( "cliente: HUD_VidInit (novo mapa)" );
 //	RecClHudVidInit();
 
 	//Reset to default on new map load

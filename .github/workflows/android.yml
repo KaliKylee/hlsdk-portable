@@ -87,3 +87,10 @@ jobs:
         with:
           name: hlex-android-${{ matrix.abi }}
           path: dist/
+
+      - name: Upload libs with symbols (${{ matrix.abi }}, for crash analysis)
+        uses: actions/upload-artifact@v4
+        with:
+          name: HLExtended-libs-symbols-${{ matrix.abi }}
+          path: build/symbols
+          if-no-files-found: warn

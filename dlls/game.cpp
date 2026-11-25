@@ -16,6 +16,7 @@
 #include "eiface.h"
 #include "util.h"
 #include "game.h"
+#include "hlext_log.h"
 
 cvar_t	displaysoundlist = {"displaysoundlist","0"};
 
@@ -719,6 +720,8 @@ cvar_t dmjumpsound = {"sv_dmjumpsound", "1", FCVAR_SERVER};
 // This gets called one time when the game is initialied
 void GameDLLInit()
 {
+	HLEXT_Log( "GameDLLInit" );
+
 	// Register cvars here:
 
 	g_psv_gravity = CVAR_GET_POINTER( "sv_gravity" );

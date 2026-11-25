@@ -33,6 +33,7 @@
 #include "nodes.h"
 #include "soundent.h"
 #include "decals.h"
+#include "hlext_log.h"
 #include "gamerules.h"
 #include "game.h"
 #include "UserMessages.h"
@@ -264,6 +265,8 @@ void ExplodeModel(const Vector& vecOrigin, float speed, int model, int count)
 void UTIL_PrecacheOtherWeapon(const char* szClassname)
 {
 	edict_t* pent;
+
+	HLEXT_Breadcrumb( "precache weapon %s", szClassname );
 
 	pent = CREATE_NAMED_ENTITY(MAKE_STRING(szClassname));
 	if (FNullEnt(pent))

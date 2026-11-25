@@ -107,6 +107,7 @@ set (SVDLL_SOURCES
 	func_tank.cpp
 	func_tank_of.cpp
 	game.cpp
+	hlext_crash.cpp
 	gamerules.cpp
 	gargantua.cpp
 	gauss.cpp
@@ -271,5 +272,7 @@ install(TARGETS ${SVDLL_LIBRARY}
 if(CMAKE_BUILD_TYPE MATCHES "Release" AND NOT WIN32)
 	add_custom_command(TARGET ${SVDLL_LIBRARY}
 			POST_BUILD DEPENDS ${SVDLL_LIBRARY}
+			COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/symbols
+			COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${SVDLL_LIBRARY}> ${CMAKE_BINARY_DIR}/symbols/
 			COMMAND ${CMAKE_STRIP} -s $<TARGET_FILE:${SVDLL_LIBRARY}>)
 endif()

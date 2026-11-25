@@ -109,6 +109,7 @@ set (CLDLL_SOURCES
 	train.cpp
 	tri.cpp
 	util.cpp
+	../dlls/hlext_crash.cpp
 	vgui_ClassMenu.cpp
 	vgui_CustomObjects.cpp
 	vgui_int.cpp
@@ -219,5 +220,7 @@ install(TARGETS ${CLDLL_LIBRARY}
 if(CMAKE_BUILD_TYPE MATCHES "Release" AND NOT WIN32)
 	add_custom_command(TARGET ${CLDLL_LIBRARY}
 			POST_BUILD DEPENDS ${CLDLL_LIBRARY}
+			COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/symbols
+			COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${CLDLL_LIBRARY}> ${CMAKE_BINARY_DIR}/symbols/
 			COMMAND ${CMAKE_STRIP} -s $<TARGET_FILE:${CLDLL_LIBRARY}>)
 endif()

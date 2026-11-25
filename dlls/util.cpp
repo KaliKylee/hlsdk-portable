@@ -34,6 +34,7 @@
 #include "byteswap.h"
 #include "game.h"
 #include "UserMessages.h"
+#include "hlext_log.h"
 
 float UTIL_WeaponTimeBase()
 {
@@ -1602,6 +1603,8 @@ BOOL UTIL_IsValidEntity( edict_t *pent )
 
 void UTIL_PrecacheOther( const char *szClassname )
 {
+	HLEXT_Breadcrumb( "precache %s", szClassname );
+
 	edict_t	*pent;
 
 	pent = CREATE_NAMED_ENTITY( MAKE_STRING( szClassname ) );
@@ -2613,6 +2616,7 @@ void SET_MODEL(edict_t* e, const char* model)
 			g_engfuncs.pfnSetModel(e, (char*)model);
 		else
 		{
+			HLEXT_Log( "SET_MODEL: modelo nao encontrado, usando error.mdl: %s (classe %s)", model, STRING( e->v.classname ) );
 			g_engfuncs.pfnPrecacheModel("models/error.mdl");
 			g_engfuncs.pfnSetModel(e, "models/error.mdl");
 		}
@@ -2640,7 +2644,10 @@ int PRECACHE_MODEL(const char* s)
 		if (HLEX_ModelFileExists(s))
 			return model = g_engfuncs.pfnPrecacheModel((char*)s);
 		else
+		{
+			HLEXT_Log( "PRECACHE_MODEL: modelo nao encontrado, usando error.mdl: %s", s );
 			return g_engfuncs.pfnPrecacheModel("models/error.mdl");
+		}
 	}
 	else return model = g_engfuncs.pfnPrecacheModel((char*)s);
 }

@@ -36,6 +36,7 @@
 #include "customentity.h"
 #include "weapons.h"
 #include "weaponinfo.h"
+#include "hlext_log.h"
 #include "usercmd.h"
 #include "netadr.h"
 #include "pm_shared.h"
@@ -220,6 +221,8 @@ void ClientPutInServer( edict_t *pEntity )
 	CBasePlayer *pPlayer;
 
 	entvars_t *pev = &pEntity->v;
+
+	HLEXT_Log( "ClientPutInServer: jogador entrou (mapa %s)", STRING( gpGlobals->mapname ) );
 
 	pPlayer = GetClassPtr((CBasePlayer *)pev);
 	pPlayer->SetCustomDecalFrames(-1); // Assume none;
@@ -781,6 +784,8 @@ static int g_serveractive = 0;
 
 void ServerDeactivate()
 {
+	HLEXT_Log( "ServerDeactivate" );
+
 	// It's possible that the engine will call this function more times than is necessary
 	//  Therefore, only run it one time for each call to ServerActivate 
 	if ( g_serveractive != 1 )
@@ -798,6 +803,8 @@ void ServerActivate( edict_t *pEdictList, int edictCount, int clientMax )
 {
 	int				i;
 	CBaseEntity		*pClass;
+
+	HLEXT_Log( "ServerActivate: mapa=%s clientMax=%d edicts=%d", STRING( gpGlobals->mapname ), clientMax, edictCount );
 
 	// Every call to ServerActivate should be matched by a call to ServerDeactivate
 	g_serveractive = 1;
