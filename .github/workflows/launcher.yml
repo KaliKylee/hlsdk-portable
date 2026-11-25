@@ -1,0 +1,95 @@
+name: Build HL Extended (APK launcher)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ extended ]
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Get FreeVGUI (old vguiapi_t API, matches engine/vgui_api.h)
+        run: |
+          # 1) the submodule pinned in this repo (checked out above) is preferred
+          # 2) otherwise clone FreeVGUI
+          if [ ! -f freevgui/CMakeLists.txt ]; then
+            rm -rf freevgui
+            git clone https://github.com/FWGS/freevgui.git freevgui
+          fi
+          # 3) if FreeVGUI is on the NEW API (vgui_support_api_t), go back to the last old-API commit
+          cd freevgui
+          if grep -q vgui_support_api_t platform/xash3d-fwgs/support.h 2>/dev/null; then
+            echo "FreeVGUI uses the new API, searching the last old-API commit..."
+            git fetch --unshallow 2>/dev/null || true
+            OLD=""
+            for c in $(git rev-list HEAD -- platform/xash3d-fwgs/support.h); do
+              if ! git show "$c:platform/xash3d-fwgs/support.h" 2>/dev/null | grep -q vgui_support_api_t; then
+                OLD="$c"; break
+              fi
+            done
+            if [ -z "$OLD" ]; then echo "No old-API commit found"; exit 1; fi
+            echo "Using FreeVGUI commit $OLD"
+            git checkout -q "$OLD"
+          fi
+          git log -1 --format='FreeVGUI at %h (%cs) %s' || true
+          cd ..
+          ls freevgui | head
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install NDK and CMake
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;26.1.10909125" "cmake;3.22.1" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Build APK (launcher + libs)
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Collect native libs
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/debug/*.apk dist/ || true
+          # as .so geradas (server + client) para cada ABI
+          unzip -o -q dist/*.apk 'lib/*' -d dist/apk-libs || true
+          find dist/apk-libs -name '*.so' | sort
+
+      - name: Collect libs with symbols (for crash analysis)
+        run: |
+          mkdir -p dist/symbols
+          for f in $(find android/app/build/intermediates -path '*cxx*' -path '*/obj/*' -name '*.so' 2>/dev/null); do
+            abi=$(basename "$(dirname "$f")")
+            mkdir -p "dist/symbols/$abi"
+            cp "$f" "dist/symbols/$abi/"
+          done
+          find dist/symbols -type f | sort
+
+      - name: Upload libs with symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: HLExtended-libs-symbols
+          path: dist/symbols
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: HLExtendedLauncher-apk
+          path: dist/*.apk
+
+      - name: Upload native libs
+        uses: actions/upload-artifact@v4
+        with:
+          name: HLExtended-libs
+          path: dist/apk-libs/lib
