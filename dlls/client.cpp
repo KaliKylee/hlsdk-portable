@@ -722,6 +722,37 @@ void ServerDeactivate( void )
 }
 
 extern void SyncGlassDoors( void );
+
+// ThrillEX: props that the original game shows but that are missing from the map entity list.
+// Position estimated from gameplay footage, in front of the lk5 double door of tr1a1.
+static void SpawnThrillExtras( void )
+{
+	if( !FStrEq( STRING( gpGlobals->mapname ), "tr1a1" ) )
+		return;
+
+	// already there (map restored from a save)
+	if( !FNullEnt( FIND_ENTITY_BY_TARGETNAME( NULL, "thrill_guard_corpse" ) ) )
+		return;
+
+	edict_t *pent = CREATE_NAMED_ENTITY( MAKE_STRING( "monster_barney_dead" ) );
+	if( FNullEnt( pent ) )
+		return;
+
+	entvars_t *pevCorpse = VARS( pent );
+	pevCorpse->origin = Vector( -437, 1739, -144 );
+	pevCorpse->angles = Vector( 0, 175, 0 );
+	pevCorpse->targetname = MAKE_STRING( "thrill_guard_corpse" );
+
+	KeyValueData kvd;
+	kvd.szClassName = "monster_barney_dead";
+	kvd.szKeyName = "pose";
+	kvd.szValue = "2";	// lying on stomach
+	kvd.fHandled = FALSE;
+	DispatchKeyValue( pent, &kvd );
+
+	DispatchSpawn( pent );
+	TREX_Log( "extras: guard corpse spawned in tr1a1" );
+}
 extern void UpdateGlassDoors( void );
 
 void ServerActivate( edict_t *pEdictList, int edictCount, int clientMax )
@@ -758,6 +789,7 @@ void ServerActivate( edict_t *pEdictList, int edictCount, int clientMax )
 	}
 
 	SyncGlassDoors();
+	SpawnThrillExtras();
 
 	// Link user messages here to make sure first client can get them...
 	LinkUserMessages();
