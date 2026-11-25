@@ -16,9 +16,6 @@ int CHudThrill::Init( void )
 	m_iLastHealth = -1;
 	m_pStyle = CVAR_CREATE( "hud_style", "3", FCVAR_ARCHIVE );
 	g_pThrillViewSize = CVAR_CREATE( "scr_viewsize", "120", FCVAR_ARCHIVE );
-	// ThrillEX draws a plain white crosshair; Xash3D paints it orange/translucent by default
-	gEngfuncs.pfnClientCmd( "cl_crosshair_color \"255 255 255\"\n" );
-	gEngfuncs.pfnClientCmd( "cl_crosshair_translucent 0\n" );
 	m_iFlags |= HUD_ACTIVE;
 	gHUD.AddHudElem( this );
 	return 1;
@@ -111,6 +108,20 @@ int CHudThrill::DrawNumber( int x, int y, int flags, int value, int r, int g, in
 
 int CHudThrill::Draw( float flTime )
 {
+	// ThrillEX draws its own crosshair (opaque, SPR_DrawHoles) instead of the engine one
+	if( !gEngfuncs.IsSpectateOnly() && !gHUD.m_inScope &&
+		!( gHUD.m_iHideHUDDisplay & ( HIDEHUD_WEAPONS | HIDEHUD_ALL ) ) )
+	{
+		WEAPON *pw = gHUD.m_Ammo.GetCurrentWeapon();
+		if( pw && pw->hCrosshair )
+		{
+			int cw = pw->rcCrosshair.right - pw->rcCrosshair.left;
+			int ch = pw->rcCrosshair.bottom - pw->rcCrosshair.top;
+			SPR_Set( pw->hCrosshair, 255, 255, 255 );
+			SPR_DrawHoles( 0, ScreenWidth / 2 - cw / 2, ScreenHeight / 2 - ch / 2, &pw->rcCrosshair );
+		}
+	}
+
 	if( !m_bActive || gEngfuncs.IsSpectateOnly() )
 		return 1;
 

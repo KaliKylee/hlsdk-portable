@@ -29,6 +29,10 @@
 #include "ammohistory.h"
 #include "vgui_TeamFortressViewport.h"
 
+// ThrillEX: the crosshair is drawn by CHudThrill (hud_thrill.cpp), not by the engine
+#undef SetCrosshair
+#define SetCrosshair( a, b, c, d, e ) ( (void)0 )
+
 WEAPON *gpActiveSel;	// NULL means off, 1 means just the menu bar, otherwise
 						// this points to the active weapon menu item
 WEAPON *gpLastSel;		// Last weapon menu selection 

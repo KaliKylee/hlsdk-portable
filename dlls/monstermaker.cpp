@@ -63,7 +63,7 @@ void CSpawnFade::FadeThink( void )
 		return;
 	}
 
-	float t = ( gpGlobals->time - pev->fuser1 ) / 2.5f;
+	float t = ( gpGlobals->time - pev->fuser1 ) / 1.0f;
 
 	if( t >= 1.0f )
 	{
