@@ -823,6 +823,10 @@ void CDeadBarney::Spawn()
 	pev->health = 8;//gSkillData.barneyHealth;
 
 	MonsterInitDead();
+
+	// ThrillEX: spawnflag 64 = non-solid corpse (players and doors can pass through)
+	if( pev->spawnflags & 64 )
+		pev->solid = SOLID_NOT;
 }
 
 //=========================================================

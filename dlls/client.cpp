@@ -723,25 +723,38 @@ void ServerDeactivate( void )
 
 extern void SyncGlassDoors( void );
 
-// ThrillEX: props that the original game shows but that are missing from the map entity list.
-// Position estimated from gameplay footage, in front of the lk5 double door of tr1a1.
+// ThrillEX: the dead guard lying in front of the upper-level double door (lk2) of tr1a1.
+// The map has a monster_barney_dead there; make sure it exists and log what happened to it.
 static void SpawnThrillExtras( void )
 {
 	if( !FStrEq( STRING( gpGlobals->mapname ), "tr1a1" ) )
 		return;
 
-	// already there (map restored from a save)
-	if( !FNullEnt( FIND_ENTITY_BY_TARGETNAME( NULL, "thrill_guard_corpse" ) ) )
+	const Vector corpsePos( -1215, 1741, 728 );
+	bool found = false;
+
+	edict_t *pent = NULL;
+	while( !FNullEnt( pent = FIND_ENTITY_BY_CLASSNAME( pent, "monster_barney_dead" ) ) )
+	{
+		entvars_t *v = VARS( pent );
+		TREX_Log( "extras: monster_barney_dead at %.0f %.0f %.0f model=%s seq=%d solid=%d effects=%d rendermode=%d renderamt=%.0f",
+			v->origin.x, v->origin.y, v->origin.z, STRING( v->model ), v->sequence, v->solid, v->effects, v->rendermode, v->renderamt );
+
+		if( ( v->origin - corpsePos ).Length() < 96.0f )
+			found = true;
+	}
+
+	if( found )
 		return;
 
-	edict_t *pent = CREATE_NAMED_ENTITY( MAKE_STRING( "monster_barney_dead" ) );
+	pent = CREATE_NAMED_ENTITY( MAKE_STRING( "monster_barney_dead" ) );
 	if( FNullEnt( pent ) )
 		return;
 
 	entvars_t *pevCorpse = VARS( pent );
-	pevCorpse->origin = Vector( -437, 1739, -144 );
-	pevCorpse->angles = Vector( 0, 175, 0 );
-	pevCorpse->targetname = MAKE_STRING( "thrill_guard_corpse" );
+	pevCorpse->origin = corpsePos;
+	pevCorpse->angles = Vector( 0, 0, 0 );
+	pevCorpse->spawnflags = 64;
 
 	KeyValueData kvd;
 	kvd.szClassName = "monster_barney_dead";
@@ -751,7 +764,7 @@ static void SpawnThrillExtras( void )
 	DispatchKeyValue( pent, &kvd );
 
 	DispatchSpawn( pent );
-	TREX_Log( "extras: guard corpse spawned in tr1a1" );
+	TREX_Log( "extras: guard corpse was missing, created at lk2" );
 }
 extern void UpdateGlassDoors( void );
 
