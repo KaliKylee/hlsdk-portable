@@ -198,6 +198,9 @@ include_directories(../utils/vgui/include)
 
 add_library (${CLDLL_LIBRARY} SHARED ${CLDLL_SOURCES})
 target_link_libraries(${CLDLL_LIBRARY} vcs_info)
+if(ANDROID)
+	target_link_libraries(${CLDLL_LIBRARY} log) # __android_log_print (hlext_crash.cpp)
+endif()
 target_link_libraries(${CLDLL_LIBRARY} ${CMAKE_DL_LIBS})
 target_link_libraries(${CLDLL_LIBRARY} vgui)
 

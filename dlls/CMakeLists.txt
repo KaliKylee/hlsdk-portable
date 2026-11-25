@@ -252,6 +252,9 @@ include_directories (. weapons wpn_shared ctf rope ../common ../engine ../pm_sha
 
 add_library (${SVDLL_LIBRARY} SHARED ${SVDLL_SOURCES})
 target_link_libraries(${SVDLL_LIBRARY} vcs_info)
+if(ANDROID)
+	target_link_libraries(${SVDLL_LIBRARY} log) # __android_log_print (hlext_crash.cpp)
+endif()
 
 set_target_properties (${SVDLL_LIBRARY} PROPERTIES POSITION_INDEPENDENT_CODE 1)
 
