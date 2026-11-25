@@ -1,0 +1,8 @@
+CLIENT_WEAPONS=ON # Client local weapons prediction
+
+GAMEDIR=hl_extended # Gamedir path
+
+# keys below must match liblist.gam/gameinfo.txt
+SERVER_INSTALL_DIR=dlls # Where to put server dll
+CLIENT_INSTALL_DIR=cl_dlls # Where to put client or menu dll
+SERVER_LIBRARY_NAME=hlex # Default server dll name (must match gamedll in liblist.gam)

@@ -1,0 +1,66 @@
+name: Build Android libs
+
+on:
+  workflow_dispatch:
+    inputs:
+      studio_renderer:
+        description: "Use the HL:E custom studio renderer (_light.mdl fullbright). Experimental on Xash3D."
+        type: boolean
+        default: false
+  push:
+    branches: [ main, master, extended ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [ arm64-v8a, armeabi-v7a ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get FreeVGUI (client UI library, static)
+        run: |
+          if [ ! -f freevgui/CMakeLists.txt ]; then
+            rm -rf freevgui
+            git clone --depth 1 https://github.com/FWGS/freevgui.git freevgui
+            rm -rf freevgui/.git
+          fi
+          ls freevgui | head
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+
+      - name: Configure (Android NDK, ${{ matrix.abi }})
+        run: |
+          NDK="${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}"
+          echo "Using NDK: $NDK"
+          STUDIO=OFF
+          if [ "${{ github.event.inputs.studio_renderer }}" = "true" ]; then STUDIO=ON; fi
+          cmake -G Ninja -S . -B build \
+            -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=${{ matrix.abi }} \
+            -DANDROID_PLATFORM=android-21 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DANDROID_APK=ON \
+            -DHLEX_STUDIO_RENDERER=$STUDIO \
+            -DCMAKE_INSTALL_PREFIX="$PWD/dist"
+
+      - name: Build
+        run: cmake --build build --target all
+
+      - name: Install
+        run: cmake --build build --target install
+
+      - name: List result
+        run: find dist -type f -exec ls -l {} \;
+
+      - name: Upload libs (${{ matrix.abi }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: hlex-android-${{ matrix.abi }}
+          path: dist/
