@@ -1569,6 +1569,8 @@ void CTestEffect::TestThink( void )
 {
 	int i;
 	float t = gpGlobals->time - m_flStartTime;
+	// ThrillEX: monstermaker spawn effects set pev->fuser2 to a shorter duration
+	float flDuration = ( pev->fuser2 > 0.0f ) ? pev->fuser2 : 3.0f;
 
 	if( m_iBeam < 24 )
 	{
@@ -1607,11 +1609,11 @@ void CTestEffect::TestThink( void )
 #endif
 	}
 
-	if( t < 3.0f )
+	if( t < flDuration )
 	{
 		for( i = 0; i < m_iBeam; i++ )
 		{
-			t = ( gpGlobals->time - m_flBeamTime[i] ) / ( 3.0f + m_flStartTime - m_flBeamTime[i] );
+			t = ( gpGlobals->time - m_flBeamTime[i] ) / ( flDuration + m_flStartTime - m_flBeamTime[i] );
 			m_pBeam[i]->SetBrightness( (int)( 255.0f * t ) );
 			// m_pBeam[i]->SetScrollRate( 20 * t );
 		}

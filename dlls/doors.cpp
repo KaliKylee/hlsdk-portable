@@ -24,6 +24,7 @@
 #include "doors.h"
 #include "game.h"
 #include "weapons.h"
+#include "trex_log.h"
 
 extern void SetMovedir( entvars_t *ev );
 
@@ -1127,4 +1128,116 @@ void CMomentaryDoor::StopMoveSound()
 	EMIT_SOUND( ENT( pev ), CHAN_STATIC, STRING( pev->noiseArrived ), 1.0f, ATTN_NORM );
 	pev->nextthink = -1.0f;
 	ResetThink();
+}
+
+//=========================================================
+// ThrillEX: glass door synchronisation
+//
+// Many ThrillEX maps build a glass door as a second func_door
+// (translucent) sharing the targetname of the frame door, each
+// with its own lip. When the travel distance / speed / wait of
+// the pair differ, the pane drifts away from the frame.
+// After the map is loaded, find those pairs and make the pane
+// follow exactly the same movement as the frame.
+// Every adjustment is written to the trex log.
+//=========================================================
+void SyncGlassDoors( void )
+{
+	static cvar_t thrill_syncglass = { "thrill_syncglass", "1", FCVAR_SERVER };
+	static bool registered = false;
+	if( !registered )
+	{
+		CVAR_REGISTER( &thrill_syncglass );
+		registered = true;
+	}
+	if( thrill_syncglass.value == 0.0f )
+		return;
+
+	const int MAX_DOORS = 256;
+	CBaseDoor *doors[MAX_DOORS];
+	int count = 0;
+
+	edict_t *pent = NULL;
+	while( count < MAX_DOORS && !FNullEnt( pent = FIND_ENTITY_BY_CLASSNAME( pent, "func_door" ) ) )
+	{
+		CBaseEntity *pEnt = CBaseEntity::Instance( pent );
+		if( pEnt && !FStringNull( pEnt->pev->targetname ) )
+			doors[count++] = (CBaseDoor *)pEnt;
+	}
+
+	int fixed = 0;
+
+	for( int i = 0; i < count; i++ )
+	{
+		CBaseDoor *glass = doors[i];
+
+		if( glass->pev->rendermode == kRenderNormal )
+			continue;
+
+		Vector glassTravel = glass->m_vecPosition2 - glass->m_vecPosition1;
+		float glassDist = glassTravel.Length();
+		if( glassDist < 1.0f )
+			continue;
+
+		for( int j = 0; j < count; j++ )
+		{
+			CBaseDoor *frame = doors[j];
+
+			if( frame == glass || frame->pev->rendermode != kRenderNormal )
+				continue;
+
+			if( !FStrEq( STRING( frame->pev->targetname ), STRING( glass->pev->targetname ) ) )
+				continue;
+
+			// the pane has to sit on the frame
+			const float slack = 24.0f;
+			if( glass->pev->absmin.x > frame->pev->absmax.x + slack || glass->pev->absmax.x < frame->pev->absmin.x - slack ||
+				glass->pev->absmin.y > frame->pev->absmax.y + slack || glass->pev->absmax.y < frame->pev->absmin.y - slack ||
+				glass->pev->absmin.z > frame->pev->absmax.z + slack || glass->pev->absmax.z < frame->pev->absmin.z - slack )
+				continue;
+
+			Vector frameTravel = frame->m_vecPosition2 - frame->m_vecPosition1;
+			float frameDist = frameTravel.Length();
+			if( frameDist < 1.0f )
+				continue;
+
+			// same direction of movement only
+			if( DotProduct( glassTravel.Normalize(), frameTravel.Normalize() ) < 0.99f )
+				continue;
+
+			// both doors must be in the same state (start open or closed)
+			if( glass->m_toggle_state != frame->m_toggle_state )
+				continue;
+
+			bool distDiffers = fabs( glassDist - frameDist ) > 0.5f;
+			bool speedDiffers = fabs( glass->pev->speed - frame->pev->speed ) > 0.5f;
+			bool waitDiffers = fabs( glass->m_flWait - frame->m_flWait ) > 0.01f;
+
+			if( !distDiffers && !speedDiffers && !waitDiffers )
+				break;
+
+			TREX_Log( "glass door sync: %s (%s) dist %.1f->%.1f speed %.1f->%.1f wait %.1f->%.1f",
+				STRING( glass->pev->targetname ), STRING( glass->pev->model ),
+				glassDist, frameDist, glass->pev->speed, frame->pev->speed, glass->m_flWait, frame->m_flWait );
+
+			if( distDiffers )
+			{
+				// keep m_vecPosition1 (where the pane is now) and move only the far end
+				glass->m_vecPosition2 = glass->m_vecPosition1 + glassTravel.Normalize() * frameDist;
+				glass->m_flMoveDistance = frameDist;
+
+				// pane already resting at the far end: follow it
+				if( glass->m_toggle_state == TS_AT_TOP )
+					UTIL_SetOrigin( glass->pev, glass->m_vecPosition2 );
+			}
+
+			glass->pev->speed = frame->pev->speed;
+			glass->m_flWait = frame->m_flWait;
+			fixed++;
+			break;
+		}
+	}
+
+	if( fixed )
+		TREX_Log( "glass door sync: %d pane(s) adjusted", fixed );
 }

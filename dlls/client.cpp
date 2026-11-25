@@ -721,6 +721,8 @@ void ServerDeactivate( void )
 	//
 }
 
+extern void SyncGlassDoors( void );
+
 void ServerActivate( edict_t *pEdictList, int edictCount, int clientMax )
 {
 	TREX_Log( "ServerActivate: mapa=%s clientMax=%d edicts=%d", STRING( gpGlobals->mapname ), clientMax, edictCount );
@@ -753,6 +755,8 @@ void ServerActivate( edict_t *pEdictList, int edictCount, int clientMax )
 			ALERT( at_console, "Can't instance %s\n", STRING( pEdictList[i].v.classname ) );
 		}
 	}
+
+	SyncGlassDoors();
 
 	// Link user messages here to make sure first client can get them...
 	LinkUserMessages();

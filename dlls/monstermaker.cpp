@@ -279,7 +279,10 @@ void CMonsterMaker::MakeMonster( void )
 		// lightning effect at the spawn point
 		CBaseEntity *pEffect = Create( "test_effect", pev->origin + Vector( 0, 0, 32 ), g_vecZero );
 		if( pEffect )
+		{
+			pEffect->pev->fuser2 = 1.3f; // effect lasts 1.3 s
 			pEffect->Use( this, this, USE_ON, 0 );
+		}
 
 		// monster materializes
 		pevCreate->rendermode = kRenderTransTexture;
