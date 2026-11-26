@@ -37,6 +37,7 @@ public:
 	int IRelationship( CBaseEntity *pTarget );
 	void PainSound( void );
 	int TakeDamage( entvars_t *pevInflictor, entvars_t *pevAttacker, float flDamage, int bitsDamageType );
+	void TraceAttack( entvars_t *pevAttacker, float flDamage, Vector vecDir, TraceResult *ptr, int bitsDamageType );
 	void MonsterThink( void );
 	void EXPORT LeapTouch( CBaseEntity *pOther );
 	void EXPORT SnapBugSubterrThink( void );
@@ -97,6 +98,7 @@ void CSnapBug::Spawn( void )
 	m_fTrapActivated = FALSE;
 
 	MonsterInit();
+	TREX_Log( "snapbug: spawned health=%.1f takedamage=%.0f solid=%d", pev->health, pev->takedamage, pev->solid );
 
 	pev->nextthink = gpGlobals->time + 0.5f;
 	UTIL_SetOrigin( pev, pev->origin );
@@ -143,8 +145,15 @@ int CSnapBug::IRelationship( CBaseEntity *pTarget )
 	}
 }
 
+void CSnapBug::TraceAttack( entvars_t *pevAttacker, float flDamage, Vector vecDir, TraceResult *ptr, int bitsDamageType )
+{
+	TREX_Log( "snapbug: TraceAttack dmg=%.1f type=0x%x hitgroup=%d health=%.1f takedamage=%.0f", flDamage, bitsDamageType, ptr->iHitgroup, pev->health, pev->takedamage );
+	CBaseMonster::TraceAttack( pevAttacker, flDamage, vecDir, ptr, bitsDamageType );
+}
+
 int CSnapBug::TakeDamage( entvars_t *pevInflictor, entvars_t *pevAttacker, float flDamage, int bitsDamageType )
 {
+	TREX_Log( "snapbug: TakeDamage dmg=%.1f type=0x%x health=%.1f", flDamage, bitsDamageType, pev->health );
 	m_afMemory |= bits_MEMORY_PROVOKED;
 	if( m_fCatchPlayer )
 		ReleaseVictim();
