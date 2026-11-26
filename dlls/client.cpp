@@ -499,6 +499,23 @@ void ClientCommand( edict_t *pEntity )
 			GetClassPtr( (CBasePlayer *)pev )->GiveNamedItem( STRING( iszItem ) );
 		}
 	}
+	else if( FStrEq( pcmd, "spawnmonster" ) )
+	{
+		// Thrill port: debug command, spawns an entity in front of the player (needs sv_cheats 1)
+		if( g_enable_cheats->value != 0 && CMD_ARGC() > 1 )
+		{
+			CBaseEntity *pPlayer = CBaseEntity::Instance( pEntity );
+			UTIL_MakeVectors( pPlayer->pev->v_angle );
+			Vector vecStart = pPlayer->pev->origin + pPlayer->pev->view_ofs;
+			TraceResult tr;
+			UTIL_TraceLine( vecStart, vecStart + gpGlobals->v_forward * 160, ignore_monsters, pEntity, &tr );
+			Vector vecPos = tr.vecEndPos + Vector( 0, 0, 8 );
+			int iszName = ALLOC_STRING( CMD_ARGV( 1 ) );
+			CBaseEntity *pNew = CBaseEntity::Create( STRING( iszName ), vecPos, Vector( 0, pPlayer->pev->v_angle.y + 180, 0 ), pEntity );
+			if( !pNew )
+				ClientPrint( pPlayer->pev, HUD_PRINTCONSOLE, "spawnmonster: unknown class\n" );
+		}
+	}
 	else if( FStrEq( pcmd, "fire" ) )
 	{
 		if( g_enable_cheats->value != 0 )
