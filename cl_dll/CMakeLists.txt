@@ -107,6 +107,7 @@ set (CLDLL_SOURCES
 	studio_util.cpp
 	text_message.cpp
 	train.cpp
+	subtitle.cpp
 	tri.cpp
 	util.cpp
 	../dlls/hlext_crash.cpp

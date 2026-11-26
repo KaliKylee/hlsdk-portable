@@ -45,6 +45,7 @@ extern int gmsgItemPickup;
 extern int gmsgHideWeapon;
 extern int gmsgSetCurWeap;
 extern int gmsgSayText;
+extern int gmsgSubtitle;
 extern int gmsgTextMsg;
 extern int gmsgSetFOV;
 extern int gmsgShowMenu;

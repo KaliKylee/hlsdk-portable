@@ -2074,6 +2074,7 @@ void CTestHull :: BuildNodeGraph()
 	//
 	WorldGraph.m_fGraphPresent = TRUE;//graph is in memory.
 	WorldGraph.m_fGraphPointersSet = TRUE;// since the graph was generated, the pointers are ready
+	HLEXT_Log( "grafo de navegacao gerado: %d nos, %d links, rotas=%d bytes, roteamento completo=%d", WorldGraph.m_cNodes, WorldGraph.m_cLinks, WorldGraph.m_nRouteInfo, (int)WorldGraph.m_fRoutingComplete );
 	WorldGraph.m_fRoutingComplete = FALSE; // Optimal routes aren't computed, yet.
 
 	// Compute and compress the routing information.
@@ -2662,7 +2663,7 @@ int CGraph :: CheckNODFile ( char *szMapName )
 	
 	retValue = TRUE;
 
-	int iCompare;
+	int iCompare = 0;
 	if (COMPARE_FILE_TIME(szBspFilename, szGraphFilename, &iCompare))
 	{
 		if ( iCompare > 0 )
@@ -2673,7 +2674,20 @@ int CGraph :: CheckNODFile ( char *szMapName )
 	}
 	else
 	{
-		retValue = FALSE;
+		// No Android/Xash a comparacao de datas pode falhar mesmo com o arquivo la.
+		// Se o .nod existir, tenta carregar: o FLoadGraph confere a versao e, se nao servir, o grafo e refeito.
+		int iLen = 0;
+		byte *pTest = LOAD_FILE_FOR_ME( szGraphFilename, &iLen );
+		if ( pTest )
+		{
+			FREE_FILE( pTest );
+			retValue = TRUE;
+		}
+		else
+		{
+			retValue = FALSE;
+		}
+		HLEXT_Log( "CheckNODFile: COMPARE_FILE_TIME falhou para %s; .nod %s", szGraphFilename, retValue ? "existe (vai tentar carregar)" : "nao existe (grafo sera refeito)" );
 	}
 
 	return retValue;

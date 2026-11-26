@@ -19,6 +19,8 @@
 #include "hlext_log.h"
 
 cvar_t	displaysoundlist = {"displaysoundlist","0"};
+// Mapa para onde o New Game (que abre o mapa de teste aaa_hletest) e redirecionado. Vazio ("") desliga.
+cvar_t	hlext_startmap = {"hlext_startmap","hle_c0a0"};
 
 // multiplayer server rules
 cvar_t	fragsleft	= {"mp_fragsleft","0", FCVAR_SERVER | FCVAR_UNLOGGED };	  // Don't spam console/log files/users with this changing
@@ -721,6 +723,8 @@ cvar_t dmjumpsound = {"sv_dmjumpsound", "1", FCVAR_SERVER};
 void GameDLLInit()
 {
 	HLEXT_Log( "GameDLLInit" );
+
+	CVAR_REGISTER( &hlext_startmap );
 
 	// Register cvars here:
 

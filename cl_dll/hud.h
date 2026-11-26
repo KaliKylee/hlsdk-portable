@@ -185,6 +185,20 @@ private:
 //
 //-----------------------------------------------------
 //
+class CHudSubtitle : public CHudBase
+{
+public:
+	int Init() override;
+	int VidInit() override;
+	int Draw(float flTime) override;
+	void Reset() override;
+	void InitHUDData() override;
+	int MsgFunc_Subtitle(const char* pszName, int iSize, void* pbuf);
+};
+
+//
+//-----------------------------------------------------
+//
 class CHudTrain : public CHudBase
 {
 public:
@@ -777,6 +791,7 @@ public:
 	CHudGeiger		m_Geiger;
 	CHudBattery		m_Battery;
 	CHudTrain		m_Train;
+	CHudSubtitle	m_Subtitle;
 	CHudFlashlight	m_Flash;
 	CHudMessage		m_Message;
 	CHudScoreboard m_Scoreboard;

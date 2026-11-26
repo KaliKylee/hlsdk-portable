@@ -39,6 +39,7 @@
 #include "teamplay_gamerules.h"
 #include "ctf/ctfplay_gamerules.h"
 #include "world.h"
+#include "hlext_log.h"
 #include "ctf/CItemCTF.h"
 
 extern CGraph WorldGraph;
@@ -642,11 +643,13 @@ void CWorld::Precache()
 		if (!WorldGraph.FLoadGraph((char*)STRING(gpGlobals->mapname)))
 		{// couldn't load, so alloc and prepare to build a graph.
 			ALERT(at_console, "*Error opening .NOD file\n");
+			HLEXT_Log( "grafo de navegacao: .NOD nao carregou (versao incompativel ou ausente); sera refeito" );
 			WorldGraph.AllocNodes();
 		}
 		else
 		{
 			ALERT(at_console, "\n*Graph Loaded!\n");
+			HLEXT_Log( "grafo de navegacao carregado do .NOD" );
 		}
 	}
 

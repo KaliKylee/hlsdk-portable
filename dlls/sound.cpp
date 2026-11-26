@@ -23,6 +23,7 @@
 #include "player.h"
 #include "talkmonster.h"
 #include "gamerules.h"
+#include "UserMessages.h"
 
 #if !defined ( _WIN32 )
 #include <ctype.h>
@@ -1410,6 +1411,40 @@ int SENTENCEG_Lookup(const char *sample, char *sentencenum)
 	return -1;
 }
 
+// Legendas (HL:E): avisa os jogadores que ouvem a sentenca "!XXX" para o cliente mostrar a legenda.
+static void HLEXT_SendSubtitle(edict_t *entity, const char *sample, float attenuation)
+{
+	if (!gmsgSubtitle || !sample || !*sample)
+		return;
+
+	Vector vecSrc = g_vecZero;
+	bool haveSrc = false;
+	if (entity && !FNullEnt(entity))
+	{
+		vecSrc = (entity->v.absmin + entity->v.absmax) * 0.5f;
+		if (vecSrc == g_vecZero)
+			vecSrc = entity->v.origin;
+		haveSrc = true;
+	}
+
+	// alcance aproximado do som: 1000 / atenuacao (atenuacao 0 = ouve em todo o mapa)
+	float flMaxDist = attenuation > 0 ? 1000.0f / attenuation : 0;
+
+	for (int i = 1; i <= gpGlobals->maxClients; i++)
+	{
+		CBaseEntity *pEnt = UTIL_PlayerByIndex(i);
+		if (!pEnt || !pEnt->IsPlayer())
+			continue;
+
+		if (haveSrc && flMaxDist > 0 && (pEnt->pev->origin - vecSrc).Length() > flMaxDist)
+			continue;
+
+		MESSAGE_BEGIN(MSG_ONE, gmsgSubtitle, NULL, pEnt->pev);
+			WRITE_STRING(sample);
+		MESSAGE_END();
+	}
+}
+
 void EMIT_SOUND_DYN(edict_t *entity, int channel, const char *sample, float volume, float attenuation,
 						   int flags, int pitch)
 {
@@ -1417,7 +1452,10 @@ void EMIT_SOUND_DYN(edict_t *entity, int channel, const char *sample, float volu
 	{
 		char name[32];
 		if (SENTENCEG_Lookup(sample, name) >= 0)
+		{
 				EMIT_SOUND_DYN2(entity, channel, name, volume, attenuation, flags, pitch);
+				HLEXT_SendSubtitle(entity, sample, attenuation);
+		}
 		else
 			ALERT( at_aiconsole, "Unable to find %s in sentences.txt\n", sample );
 	}

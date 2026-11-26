@@ -49,6 +49,7 @@ int gmsgItemPickup = 0;
 int gmsgHideWeapon = 0;
 int gmsgSetCurWeap = 0;
 int gmsgSayText = 0;
+int gmsgSubtitle = 0;
 int gmsgTextMsg = 0;
 int gmsgSetFOV = 0;
 int gmsgShowMenu = 0;
@@ -107,6 +108,7 @@ void LinkUserMessages()
 	//gmsgHudText = REG_USER_MSG( "HudTextPro", -1 );
 	gmsgHudText = REG_USER_MSG("HudText", -1); // we don't use the message but 3rd party addons may!
 	gmsgSayText = REG_USER_MSG("SayText", -1);
+	gmsgSubtitle = REG_USER_MSG("Subtitle", -1);
 	gmsgTextMsg = REG_USER_MSG("TextMsg", -1);
 	gmsgWeaponList = REG_USER_MSG("WeaponList", -1);
 	gmsgResetHUD = REG_USER_MSG("ResetHUD", 1);		// called every respawn

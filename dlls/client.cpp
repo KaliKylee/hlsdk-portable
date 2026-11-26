@@ -806,6 +806,17 @@ void ServerActivate( edict_t *pEdictList, int edictCount, int clientMax )
 
 	HLEXT_Log( "ServerActivate: mapa=%s clientMax=%d edicts=%d", STRING( gpGlobals->mapname ), clientMax, edictCount );
 
+	// New Game abre o mapa de teste (startmap do liblist.gam = aaa_hletest): manda para o hlext_startmap.
+	{
+		const char *pszStart = CVAR_GET_STRING( "hlext_startmap" );
+		if ( pszStart && pszStart[0] && clientMax == 1 && FStrEq( STRING( gpGlobals->mapname ), "aaa_hletest" ) &&
+			 !FStrEq( pszStart, "aaa_hletest" ) && IS_MAP_VALID( (char *)pszStart ) )
+		{
+			HLEXT_Log( "ServerActivate: redirecionando aaa_hletest -> %s (hlext_startmap)", pszStart );
+			SERVER_COMMAND( UTIL_VarArgs( "map %s\n", pszStart ) );
+		}
+	}
+
 	// Every call to ServerActivate should be matched by a call to ServerDeactivate
 	g_serveractive = 1;
 
