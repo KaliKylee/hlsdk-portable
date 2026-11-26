@@ -21,6 +21,7 @@
 #include	"cbase.h"
 #include	"monsters.h"
 #include	"nodes.h"
+#include	"hlext_log.h"
 #include	"animation.h"
 #include	"doors.h"
 
@@ -521,12 +522,35 @@ int CGraph::NextNodeInRoute( int iCurrentNode, int iDest, int iHull, int iCap )
 {
 	int iNext = iCurrentNode;
 	int nCount = iDest+1;
+
+	// Protecao: indices/offsets invalidos (grafo corrompido ou incompativel) fariam a leitura
+	// passar do fim da tabela de rotas e derrubar o jogo (SIGSEGV em arm64).
+	if ( !m_pNodes || !m_pRouteInfo || m_nRouteInfo <= 0 ||
+		 iCurrentNode < 0 || iCurrentNode >= m_cNodes || iDest < 0 || iDest >= m_cNodes ||
+		 iHull < 0 || iHull >= MAX_NODE_HULLS || iCap < 0 || iCap > 1 ||
+		 m_pNodes[ iCurrentNode ].m_pNextBestNode[iHull][iCap] < 0 ||
+		 m_pNodes[ iCurrentNode ].m_pNextBestNode[iHull][iCap] >= m_nRouteInfo )
+	{
+		static int s_iWarned = 0;
+		if ( s_iWarned++ < 5 )
+			HLEXT_Log( "NextNodeInRoute: parametros invalidos cur=%d dest=%d hull=%d cap=%d nodes=%d routeBytes=%d", iCurrentNode, iDest, iHull, iCap, m_cNodes, m_nRouteInfo );
+		return iCurrentNode;
+	}
+
 	char *pRoute = m_pRouteInfo + m_pNodes[ iCurrentNode ].m_pNextBestNode[iHull][iCap];
+	char *pRouteEnd = m_pRouteInfo + m_nRouteInfo;
 
 	// Until we decode the next best node
 	//
 	while (nCount > 0)
 	{
+		if ( pRoute >= pRouteEnd )
+		{
+			static int s_iWarnedEnd = 0;
+			if ( s_iWarnedEnd++ < 5 )
+				HLEXT_Log( "NextNodeInRoute: tabela de rotas acabou antes do destino (cur=%d dest=%d nodes=%d routeBytes=%d)", iCurrentNode, iDest, m_cNodes, m_nRouteInfo );
+			return iCurrentNode;
+		}
 		char ch = *pRoute++;
 		//ALERT(at_aiconsole, "C(%d)", ch);
 		if (ch < 0)
@@ -554,6 +578,7 @@ int CGraph::NextNodeInRoute( int iCurrentNode, int iDest, int iHull, int iCap )
 			//
 			if (nCount <= ch+1)
 			{
+				if ( pRoute >= pRouteEnd ) return iCurrentNode;
 				iNext = iCurrentNode + *pRoute;
 				if (iNext >= m_cNodes) iNext -= m_cNodes;
 				else if (iNext < 0) iNext += m_cNodes;
@@ -593,8 +618,8 @@ int CGraph :: FindShortestPath ( int *piPath, int iStart, int iDest, int iHull, 
 		return FALSE;
 	}
 	
-	if ( iStart < 0 || iStart > m_cNodes )
-	{// The start node is bad?
+	if ( iStart < 0 || iStart >= m_cNodes || iDest < 0 || iDest >= m_cNodes )
+	{// The start/dest node is bad?
 		ALERT ( at_aiconsole, "Can't build a path, iStart is %d!\n", iStart );
 		return FALSE;
 	}

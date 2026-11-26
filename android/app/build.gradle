@@ -18,7 +18,7 @@ android {
 
         externalNativeBuild {
             cmake {
-                arguments '-DPOLLY=ON'
+                arguments '-DPOLLY=ON', '-DHLEX_STUDIO_RENDERER=ON' // renderer proprio do HL:E: desenha as maos (v_hands.mdl). Remova o 2o argumento para voltar ao do engine
             }
         }
     }
