@@ -141,6 +141,9 @@ set (SVDLL_SOURCES
 	turret.cpp
 	util.cpp
 	trex_crash.cpp
+	diablo.cpp
+	archer.cpp
+	m44.cpp
 	vehicle.cpp
 	weapons.cpp
 	world.cpp
