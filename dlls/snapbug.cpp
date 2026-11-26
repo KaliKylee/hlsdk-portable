@@ -46,6 +46,7 @@ public:
 	void ReleaseVictim( void );
 	void CheckSubterrTrigger( void );
 	void CheckStepOn( void );
+	void DebugAimTrace( void );
 
 	int Save( CSave &save );
 	int Restore( CRestore &restore );
@@ -255,6 +256,7 @@ void CSnapBug::MonsterThink( void )
 	if( !m_fCatchPlayer )
 	{
 		CheckStepOn();
+		DebugAimTrace();
 		CBaseMonster::MonsterThink();
 		return;
 	}
@@ -322,6 +324,53 @@ void CSnapBug::CheckStepOn( void )
 			return;
 		}
 	}
+}
+
+// Diagnostic (temporary): does an engine trace from the player's eyes along the
+// view direction return this entity when the player is aiming at its box?
+void CSnapBug::DebugAimTrace( void )
+{
+	static float s_flNext = 0;
+	if( gpGlobals->time < s_flNext )
+		return;
+
+	CBaseEntity *pPlayer = UTIL_PlayerByIndex( 1 );
+	if( !pPlayer || ( pPlayer->pev->origin - pev->origin ).Length() > 300 )
+		return;
+
+	UTIL_MakeVectors( pPlayer->pev->v_angle );
+	Vector vecSrc = pPlayer->pev->origin + pPlayer->pev->view_ofs;
+	Vector vecDir = gpGlobals->v_forward;
+
+	// slab test of the view ray against our absolute box
+	float tmin = 0, tmax = 4096;
+	BOOL fBox = TRUE;
+	for( int i = 0; i < 3; i++ )
+	{
+		if( fabs( vecDir[i] ) < 0.0001f )
+		{
+			if( vecSrc[i] < pev->absmin[i] || vecSrc[i] > pev->absmax[i] )
+				fBox = FALSE;
+		}
+		else
+		{
+			float t1 = ( pev->absmin[i] - vecSrc[i] ) / vecDir[i];
+			float t2 = ( pev->absmax[i] - vecSrc[i] ) / vecDir[i];
+			if( t1 > t2 ) { float t = t1; t1 = t2; t2 = t; }
+			if( t1 > tmin ) tmin = t1;
+			if( t2 < tmax ) tmax = t2;
+			if( tmin > tmax ) fBox = FALSE;
+		}
+	}
+	if( !fBox )
+		return;	// not aiming at the box: nothing to report
+
+	s_flNext = gpGlobals->time + 1.0f;
+	TraceResult tr;
+	UTIL_TraceLine( vecSrc, vecSrc + vecDir * 1024, dont_ignore_monsters, ENT( pPlayer->pev ), &tr );
+	CBaseEntity *pHit = CBaseEntity::Instance( tr.pHit );
+	TREX_Log( "snapbug: aim on box (t=%.0f) engine trace hit=%s frac=%.2f flags=0x%x solid=%d absmin.z=%.1f absmax.z=%.1f",
+		tmin, pHit ? STRING( pHit->pev->classname ) : "none", tr.flFraction, pev->flags, pev->solid, pev->absmin.z, pev->absmax.z );
 }
 
 //=========================================================
