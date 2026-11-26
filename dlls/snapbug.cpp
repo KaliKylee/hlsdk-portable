@@ -56,6 +56,7 @@ public:
 	EHANDLE m_hVictim;
 	Vector m_vecOldOrigin;
 	BOOL m_fTrapActivated;
+	Vector m_vecHold;
 };
 
 LINK_ENTITY_TO_CLASS( monster_snapbug, CSnapBug )
@@ -68,6 +69,7 @@ TYPEDESCRIPTION CSnapBug::m_SaveData[] =
 	DEFINE_FIELD( CSnapBug, m_hVictim, FIELD_EHANDLE ),
 	DEFINE_FIELD( CSnapBug, m_vecOldOrigin, FIELD_POSITION_VECTOR ),
 	DEFINE_FIELD( CSnapBug, m_fTrapActivated, FIELD_BOOLEAN ),
+	DEFINE_FIELD( CSnapBug, m_vecHold, FIELD_POSITION_VECTOR ),
 };
 
 IMPLEMENT_SAVERESTORE( CSnapBug, CBaseMonster )
@@ -159,8 +161,6 @@ void CSnapBug::UpdateOnRemove( void )
 void CSnapBug::ReleaseVictim( void )
 {
 	CBaseEntity *pVictim = m_hVictim;
-	if( pVictim )
-		pVictim->pev->flags &= ~FL_FROZEN;
 	m_hVictim = NULL;
 	m_fCatchPlayer = FALSE;
 	ALERT( at_aiconsole, "CSnapBug: Released the target!\n" );
@@ -204,7 +204,7 @@ void CSnapBug::LeapTouch( CBaseEntity *pOther )
 			m_hVictim = pOther;
 			m_fCatchPlayer = TRUE;
 			SetTouch( NULL );
-			pOther->pev->flags |= FL_FROZEN;	// the held target can look around but not walk
+			m_vecHold = pOther->pev->origin;	// held in place, but can still look and shoot
 			TREX_Log( "snapbug: captured player" );
 		}
 		else
@@ -279,6 +279,8 @@ void CSnapBug::MonsterThink( void )
 	}
 
 	pevV->velocity = g_vecZero;
+	pevV->origin.x = m_vecHold.x;
+	pevV->origin.y = m_vecHold.y;
 	if( pevV->origin.z - pev->origin.z < 80.0f )
 		pevV->origin.z += 1.0f;
 }
