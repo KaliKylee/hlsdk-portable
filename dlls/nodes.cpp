@@ -905,7 +905,7 @@ int	CGraph :: FindNearestNode ( const Vector &vecOrigin,  int afNodeTypes )
 	// Check with the cache
 	//
 	ULONG iHash = (CACHE_SIZE-1) & Hash((void *)(const float *)vecOrigin, sizeof(vecOrigin));
-	if (m_Cache[iHash].v == vecOrigin)
+	if (m_Cache[iHash].v == vecOrigin && m_Cache[iHash].n < m_cNodes)
 	{
 		//ALERT(at_aiconsole, "Cache Hit.\n");
 		return m_Cache[iHash].n;
@@ -929,6 +929,24 @@ int	CGraph :: FindNearestNode ( const Vector &vecOrigin,  int afNodeTypes )
 
 	m_iNearest = -1;
 	m_flShortest = 999999.0; // just a big number.
+
+	// Busca direta em todos os nos. Os logs do Android mostraram a busca por regioes
+	// (m_di / m_RangeStart) devolvendo indices de no maiores que m_cNodes (ex.: 199 com 143 nos),
+	// o que deixava os NPCs sem rota. Com poucas centenas de nos o custo e desprezivel.
+	for ( i = 0; i < m_cNodes; i++ )
+	{
+		if ( !( m_pNodes[i].m_afNodeInfo & afNodeTypes ) )
+			continue;
+
+		CheckNode( vecOrigin, i );
+	}
+
+	if ( m_iNearest < 0 || m_iNearest >= m_cNodes )
+		m_iNearest = -1;
+
+	m_Cache[iHash].v = vecOrigin;
+	m_Cache[iHash].n = m_iNearest;
+	return m_iNearest;
 
 	// If we can find a visible point, then let CalcBounds set the limits, but if
 	// we have no visible point at all to start with, then don't restrict the limits.
