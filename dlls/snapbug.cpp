@@ -41,6 +41,7 @@ public:
 	void EXPORT LeapTouch( CBaseEntity *pOther );
 	void EXPORT SnapBugSubterrThink( void );
 
+	void UpdateOnRemove( void );
 	void ReleaseVictim( void );
 	void CheckSubterrTrigger( void );
 	void CheckStepOn( void );
@@ -148,11 +149,18 @@ int CSnapBug::TakeDamage( entvars_t *pevInflictor, entvars_t *pevAttacker, float
 	return CBaseMonster::TakeDamage( pevInflictor, pevAttacker, flDamage, bitsDamageType );
 }
 
+void CSnapBug::UpdateOnRemove( void )
+{
+	if( m_fCatchPlayer )
+		ReleaseVictim();
+	CBaseMonster::UpdateOnRemove();
+}
+
 void CSnapBug::ReleaseVictim( void )
 {
 	CBaseEntity *pVictim = m_hVictim;
 	if( pVictim )
-		pVictim->pev->flags &= ~FL_IMMUNE_LAVA;	// original uses bit 0x80000 as "held" marker
+		pVictim->pev->flags &= ~FL_FROZEN;
 	m_hVictim = NULL;
 	m_fCatchPlayer = FALSE;
 	ALERT( at_aiconsole, "CSnapBug: Released the target!\n" );
@@ -196,7 +204,7 @@ void CSnapBug::LeapTouch( CBaseEntity *pOther )
 			m_hVictim = pOther;
 			m_fCatchPlayer = TRUE;
 			SetTouch( NULL );
-			pOther->pev->flags |= FL_IMMUNE_LAVA;
+			pOther->pev->flags |= FL_FROZEN;	// the held target can look around but not walk
 			TREX_Log( "snapbug: captured player" );
 		}
 		else
@@ -270,6 +278,7 @@ void CSnapBug::MonsterThink( void )
 		return;
 	}
 
+	pevV->velocity = g_vecZero;
 	if( pevV->origin.z - pev->origin.z < 80.0f )
 		pevV->origin.z += 1.0f;
 }
