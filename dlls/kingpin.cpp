@@ -24,6 +24,7 @@
 #include	"schedule.h"
 #include	"skill.h"
 #include	"game.h"
+#include	"trex_log.h"
 
 #define KINGPIN_AE_CLAW		1
 #define KINGPIN_AE_ZAP		3
@@ -44,6 +45,7 @@ public:
 	void HandleAnimEvent( MonsterEvent_t *pEvent );
 	BOOL CheckMeleeAttack1( float flDot, float flDist );
 	int TakeDamage( entvars_t *pevInflictor, entvars_t *pevAttacker, float flDamage, int bitsDamageType );
+	void TraceAttack( entvars_t *pevAttacker, float flDamage, Vector vecDir, TraceResult *ptr, int bitsDamageType );
 	void Killed( entvars_t *pevAttacker, int iGib );
 	void RunTask( Task_t *pTask );
 	Schedule_t *GetSchedule( void );
@@ -135,6 +137,7 @@ void CKingpin::Spawn( void )
 	m_afCapability = bits_CAP_RANGE_ATTACK1 | bits_CAP_MELEE_ATTACK1;
 
 	MonsterInit();
+	TREX_Log( "kingpin: spawned health=%.1f takedamage=%.0f solid=%d", pev->health, pev->takedamage, pev->solid );
 }
 
 void CKingpin::Precache( void )
@@ -184,8 +187,15 @@ BOOL CKingpin::CheckMeleeAttack1( float flDot, float flDist )
 	return flDist < 128.0f;
 }
 
+void CKingpin::TraceAttack( entvars_t *pevAttacker, float flDamage, Vector vecDir, TraceResult *ptr, int bitsDamageType )
+{
+	TREX_Log( "kingpin: TraceAttack dmg=%.1f type=0x%x hitgroup=%d health=%.1f", flDamage, bitsDamageType, ptr->iHitgroup, pev->health );
+	CBaseMonster::TraceAttack( pevAttacker, flDamage, vecDir, ptr, bitsDamageType );
+}
+
 int CKingpin::TakeDamage( entvars_t *pevInflictor, entvars_t *pevAttacker, float flDamage, int bitsDamageType )
 {
+	TREX_Log( "kingpin: TakeDamage dmg=%.1f type=0x%x health=%.1f takedamage=%.0f", flDamage, bitsDamageType, pev->health, pev->takedamage );
 	if( pevAttacker && ( pevAttacker->flags & FL_CLIENT ) )
 		m_afMemory |= bits_MEMORY_PROVOKED;
 
