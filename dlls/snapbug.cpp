@@ -43,6 +43,7 @@ public:
 
 	void ReleaseVictim( void );
 	void CheckSubterrTrigger( void );
+	void CheckStepOn( void );
 
 	int Save( CSave &save );
 	int Restore( CRestore &restore );
@@ -234,6 +235,7 @@ void CSnapBug::MonsterThink( void )
 
 	if( !m_fCatchPlayer )
 	{
+		CheckStepOn();
 		CBaseMonster::MonsterThink();
 		return;
 	}
@@ -270,6 +272,34 @@ void CSnapBug::MonsterThink( void )
 
 	if( pevV->origin.z - pev->origin.z < 80.0f )
 		pevV->origin.z += 1.0f;
+}
+
+//=========================================================
+// The player can simply walk over a bug this small without the engine
+// ever calling Touch, so also check proximity every think.
+//=========================================================
+void CSnapBug::CheckStepOn( void )
+{
+	if( m_fCaughtPrey || pev->movetype == MOVETYPE_NOCLIP || pev->deadflag != DEAD_NO )
+		return;
+
+	CBaseEntity *pEnt = NULL;
+	while( ( pEnt = UTIL_FindEntityInSphere( pEnt, pev->origin, 48 ) ) != NULL )
+	{
+		if( pEnt == this || !pEnt->pev->takedamage || !pEnt->IsAlive() )
+			continue;
+		if( !pEnt->IsPlayer() && IRelationship( pEnt ) != R_HT )
+			continue;
+
+		float flDx = pEnt->pev->origin.x - pev->origin.x;
+		float flDy = pEnt->pev->origin.y - pev->origin.y;
+		float flDz = pEnt->pev->origin.z - pev->origin.z;
+		if( sqrt( flDx * flDx + flDy * flDy ) <= 30.0f && flDz >= 0 && flDz <= 60.0f )
+		{
+			LeapTouch( pEnt );
+			return;
+		}
+	}
 }
 
 //=========================================================
