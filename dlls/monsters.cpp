@@ -550,7 +550,7 @@ CSound* CBaseMonster :: PBestScent ()
 //=========================================================
 //=========================================================
 // HlextScriptMoveWatchdog - se um monstro em scripted_sequence (andar/correr ate a
-// marca) nao avanca por 10 s (fica indo e voltando, por exemplo porque uma porta ou a
+// marca) nao avanca por 4 s (fica indo e voltando, por exemplo porque uma porta ou a
 // rota o bloqueia), leva ele direto para a marca para o script nao travar o mapa.
 //=========================================================
 void CBaseMonster :: HlextScriptMoveWatchdog ()
@@ -592,9 +592,9 @@ void CBaseMonster :: HlextScriptMoveWatchdog ()
 		return;
 	}
 
-	if ( gpGlobals->time - m_flHlextScriptProgressTime > 10.0 && flDist > 8 )
+	if ( gpGlobals->time - m_flHlextScriptProgressTime > 4.0 && flDist > 8 )
 	{
-		HLEXT_Log( "script: %s (%s) sem progresso ate a marca por 10 s (dist %.0f); movendo direto para a marca",
+		HLEXT_Log( "script: %s (%s) sem progresso ate a marca por 4 s (dist %.0f); movendo direto para a marca",
 			STRING( pev->classname ), STRING( pev->targetname ), flDist );
 
 		UTIL_SetOrigin( pev, pMark->pev->origin );
