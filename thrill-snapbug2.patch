@@ -1,0 +1,54 @@
+diff --git a/dlls/snapbug.cpp b/dlls/snapbug.cpp
+index 03aa058..cb3bde6 100644
+--- a/dlls/snapbug.cpp
++++ b/dlls/snapbug.cpp
+@@ -23,6 +23,7 @@
+ #include	"monsters.h"
+ #include	"skill.h"
+ #include	"game.h"
++#include	"trex_log.h"
+ 
+ #define SF_SNAPBUG_SUBTERRANEAN		1024
+ 
+@@ -161,12 +162,19 @@ void CSnapBug::ReleaseVictim( void )
+ //=========================================================
+ void CSnapBug::LeapTouch( CBaseEntity *pOther )
+ {
+-	if( !( pev->flags & FL_ONGROUND ) )
++	static float s_flLog = 0;
++	BOOL fLog = ( gpGlobals->time > s_flLog );
++	if( fLog )
++		s_flLog = gpGlobals->time + 1.0f;
++
++	if( pev->movetype == MOVETYPE_NOCLIP )	// still buried
+ 		return;
+ 	if( !pOther->pev->takedamage )
+ 		return;
+ 	if( pOther->pev->origin.z < pev->origin.z )	// target must be above us
+ 		return;
++	if( fLog )
++		TREX_Log( "snapbug: touch %s onground=%d dz=%.1f", STRING( pOther->pev->classname ), ( pev->flags & FL_ONGROUND ) ? 1 : 0, pOther->pev->origin.z - pev->origin.z );
+ 
+ 	EMIT_SOUND_DYN( ENT( pev ), CHAN_WEAPON, "snapbug/catch.wav", 1.0, ATTN_NORM, 0, 100 );
+ 	MakeIdealYaw( pOther->pev->origin );
+@@ -188,10 +196,12 @@ void CSnapBug::LeapTouch( CBaseEntity *pOther )
+ 			m_fCatchPlayer = TRUE;
+ 			SetTouch( NULL );
+ 			pOther->pev->flags |= FL_IMMUNE_LAVA;
++			TREX_Log( "snapbug: captured player" );
+ 		}
+ 		else
+ 		{
+ 			ALERT( at_aiconsole, "CSnapbug: Can't capture target as it will get stuck!\n" );
++			TREX_Log( "snapbug: capture blocked (trace fraction %.2f)", tr.flFraction );
+ 			SetTouch( NULL );
+ 			m_flNextCapture = gpGlobals->time + 1.0f;
+ 		}
+@@ -246,6 +256,7 @@ void CSnapBug::MonsterThink( void )
+ 		|| sqrt( flDx * flDx + flDy * flDy ) > 36.0f )
+ 	{
+ 		ALERT( at_aiconsole, "CSnapBug: Target's too far!\n" );
++		TREX_Log( "snapbug: released, target out of range (dz=%.1f dxy=%.1f)", pevV->origin.z - pev->origin.z, (float)sqrt( flDx * flDx + flDy * flDy ) );
+ 		ReleaseVictim();
+ 		m_flNextCapture = gpGlobals->time + 1.5f;
+ 		return;
