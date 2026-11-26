@@ -255,7 +255,7 @@ void CSnapBug::MonsterThink( void )
 	if( pevV->movetype == MOVETYPE_NOCLIP
 		|| pevV->origin.z <= pev->origin.z
 		|| pevV->origin.z - 72.0f > pev->origin.z
-		|| sqrt( flDx * flDx + flDy * flDy ) > 36.0f )
+		|| sqrt( flDx * flDx + flDy * flDy ) > 48.0f )
 	{
 		ALERT( at_aiconsole, "CSnapBug: Target's too far!\n" );
 		TREX_Log( "snapbug: released, target out of range (dz=%.1f dxy=%.1f)", pevV->origin.z - pev->origin.z, (float)sqrt( flDx * flDx + flDy * flDy ) );
