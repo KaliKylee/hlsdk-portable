@@ -39,6 +39,26 @@
 #include "player.h"
 #include "hlext_log.h"
 
+// ---- Diagnostico de movimento de NPCs em script (HL:E Android) ----
+// Registra no hlext_log.txt por que um NPC em scripted_sequence nao chega na marca.
+// Limita a ~4 linhas/s e 150 linhas por mapa para nao inundar o arquivo.
+static bool HlextMoveLogOK( CBaseMonster *pMon )
+{
+	static int s_iCount = 0;
+	static float s_flNext = 0, s_flLast = 0;
+
+	if ( gpGlobals->time + 1.0f < s_flLast ) // mapa novo: o tempo voltou
+		s_iCount = 0;
+	s_flLast = gpGlobals->time;
+
+	if ( !pMon->m_pCine || s_iCount >= 150 || gpGlobals->time < s_flNext )
+		return false;
+
+	s_flNext = gpGlobals->time + 0.25f;
+	s_iCount++;
+	return true;
+}
+
 
 #define MONSTER_CUT_CORNER_DIST		8 // 8 means the monster's bounding box is contained without the box of the node in WC
 #define SF_IGNORE_CHUMTOADS 16384
@@ -547,6 +567,21 @@ void CBaseMonster :: HlextScriptMoveWatchdog ()
 		pMark = m_pCine;
 
 	float flDist = ( pMark->pev->origin - pev->origin ).Length2D();
+
+	// uma linha por segundo com a posicao (mostra se ele esta indo e voltando)
+	{
+		static float s_flNextPos = 0;
+		static int s_iPosLines = 0;
+		if ( gpGlobals->time + 1.0f < s_flNextPos - 1.0f ) s_iPosLines = 0;
+		if ( gpGlobals->time >= s_flNextPos && s_iPosLines < 60 )
+		{
+			s_flNextPos = gpGlobals->time + 1.0f;
+			s_iPosLines++;
+			HLEXT_Log( "script: %s (%s) pos(%.0f %.0f %.0f) marca(%.0f %.0f %.0f) dist=%.0f andar=%d",
+				STRING( pev->classname ), STRING( pev->targetname ), pev->origin.x, pev->origin.y, pev->origin.z,
+				pMark->pev->origin.x, pMark->pev->origin.y, pMark->pev->origin.z, flDist, (int)m_scriptState );
+		}
+	}
 
 	// primeira vez, ou andou pelo menos 24 unidades em direcao a marca: reinicia a contagem
 	if ( m_flHlextScriptProgressTime == 0 || m_flHlextScriptProgressTime > gpGlobals->time ||
@@ -1621,6 +1656,10 @@ BOOL CBaseMonster :: BuildRoute ( const Vector &vecGoal, int iMoveFlag, CBaseEnt
 // check simple local move
 	iLocalMove = CheckLocalMove( pev->origin, vecGoal, pTarget, &flDist );
 
+	if ( m_pCine && HlextMoveLogOK( this ) )
+		HLEXT_Log( "BuildRoute: %s pos(%.0f %.0f %.0f) -> meta(%.0f %.0f %.0f) movimentoLocal=%d (0=invalido 1=ok) livre=%.0f",
+			STRING( pev->classname ), pev->origin.x, pev->origin.y, pev->origin.z, vecGoal.x, vecGoal.y, vecGoal.z, iLocalMove, flDist );
+
 	if ( iLocalMove == LOCALMOVE_VALID )
 	{
 		// monster can walk straight there!
@@ -1659,6 +1698,9 @@ BOOL CBaseMonster :: BuildRoute ( const Vector &vecGoal, int iMoveFlag, CBaseEnt
 		RouteSimplify( pTarget );
 		return TRUE;
 	}
+
+	if ( m_pCine && HlextMoveLogOK( this ) )
+		HLEXT_Log( "BuildRoute: %s NAO achou rota (local, triangulacao e nos falharam)", STRING( pev->classname ) );
 
 	// b0rk
 	return FALSE;
@@ -1887,6 +1929,8 @@ void CBaseMonster :: Move ( float flInterval )
 		if ( m_movementGoal == MOVEGOAL_NONE || !FRefreshRoute() )
 		{
 			ALERT( at_aiconsole, "Tried to move with no route!\n" );
+			if ( HlextMoveLogOK( this ) )
+				HLEXT_Log( "mover: %s sem rota (meta=%d) pos(%.0f %.0f %.0f)", STRING( pev->classname ), m_movementGoal, pev->origin.x, pev->origin.y, pev->origin.z );
 			TaskFail();
 			return;
 		}
@@ -1954,6 +1998,27 @@ void CBaseMonster :: Move ( float flInterval )
 		Stop();
 		// Blocking entity is in global trace_ent
 		pBlocker = CBaseEntity::Instance( gpGlobals->trace_ent );
+
+		if ( HlextMoveLogOK( this ) )
+		{
+			const char *pszBlk = "mundo";
+			const char *pszBlkName = "";
+			int iDoorState = -1;
+			int iBlkMoving = 0;
+			if ( pBlocker )
+			{
+				pszBlk = STRING( pBlocker->pev->classname );
+				pszBlkName = STRING( pBlocker->pev->targetname );
+				iBlkMoving = pBlocker->IsMoving() ? 1 : 0;
+				if ( FClassnameIs( pBlocker->pev, "func_door" ) || FClassnameIs( pBlocker->pev, "func_door_rotating" ) )
+					iDoorState = ( (CBaseToggle *)pBlocker )->m_toggle_state;
+			}
+			HLEXT_Log( "mover bloqueado: %s pos(%.0f %.0f %.0f) wp(%.0f %.0f %.0f) livre=%.0f rota idx=%d tipo=%d bloqueador=%s/%s movendo=%d estadoPorta=%d esperaMove=%.1f",
+				STRING( pev->classname ), pev->origin.x, pev->origin.y, pev->origin.z,
+				m_Route[ m_iRouteIndex ].vecLocation.x, m_Route[ m_iRouteIndex ].vecLocation.y, m_Route[ m_iRouteIndex ].vecLocation.z,
+				flDist, m_iRouteIndex, m_Route[ m_iRouteIndex ].iType, pszBlk, pszBlkName, iBlkMoving, iDoorState, m_moveWaitTime );
+		}
+
 		if (pBlocker)
 		{
 			DispatchBlocked( edict(), pBlocker->edict() );
@@ -1975,11 +2040,15 @@ void CBaseMonster :: Move ( float flInterval )
 			// try to triangulate around whatever is in the way.
 			if ( FTriangulate( pev->origin, m_Route[ m_iRouteIndex ].vecLocation, flDist, pTargetEnt, &vecApex ) )
 			{
+				if ( HlextMoveLogOK( this ) )
+					HLEXT_Log( "mover: triangulou desvio apex(%.0f %.0f %.0f)", vecApex.x, vecApex.y, vecApex.z );
 				InsertWaypoint( vecApex, bits_MF_TO_DETOUR );
 				RouteSimplify( pTargetEnt );
 			}
 			else
 			{
+				if ( HlextMoveLogOK( this ) )
+					HLEXT_Log( "mover: triangulacao falhou (moveFailed=%d esperaMove=%.1f)", HasMemory( bits_MEMORY_MOVE_FAILED ) ? 1 : 0, m_moveWaitTime );
 //				ALERT ( at_aiconsole, "Couldn't Triangulate\n" );
 				Stop();
 				// Only do this once until your route is cleared
