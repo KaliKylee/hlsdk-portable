@@ -27,6 +27,45 @@
 
 #define SF_SNAPBUG_SUBTERRANEAN		1024
 
+//=========================================================
+// Hit proxy. The engine's bullet traces do not hit this tiny model (its
+// hitboxes are missed even with a plain box), so an invisible, model-less
+// box entity follows the bug and forwards every hit to it.
+//=========================================================
+class CSnapBugProxy : public CBaseEntity
+{
+public:
+	void Spawn( void )
+	{
+		pev->movetype = MOVETYPE_NONE;
+		pev->solid = SOLID_BBOX;
+		pev->takedamage = DAMAGE_YES;
+		pev->effects |= EF_NODRAW;
+		UTIL_SetSize( pev, Vector( -12, -12, 0 ), Vector( 12, 12, 8 ) );
+		UTIL_SetOrigin( pev, pev->origin );
+	}
+	int ObjectCaps( void ) { return FCAP_DONT_SAVE; }
+	void TraceAttack( entvars_t *pevAttacker, float flDamage, Vector vecDir, TraceResult *ptr, int bitsDamageType )
+	{
+		CBaseEntity *pOwner = m_hOwner;
+		if( pOwner )
+			pOwner->TraceAttack( pevAttacker, flDamage, vecDir, ptr, bitsDamageType );
+	}
+	int TakeDamage( entvars_t *pevInflictor, entvars_t *pevAttacker, float flDamage, int bitsDamageType )
+	{
+		CBaseEntity *pOwner = m_hOwner;
+		// explosions already reach the bug itself through the radius search
+		if( !pOwner || ( bitsDamageType & DMG_BLAST ) )
+			return 0;
+		return pOwner->TakeDamage( pevInflictor, pevAttacker, flDamage, bitsDamageType );
+	}
+
+	EHANDLE m_hOwner;
+};
+
+LINK_ENTITY_TO_CLASS( snapbug_proxy, CSnapBugProxy )
+
+
 class CSnapBug : public CBaseMonster
 {
 public:
@@ -43,10 +82,12 @@ public:
 	void EXPORT SnapBugSubterrThink( void );
 
 	void UpdateOnRemove( void );
+	void Killed( entvars_t *pevAttacker, int iGib );
+	void SyncProxy( void );
+	void RemoveProxy( void );
 	void ReleaseVictim( void );
 	void CheckSubterrTrigger( void );
 	void CheckStepOn( void );
-	void DebugAimTrace( void );
 
 	int Save( CSave &save );
 	int Restore( CRestore &restore );
@@ -59,6 +100,7 @@ public:
 	Vector m_vecOldOrigin;
 	BOOL m_fTrapActivated;
 	Vector m_vecHold;
+	EHANDLE m_hProxy;
 };
 
 LINK_ENTITY_TO_CLASS( monster_snapbug, CSnapBug )
@@ -83,9 +125,7 @@ void CSnapBug::Spawn( void )
 	SET_MODEL( ENT( pev ), "models/snapbug.mdl" );
 	UTIL_SetSize( pev, Vector( -12, -12, 0 ), Vector( 12, 12, 8 ) );
 
-	// SOLID_BBOX: bullet traces clip against the plain box. With SLIDEBOX the engine
-	// uses the model's hitboxes, and this tiny model's hitboxes are missed by bullets.
-	pev->solid = SOLID_BBOX;
+	pev->solid = SOLID_SLIDEBOX;
 	pev->movetype = MOVETYPE_STEP;
 	m_bloodColor = 54;
 	pev->effects = 0;
@@ -163,8 +203,42 @@ int CSnapBug::TakeDamage( entvars_t *pevInflictor, entvars_t *pevAttacker, float
 	return CBaseMonster::TakeDamage( pevInflictor, pevAttacker, flDamage, bitsDamageType );
 }
 
+void CSnapBug::RemoveProxy( void )
+{
+	CBaseEntity *pProxy = m_hProxy;
+	if( pProxy )
+		UTIL_Remove( pProxy );
+	m_hProxy = NULL;
+}
+
+void CSnapBug::SyncProxy( void )
+{
+	if( pev->movetype == MOVETYPE_NOCLIP || pev->deadflag != DEAD_NO )
+		return;
+
+	CBaseEntity *pProxy = m_hProxy;
+	if( !pProxy )
+	{
+		pProxy = CBaseEntity::Create( "snapbug_proxy", pev->origin, pev->angles, edict() );
+		if( !pProxy )
+			return;
+		( (CSnapBugProxy *)pProxy )->m_hOwner = this;
+		m_hProxy = pProxy;
+		TREX_Log( "snapbug: hit proxy created" );
+	}
+	if( ( pProxy->pev->origin - pev->origin ).Length() > 0.1f )
+		UTIL_SetOrigin( pProxy->pev, pev->origin );
+}
+
+void CSnapBug::Killed( entvars_t *pevAttacker, int iGib )
+{
+	RemoveProxy();
+	CBaseMonster::Killed( pevAttacker, iGib );
+}
+
 void CSnapBug::UpdateOnRemove( void )
 {
+	RemoveProxy();
 	if( m_fCatchPlayer )
 		ReleaseVictim();
 	CBaseMonster::UpdateOnRemove();
@@ -256,8 +330,8 @@ void CSnapBug::MonsterThink( void )
 	if( !m_fCatchPlayer )
 	{
 		CheckStepOn();
-		DebugAimTrace();
 		CBaseMonster::MonsterThink();
+		SyncProxy();
 		return;
 	}
 
@@ -324,53 +398,6 @@ void CSnapBug::CheckStepOn( void )
 			return;
 		}
 	}
-}
-
-// Diagnostic (temporary): does an engine trace from the player's eyes along the
-// view direction return this entity when the player is aiming at its box?
-void CSnapBug::DebugAimTrace( void )
-{
-	static float s_flNext = 0;
-	if( gpGlobals->time < s_flNext )
-		return;
-
-	CBaseEntity *pPlayer = UTIL_PlayerByIndex( 1 );
-	if( !pPlayer || ( pPlayer->pev->origin - pev->origin ).Length() > 300 )
-		return;
-
-	UTIL_MakeVectors( pPlayer->pev->v_angle );
-	Vector vecSrc = pPlayer->pev->origin + pPlayer->pev->view_ofs;
-	Vector vecDir = gpGlobals->v_forward;
-
-	// slab test of the view ray against our absolute box
-	float tmin = 0, tmax = 4096;
-	BOOL fBox = TRUE;
-	for( int i = 0; i < 3; i++ )
-	{
-		if( fabs( vecDir[i] ) < 0.0001f )
-		{
-			if( vecSrc[i] < pev->absmin[i] || vecSrc[i] > pev->absmax[i] )
-				fBox = FALSE;
-		}
-		else
-		{
-			float t1 = ( pev->absmin[i] - vecSrc[i] ) / vecDir[i];
-			float t2 = ( pev->absmax[i] - vecSrc[i] ) / vecDir[i];
-			if( t1 > t2 ) { float t = t1; t1 = t2; t2 = t; }
-			if( t1 > tmin ) tmin = t1;
-			if( t2 < tmax ) tmax = t2;
-			if( tmin > tmax ) fBox = FALSE;
-		}
-	}
-	if( !fBox )
-		return;	// not aiming at the box: nothing to report
-
-	s_flNext = gpGlobals->time + 1.0f;
-	TraceResult tr;
-	UTIL_TraceLine( vecSrc, vecSrc + vecDir * 1024, dont_ignore_monsters, ENT( pPlayer->pev ), &tr );
-	CBaseEntity *pHit = CBaseEntity::Instance( tr.pHit );
-	TREX_Log( "snapbug: aim on box (t=%.0f) engine trace hit=%s frac=%.2f flags=0x%x solid=%d absmin.z=%.1f absmax.z=%.1f",
-		tmin, pHit ? STRING( pHit->pev->classname ) : "none", tr.flFraction, pev->flags, pev->solid, pev->absmin.z, pev->absmax.z );
 }
 
 //=========================================================
