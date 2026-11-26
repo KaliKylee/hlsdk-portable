@@ -107,6 +107,10 @@ public:
 // Scripted sequence Info
 	SCRIPTSTATE			m_scriptState;		// internal cinematic state
 	CCineMonster		*m_pCine;
+	// HL:E Android: vigia do movimento de scripted_sequence (ver HlextScriptMoveWatchdog)
+	float				m_flHlextScriptBestDist;
+	float				m_flHlextScriptProgressTime;
+	void				HlextScriptMoveWatchdog();
 
 	int m_SpawnChance;
 

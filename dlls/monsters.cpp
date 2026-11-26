@@ -37,6 +37,7 @@
 #include "soundent.h"
 #include "gamerules.h"
 #include "player.h"
+#include "hlext_log.h"
 
 
 #define MONSTER_CUT_CORNER_DIST		8 // 8 means the monster's bounding box is contained without the box of the node in WC
@@ -527,6 +528,47 @@ CSound* CBaseMonster :: PBestScent ()
 // Monster Think - calls out to core AI functions and handles this
 // monster's specific animation events
 //=========================================================
+//=========================================================
+// HlextScriptMoveWatchdog - se um monstro em scripted_sequence (andar/correr ate a
+// marca) nao avanca por 10 s (fica indo e voltando, por exemplo porque uma porta ou a
+// rota o bloqueia), leva ele direto para a marca para o script nao travar o mapa.
+//=========================================================
+void CBaseMonster :: HlextScriptMoveWatchdog ()
+{
+	if ( m_MonsterState != MONSTERSTATE_SCRIPT || !m_pCine ||
+		 ( m_scriptState != SCRIPT_WALK_TO_MARK && m_scriptState != SCRIPT_RUN_TO_MARK ) )
+	{
+		m_flHlextScriptProgressTime = 0;
+		return;
+	}
+
+	CBaseEntity *pMark = m_hTargetEnt;
+	if ( !pMark )
+		pMark = m_pCine;
+
+	float flDist = ( pMark->pev->origin - pev->origin ).Length2D();
+
+	// primeira vez, ou andou pelo menos 24 unidades em direcao a marca: reinicia a contagem
+	if ( m_flHlextScriptProgressTime == 0 || m_flHlextScriptProgressTime > gpGlobals->time ||
+		 flDist < m_flHlextScriptBestDist - 24 )
+	{
+		m_flHlextScriptProgressTime = gpGlobals->time;
+		m_flHlextScriptBestDist = flDist;
+		return;
+	}
+
+	if ( gpGlobals->time - m_flHlextScriptProgressTime > 10.0 && flDist > 8 )
+	{
+		HLEXT_Log( "script: %s (%s) sem progresso ate a marca por 10 s (dist %.0f); movendo direto para a marca",
+			STRING( pev->classname ), STRING( pev->targetname ), flDist );
+
+		UTIL_SetOrigin( pev, pMark->pev->origin );
+		pev->velocity = g_vecZero;
+		pev->effects |= EF_NOINTERP;
+		m_flHlextScriptProgressTime = 0;
+	}
+}
+
 void CBaseMonster :: MonsterThink ()
 {
 	pev->nextthink = gpGlobals->time + 0.1;// keep monster thinking.
@@ -551,6 +593,7 @@ void CBaseMonster :: MonsterThink ()
 	
 
 	RunAI();
+	HlextScriptMoveWatchdog();
 
 	UpdateShockEffect();
 
