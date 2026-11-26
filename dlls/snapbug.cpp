@@ -82,7 +82,9 @@ void CSnapBug::Spawn( void )
 	SET_MODEL( ENT( pev ), "models/snapbug.mdl" );
 	UTIL_SetSize( pev, Vector( -12, -12, 0 ), Vector( 12, 12, 8 ) );
 
-	pev->solid = SOLID_SLIDEBOX;
+	// SOLID_BBOX: bullet traces clip against the plain box. With SLIDEBOX the engine
+	// uses the model's hitboxes, and this tiny model's hitboxes are missed by bullets.
+	pev->solid = SOLID_BBOX;
 	pev->movetype = MOVETYPE_STEP;
 	m_bloodColor = 54;
 	pev->effects = 0;
