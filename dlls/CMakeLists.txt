@@ -142,6 +142,7 @@ set (SVDLL_SOURCES
 	util.cpp
 	trex_crash.cpp
 	diablo.cpp
+	snapbug.cpp
 	archer.cpp
 	m44.cpp
 	vehicle.cpp
