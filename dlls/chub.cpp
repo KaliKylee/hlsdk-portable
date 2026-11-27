@@ -56,6 +56,7 @@ enum
 	TASK_CHUB_PLAYDEAD,
 	TASK_CHUB_WAIT_PLAYDEAD,
 	TASK_CHUB_STOP_PLAYDEAD,
+	TASK_CHUB_HOP,		// flData 0 = random spot nearby, 1 = away from the enemy
 };
 
 enum
@@ -63,6 +64,8 @@ enum
 	SCHED_CHUB_FEAR = LAST_COMMON_SCHEDULE + 1,
 	SCHED_CHUB_PLAYDEAD,
 	SCHED_CHUB_STOP_PLAYDEAD,
+	SCHED_CHUB_WANDER,
+	SCHED_CHUB_FLEE,
 };
 
 class CChub : public CBaseMonster
@@ -72,6 +75,7 @@ public:
 	void Precache( void );
 	void SetYawSpeed( void );
 	int Classify( void ) { return CLASS_PLAYER_ALLY; }
+	int ObjectCaps( void ) { return CBaseMonster::ObjectCaps() | FCAP_IMPULSE_USE; }
 	int IRelationship( CBaseEntity *pTarget );
 	void StartTask( Task_t *pTask );
 	void RunTask( Task_t *pTask );
@@ -194,12 +198,51 @@ Schedule_t slChubStopPlaydead[] =
 	},
 };
 
+Task_t tlChubWander[] =
+{
+	{ TASK_STOP_MOVING, (float)0 },
+	{ TASK_CHUB_HOP, (float)0 },
+	{ TASK_WAIT_FOR_MOVEMENT, (float)0 },
+	{ TASK_WAIT, (float)1 },
+};
+
+Schedule_t slChubWander[] =
+{
+	{
+		tlChubWander,
+		ARRAYSIZE( tlChubWander ),
+		0x78344,
+		0x7f,
+		"Chub Wander"
+	},
+};
+
+Task_t tlChubFlee[] =
+{
+	{ TASK_STOP_MOVING, (float)0 },
+	{ TASK_CHUB_HOP, (float)1 },
+	{ TASK_WAIT_FOR_MOVEMENT, (float)0 },
+};
+
+Schedule_t slChubFlee[] =
+{
+	{
+		tlChubFlee,
+		ARRAYSIZE( tlChubFlee ),
+		0,
+		0,
+		"Chub Flee"
+	},
+};
+
 DEFINE_CUSTOM_SCHEDULES( CChub )
 {
 	slChubIdleStand,
 	slChubFear,
 	slChubPlaydead,
 	slChubStopPlaydead,
+	slChubWander,
+	slChubFlee,
 };
 
 IMPLEMENT_CUSTOM_SCHEDULES( CChub, CBaseMonster )
@@ -214,6 +257,14 @@ Schedule_t *CChub::GetScheduleOfType( int Type )
 		return &slChubPlaydead[0];
 	case SCHED_CHUB_STOP_PLAYDEAD:
 		return &slChubStopPlaydead[0];
+	case SCHED_CHUB_WANDER:
+		return &slChubWander[0];
+	case SCHED_CHUB_FLEE:
+		return &slChubFlee[0];
+	case SCHED_TAKE_COVER_FROM_ORIGIN:
+		return &slChubWander[0];	// no node graph needed
+	case SCHED_TAKE_COVER_FROM_ENEMY:
+		return &slChubFlee[0];
 	}
 	return CBaseMonster::GetScheduleOfType( Type );
 }
@@ -360,6 +411,40 @@ void CChub::StartTask( Task_t *pTask )
 			pev->movetype = MOVETYPE_STEP;
 		}
 		TaskComplete();
+		break;
+	case TASK_CHUB_HOP:
+		{
+			Vector vecDir;
+			if( pTask->flData == 1 && m_hEnemy != 0 )
+			{
+				vecDir = ( pev->origin - m_hEnemy->pev->origin );
+				vecDir.z = 0;
+				vecDir = vecDir.Normalize();
+				// wobble a bit
+				vecDir = ( vecDir + Vector( RANDOM_FLOAT( -0.5f, 0.5f ), RANDOM_FLOAT( -0.5f, 0.5f ), 0 ) ).Normalize();
+			}
+			else
+			{
+				float a = RANDOM_FLOAT( 0, 360 );
+				vecDir = Vector( cos( a * M_PI / 180.0 ), sin( a * M_PI / 180.0 ), 0 );
+			}
+
+			BOOL fOk = FALSE;
+			for( int i = 0; i < 6 && !fOk; i++ )
+			{
+				float flDist = RANDOM_FLOAT( 48, 128 );
+				Vector vecGoal = pev->origin + vecDir * flDist;
+				if( MoveToLocation( pTask->flData == 1 ? ACT_RUN : ACT_WALK, 2, vecGoal ) )
+					fOk = TRUE;
+				else
+					vecDir = ( vecDir + Vector( RANDOM_FLOAT( -1, 1 ), RANDOM_FLOAT( -1, 1 ), 0 ) ).Normalize();
+			}
+
+			if( fOk )
+				TaskComplete();
+			else
+				TaskFail();
+		}
 		break;
 	case TASK_CHUB_PLAYDEAD:
 		ALERT( at_console, "Chub: Playing dead!\n" );
