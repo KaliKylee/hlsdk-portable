@@ -144,6 +144,7 @@ set (SVDLL_SOURCES
 	diablo.cpp
 	snapbug.cpp
 	kingpin.cpp
+	hitproxy.cpp
 	archer.cpp
 	m44.cpp
 	vehicle.cpp

@@ -25,6 +25,7 @@
 #include	"skill.h"
 #include	"game.h"
 #include	"trex_log.h"
+#include	"hitproxy.h"
 
 #define KINGPIN_AE_CLAW		1
 #define KINGPIN_AE_ZAP		3
@@ -47,6 +48,8 @@ public:
 	int TakeDamage( entvars_t *pevInflictor, entvars_t *pevAttacker, float flDamage, int bitsDamageType );
 	void TraceAttack( entvars_t *pevAttacker, float flDamage, Vector vecDir, TraceResult *ptr, int bitsDamageType );
 	void Killed( entvars_t *pevAttacker, int iGib );
+	void MonsterThink( void );
+	void UpdateOnRemove( void );
 	void RunTask( Task_t *pTask );
 	Schedule_t *GetSchedule( void );
 	Schedule_t *GetScheduleOfType( int Type );
@@ -55,6 +58,8 @@ public:
 	void EXPORT Blowup( void );
 
 	void Zap( CBaseEntity *pEnemy );
+
+	EHANDLE m_hProxy;
 
 	CUSTOM_SCHEDULES
 };
@@ -309,8 +314,21 @@ void CKingpin::RunTask( Task_t *pTask )
 //=========================================================
 // Death: fade out, turn red, explode
 //=========================================================
+void CKingpin::MonsterThink( void )
+{
+	CBaseMonster::MonsterThink();
+	HitProxy_Sync( this, m_hProxy );
+}
+
+void CKingpin::UpdateOnRemove( void )
+{
+	HitProxy_Remove( m_hProxy );
+	CBaseMonster::UpdateOnRemove();
+}
+
 void CKingpin::Killed( entvars_t *pevAttacker, int iGib )
 {
+	HitProxy_Remove( m_hProxy );
 	CBaseMonster::Killed( pevAttacker, GIB_NEVER );
 
 	Vector vecEffect = pev->origin;

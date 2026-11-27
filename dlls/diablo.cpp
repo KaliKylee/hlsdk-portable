@@ -22,6 +22,7 @@
 #include	"schedule.h"
 #include	"skill.h"
 #include	"game.h"
+#include	"hitproxy.h"
 
 #define	DIABLO_AE_SLASH_LEFT	( 1 )
 #define	DIABLO_AE_SLASH_RIGHT	( 2 )
@@ -41,6 +42,9 @@ public:
 	void EXPORT LeapTouch( CBaseEntity *pOther );
 	int TakeDamage( entvars_t *pevInflictor, entvars_t *pevAttacker, float flDamage, int bitsDamageType );
 	BOOL CheckMeleeAttack1( float flDot, float flDist );
+	void MonsterThink( void );
+	void Killed( entvars_t *pevAttacker, int iGib );
+	void UpdateOnRemove( void );
 	BOOL CheckMeleeAttack2( float flDot, float flDist );
 	BOOL CheckRangeAttack1( float flDot, float flDist );
 	Schedule_t *GetScheduleOfType( int Type );
@@ -52,6 +56,7 @@ public:
 	int Restore( CRestore &restore );
 	static TYPEDESCRIPTION m_SaveData[];
 
+	EHANDLE m_hProxy;
 	float m_flNextLeap;
 	float m_flNextMelee;
 	float m_flLastHurt;
@@ -199,6 +204,24 @@ int CDiablo::TakeDamage( entvars_t *pevInflictor, entvars_t *pevAttacker, float 
 //=========================================================
 // Attack decisions
 //=========================================================
+void CDiablo::MonsterThink( void )
+{
+	CBaseMonster::MonsterThink();
+	HitProxy_Sync( this, m_hProxy );
+}
+
+void CDiablo::Killed( entvars_t *pevAttacker, int iGib )
+{
+	HitProxy_Remove( m_hProxy );
+	CBaseMonster::Killed( pevAttacker, iGib );
+}
+
+void CDiablo::UpdateOnRemove( void )
+{
+	HitProxy_Remove( m_hProxy );
+	CBaseMonster::UpdateOnRemove();
+}
+
 BOOL CDiablo::CheckMeleeAttack1( float flDot, float flDist )
 {
 	if( m_flNextMelee > gpGlobals->time || !CBaseMonster::CheckMeleeAttack1( flDot, flDist ) )
