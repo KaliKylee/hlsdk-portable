@@ -564,7 +564,7 @@ CSound* CBaseMonster :: PBestScent ()
 //=========================================================
 void CBaseMonster :: HlextScriptMoveWatchdog ()
 {
-	if ( !HlextIsMapBarney( this ) )
+	if ( !HlextIsMapBarney( this ) || m_fHlextGlide )
 		return;
 
 	if ( m_MonsterState != MONSTERSTATE_SCRIPT || !m_pCine ||
@@ -606,7 +606,7 @@ void CBaseMonster :: HlextScriptMoveWatchdog ()
 
 	if ( gpGlobals->time - m_flHlextScriptProgressTime > 3.0 && flDist > 8 )
 	{
-		HlextSnapToScriptMark( "sem progresso por 3 s" );
+		HlextStartGlide( "sem progresso por 3 s" );
 	}
 }
 
@@ -634,6 +634,175 @@ void CBaseMonster :: HlextSnapToScriptMark ( const char *pszWhy )
 	RouteClear();
 }
 
+//=========================================================
+// Deslize sem colisao (Barney do hle_c0a0)
+//
+// Quando o movimento normal do scripted_sequence trava (obstaculo parado, rota ruim no Xash),
+// o Barney passa a deslizar andando, sem colisao, pelos nos de navegacao do mapa ate a marca
+// do script e so entao devolve o controle a IA. Nao ha teletransporte: ele anda de verdade
+// (animacao de andar), so que atravessando o que o prendia, e nao bloqueia a saida do trem.
+//=========================================================
+static int HlextNearestNodeByDist( const Vector &vecPos, int iSkip1, int iSkip2 )
+{
+	int iBest = -1;
+	float flBest = 999999.0f;
+	for ( int i = 0; i < WorldGraph.m_cNodes; i++ )
+	{
+		if ( i == iSkip1 || i == iSkip2 )
+			continue;
+		if ( fabs( WorldGraph.m_pNodes[i].m_vecOrigin.z - vecPos.z ) > 80 )
+			continue;
+		float flDist = ( WorldGraph.m_pNodes[i].m_vecOrigin - vecPos ).Length();
+		if ( flDist < flBest )
+		{
+			flBest = flDist;
+			iBest = i;
+		}
+	}
+	return iBest;
+}
+
+void CBaseMonster :: HlextStartGlide ( const char *pszWhy )
+{
+	if ( m_fHlextGlide )
+		return;
+
+	CBaseEntity *pMark = m_hTargetEnt;
+	if ( !pMark )
+		pMark = m_pCine;
+	if ( !pMark )
+		return;
+
+	Vector vecMark = pMark->pev->origin;
+
+	m_iHlextGlideCount = 0;
+	m_vecHlextGlide[m_iHlextGlideCount++] = pev->origin;
+
+	// caminho pelos nos do grafo (escolhendo o no mais proximo por distancia pura, sem exigir visibilidade)
+	int nNodes = 0;
+	if ( WorldGraph.m_fGraphPresent && WorldGraph.m_cNodes > 0 && WorldGraph.m_pNodes )
+	{
+		int iSrcTry = -1;
+		for ( int a = 0; a < 3 && nNodes == 0; a++ )
+		{
+			iSrcTry = HlextNearestNodeByDist( pev->origin, iSrcTry, -1 );
+			if ( iSrcTry < 0 )
+				break;
+
+			int iDstTry = -1;
+			for ( int b = 0; b < 3 && nNodes == 0; b++ )
+			{
+				iDstTry = HlextNearestNodeByDist( vecMark, iDstTry, -1 );
+				if ( iDstTry < 0 )
+					break;
+
+				int iPath[ MAX_PATH_SIZE ];
+				int n = WorldGraph.FindShortestPath( iPath, iSrcTry, iDstTry, WorldGraph.HullIndex( this ), m_afCapability );
+				if ( n > 0 )
+				{
+					for ( int i = 0; i < n && m_iHlextGlideCount < 10; i++ )
+						m_vecHlextGlide[m_iHlextGlideCount++] = WorldGraph.m_pNodes[ iPath[i] ].m_vecOrigin;
+					nNodes = n;
+				}
+			}
+		}
+	}
+
+	m_vecHlextGlide[m_iHlextGlideCount++] = vecMark;
+	m_iHlextGlideIdx = 1;
+
+	m_iHlextGlideSolid = pev->solid;
+	pev->solid = SOLID_NOT;
+	m_fHlextGlide = TRUE;
+	m_flHlextGlideStart = gpGlobals->time;
+	m_flHlextGlideLast = gpGlobals->time;
+
+	// anda de verdade durante o deslize
+	Stop();
+	m_IdealActivity = ACT_WALK;
+	SetActivity( ACT_WALK );
+
+	HLEXT_Log( "script: %s (%s) %s; deslizando sem colisao ate a marca por %d nos (%.0f %.0f %.0f)",
+		STRING( pev->classname ), STRING( pev->targetname ), pszWhy, nNodes, vecMark.x, vecMark.y, vecMark.z );
+}
+
+BOOL CBaseMonster :: HlextGlideStep ()
+{
+	if ( !m_fHlextGlide )
+		return FALSE;
+
+	// cancela se algo mudou (morreu, saiu do script) ou se passou tempo demais
+	if ( pev->deadflag != DEAD_NO || m_MonsterState != MONSTERSTATE_SCRIPT || !m_pCine ||
+		 gpGlobals->time < m_flHlextGlideStart || gpGlobals->time - m_flHlextGlideStart > 25.0 )
+	{
+		HlextEndGlide( FALSE );
+		return FALSE;
+	}
+
+	float dt = gpGlobals->time - m_flHlextGlideLast;
+	if ( dt < 0.02f ) dt = 0.02f;
+	if ( dt > 0.25f ) dt = 0.25f;
+	m_flHlextGlideLast = gpGlobals->time;
+
+	float flSpeed = m_flGroundSpeed > 20 ? m_flGroundSpeed : 64.0f;
+	float flLeft = flSpeed * dt;
+	Vector vecPos = pev->origin;
+
+	while ( flLeft > 0 && m_iHlextGlideIdx < m_iHlextGlideCount )
+	{
+		Vector vecTo = m_vecHlextGlide[ m_iHlextGlideIdx ] - vecPos;
+		float flDist = vecTo.Length();
+
+		if ( flDist <= flLeft )
+		{
+			vecPos = m_vecHlextGlide[ m_iHlextGlideIdx ];
+			flLeft -= flDist;
+			m_iHlextGlideIdx++;
+		}
+		else
+		{
+			Vector vecDir = vecTo * ( 1.0f / flDist );
+			vecPos = vecPos + vecDir * flLeft;
+			flLeft = 0;
+			pev->angles.y = pev->ideal_yaw = UTIL_VecToYaw( vecDir );
+		}
+	}
+
+	UTIL_SetOrigin( pev, vecPos );
+	pev->velocity = g_vecZero;
+
+	if ( m_iHlextGlideIdx >= m_iHlextGlideCount )
+	{
+		HlextEndGlide( TRUE );
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+void CBaseMonster :: HlextEndGlide ( BOOL fArrived )
+{
+	if ( !m_fHlextGlide )
+		return;
+
+	m_fHlextGlide = FALSE;
+	pev->solid = m_iHlextGlideSolid ? m_iHlextGlideSolid : SOLID_SLIDEBOX;
+	UTIL_SetOrigin( pev, pev->origin ); // religa a entidade ja com o solid de volta
+
+	m_flHlextScriptProgressTime = 0;
+	m_iHlextBlockCount = 0;
+	m_flHlextBlockFirst = 0;
+
+	if ( fArrived )
+	{
+		pev->velocity = g_vecZero;
+		MovementComplete();
+		RouteClear();
+	}
+
+	HLEXT_Log( "script: %s (%s) fim do deslize (%s)", STRING( pev->classname ), STRING( pev->targetname ), fArrived ? "chegou na marca" : "cancelado" );
+}
+
 void CBaseMonster :: MonsterThink ()
 {
 	pev->nextthink = gpGlobals->time + 0.1;// keep monster thinking.
@@ -656,6 +825,17 @@ void CBaseMonster :: MonsterThink ()
 		m_flDistLook = 2048.0;
 	}
 	
+
+	if ( m_fHlextGlide && HlextIsMapBarney( this ) )
+	{
+		if ( HlextGlideStep() )
+		{
+			// ainda deslizando: so anima (andar) e nao roda IA/Move, que travariam de novo
+			float flGlideInterval = StudioFrameAdvance();
+			DispatchAnimEvents( flGlideInterval );
+			return;
+		}
+	}
 
 	RunAI();
 
@@ -2075,9 +2255,9 @@ void CBaseMonster :: Move ( float flInterval )
 					HLEXT_Log( "rota completa: %s", szRoute );
 				}
 
-				if ( m_iHlextBlockCount >= 5 )
+				if ( m_iHlextBlockCount >= 2 )
 				{
-					HlextSnapToScriptMark( "bloqueado 5x por obstaculo parado" );
+					HlextStartGlide( "bloqueado por obstaculo parado" );
 					return;
 				}
 			}
