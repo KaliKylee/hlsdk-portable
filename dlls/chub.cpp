@@ -31,6 +31,7 @@
 #include	"gamerules.h"
 #include	"skill.h"
 #include	"hitproxy.h"
+#include	"trex_log.h"
 
 #define WEAPON_CHUB		16
 #define CHUB_WEIGHT		5
@@ -103,6 +104,8 @@ public:
 	float m_flCroakTime;
 	BOOL m_fSwimming;
 	float m_flSwimSpeed;
+	float m_flFleeUntil;
+	Vector m_vecFleeFrom;
 	EHANDLE m_hProxy;
 
 	CUSTOM_SCHEDULES
@@ -119,6 +122,8 @@ TYPEDESCRIPTION CChub::m_SaveData[] =
 	DEFINE_FIELD( CChub, m_flCroakTime, FIELD_TIME ),
 	DEFINE_FIELD( CChub, m_fSwimming, FIELD_BOOLEAN ),
 	DEFINE_FIELD( CChub, m_flSwimSpeed, FIELD_FLOAT ),
+	DEFINE_FIELD( CChub, m_flFleeUntil, FIELD_TIME ),
+	DEFINE_FIELD( CChub, m_vecFleeFrom, FIELD_POSITION_VECTOR ),
 };
 
 IMPLEMENT_SAVERESTORE( CChub, CBaseMonster )
@@ -271,6 +276,10 @@ Schedule_t *CChub::GetScheduleOfType( int Type )
 
 Schedule_t *CChub::GetSchedule( void )
 {
+	// hurt: run away from whoever did it
+	if( m_flFleeUntil > gpGlobals->time && !m_fPlayDead )
+		return GetScheduleOfType( SCHED_CHUB_FLEE );
+
 	if( m_MonsterState == MONSTERSTATE_IDLE )
 	{
 		// half of the time it hops away from where it is
@@ -338,6 +347,7 @@ void CChub::Spawn( void )
 	m_flCroakTime = 0;
 	m_fSwimming = FALSE;
 	m_flSwimSpeed = 0;
+	m_flFleeUntil = 0;
 
 	MonsterInit();
 	SetUse( &CChub::ChubUse );
@@ -415,9 +425,10 @@ void CChub::StartTask( Task_t *pTask )
 	case TASK_CHUB_HOP:
 		{
 			Vector vecDir;
-			if( pTask->flData == 1 && m_hEnemy != 0 )
+			if( pTask->flData == 1 && ( m_flFleeUntil > gpGlobals->time || m_hEnemy != 0 ) )
 			{
-				vecDir = ( pev->origin - m_hEnemy->pev->origin );
+				Vector vecFrom = m_flFleeUntil > gpGlobals->time ? m_vecFleeFrom : m_hEnemy->pev->origin;
+				vecDir = ( pev->origin - vecFrom );
 				vecDir.z = 0;
 				vecDir = vecDir.Normalize();
 				// wobble a bit
@@ -440,6 +451,7 @@ void CChub::StartTask( Task_t *pTask )
 					vecDir = ( vecDir + Vector( RANDOM_FLOAT( -1, 1 ), RANDOM_FLOAT( -1, 1 ), 0 ) ).Normalize();
 			}
 
+			TREX_Log( "chub: hop type=%.0f ok=%d groundspeed=%.1f act=%d", pTask->flData, fOk, m_flGroundSpeed, m_Activity );
 			if( fOk )
 				TaskComplete();
 			else
@@ -516,6 +528,12 @@ int CChub::TakeDamage( entvars_t *pevInflictor, entvars_t *pevAttacker, float fl
 	if( pevAttacker && ( pevAttacker->flags & FL_CLIENT ) )
 		Remember( bits_MEMORY_PROVOKED );
 
+	if( flDamage > 0 && pevAttacker )
+	{
+		m_flFleeUntil = gpGlobals->time + 6.0f;
+		m_vecFleeFrom = pevAttacker->origin;
+	}
+
 	// a "dead" toad can be hurt like any other
 	if( m_fPlayDead )
 		pev->deadflag = DEAD_NO;
@@ -580,6 +598,10 @@ void CChub::MonsterThink( void )
 
 void CChub::ChubThink( void )
 {
+	// some hop animations have no ground speed: then the monster would never move
+	if( m_flGroundSpeed < 20.0f && ( m_Activity == ACT_WALK || m_Activity == ACT_RUN ) )
+		m_flGroundSpeed = ( m_Activity == ACT_RUN ) ? 90.0f : 45.0f;
+
 	if( pev->movetype == MOVETYPE_TOSS && ( pev->flags & FL_ONGROUND ) )
 		pev->movetype = MOVETYPE_STEP;
 
