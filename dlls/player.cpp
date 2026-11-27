@@ -3620,6 +3620,7 @@ void CBasePlayer::CheatImpulseCommands( int iImpulse )
 		GiveNamedItem( "ammo_rpgclip" );
 		GiveNamedItem( "weapon_satchel" );
 		GiveNamedItem( "weapon_snark" );
+		GiveNamedItem( "weapon_chub" );
 		GiveNamedItem( "weapon_hornetgun" );
 #endif
 		gEvilImpulse101 = FALSE;

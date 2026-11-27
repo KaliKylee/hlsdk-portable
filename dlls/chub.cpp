@@ -1,0 +1,850 @@
+/***
+*
+*	Copyright (c) 1996-2002, Valve LLC. All rights reserved.
+*
+*	This product contains software technology licensed from Id
+*	Software, Inc. ("Id Technology").  Id Technology (c) 1996 Id Software, Inc.
+*	All Rights Reserved.
+*
+****/
+//=========================================================
+// weapon_chub / monster_chumtoad (monster_chubtoad) - ThrillEX
+// Reconstructed from the decompiled hl.dll (CChubGrenade / CChub).
+//
+//  weapon_chub: a copy of the snark weapon. Throws a chumtoad, which
+//               is NOT hostile: it is a pet frog.
+//  monster_chumtoad: croaks from time to time, hops around, swims,
+//               flees from whoever hurt it, plays dead when scared
+//               and can be picked up again with the USE key
+//               (gives back a "Chubtoads" ammo).
+//=========================================================
+
+#include	"extdll.h"
+#include	"util.h"
+#include	"cbase.h"
+#include	"monsters.h"
+#include	"schedule.h"
+#include	"weapons.h"
+#include	"nodes.h"
+#include	"player.h"
+#include	"soundent.h"
+#include	"gamerules.h"
+#include	"skill.h"
+#include	"hitproxy.h"
+
+#define WEAPON_CHUB		16
+#define CHUB_WEIGHT		5
+#define CHUB_MAX_CARRY		5
+#define CHUB_DEFAULT_GIVE	1
+
+enum chub_e
+{
+	CHUB_IDLE1 = 0,
+	CHUB_FIDGETFIT,
+	CHUB_FIDGETNIP,
+	CHUB_DOWN,
+	CHUB_UP,
+	CHUB_THROW
+};
+
+//=========================================================
+// monster_chumtoad
+//=========================================================
+enum
+{
+	TASK_CHUB_IDLE = LAST_COMMON_TASK + 1,	// choose idle / swim activity
+	TASK_CHUB_PLAYDEAD,
+	TASK_CHUB_WAIT_PLAYDEAD,
+	TASK_CHUB_STOP_PLAYDEAD,
+};
+
+enum
+{
+	SCHED_CHUB_FEAR = LAST_COMMON_SCHEDULE + 1,
+	SCHED_CHUB_PLAYDEAD,
+	SCHED_CHUB_STOP_PLAYDEAD,
+};
+
+class CChub : public CBaseMonster
+{
+public:
+	void Spawn( void );
+	void Precache( void );
+	void SetYawSpeed( void );
+	int Classify( void ) { return CLASS_PLAYER_ALLY; }
+	int IRelationship( CBaseEntity *pTarget );
+	void StartTask( Task_t *pTask );
+	void RunTask( Task_t *pTask );
+	int TakeDamage( entvars_t *pevInflictor, entvars_t *pevAttacker, float flDamage, int bitsDamageType );
+	Schedule_t *GetScheduleOfType( int Type );
+	Schedule_t *GetSchedule( void );
+	void MonsterThink( void );
+	void Killed( entvars_t *pevAttacker, int iGib );
+	void GibMonster( void );
+	void UpdateOnRemove( void );
+
+	void EXPORT ChubUse( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value );
+	void EXPORT WaterDeathThink( void );
+
+	void ChubThink( void );
+	void Swim( void );
+
+	virtual int Save( CSave &save );
+	virtual int Restore( CRestore &restore );
+	static TYPEDESCRIPTION m_SaveData[];
+
+	float m_flBlinkTime;
+	BOOL m_fPlayDead;
+	float m_flPlayDeadTime;
+	float m_flCroakTime;
+	BOOL m_fSwimming;
+	float m_flSwimSpeed;
+	EHANDLE m_hProxy;
+
+	CUSTOM_SCHEDULES
+};
+
+LINK_ENTITY_TO_CLASS( monster_chumtoad, CChub )
+LINK_ENTITY_TO_CLASS( monster_chubtoad, CChub )
+
+TYPEDESCRIPTION CChub::m_SaveData[] =
+{
+	DEFINE_FIELD( CChub, m_flBlinkTime, FIELD_TIME ),
+	DEFINE_FIELD( CChub, m_fPlayDead, FIELD_BOOLEAN ),
+	DEFINE_FIELD( CChub, m_flPlayDeadTime, FIELD_TIME ),
+	DEFINE_FIELD( CChub, m_flCroakTime, FIELD_TIME ),
+	DEFINE_FIELD( CChub, m_fSwimming, FIELD_BOOLEAN ),
+	DEFINE_FIELD( CChub, m_flSwimSpeed, FIELD_FLOAT ),
+};
+
+IMPLEMENT_SAVERESTORE( CChub, CBaseMonster )
+
+//=========================================================
+// Schedules
+//=========================================================
+Task_t tlChubIdleStand[] =
+{
+	{ TASK_STOP_MOVING, (float)0 },
+	{ TASK_CHUB_IDLE, (float)0 },
+	{ TASK_WAIT, (float)5 },
+};
+
+Schedule_t slChubIdleStand[] =
+{
+	{
+		tlChubIdleStand,
+		ARRAYSIZE( tlChubIdleStand ),
+		0x78344,
+		0x7f,
+		"IdleStand"
+	},
+};
+
+Task_t tlChubFear[] =
+{
+	{ TASK_STOP_MOVING, (float)0 },
+	{ TASK_PLAY_SEQUENCE, (float)19 },
+	{ TASK_CHUB_STOP_PLAYDEAD, (float)0 },
+};
+
+Schedule_t slChubFear[] =
+{
+	{
+		tlChubFear,
+		ARRAYSIZE( tlChubFear ),
+		0x10000,
+		0,
+		"Chub Fear"
+	},
+};
+
+Task_t tlChubPlaydead[] =
+{
+	{ TASK_STOP_MOVING, (float)0 },
+	{ TASK_CHUB_PLAYDEAD, (float)0 },
+	{ TASK_CHUB_WAIT_PLAYDEAD, (float)0 },
+	{ TASK_CHUB_STOP_PLAYDEAD, (float)0 },
+};
+
+Schedule_t slChubPlaydead[] =
+{
+	{
+		tlChubPlaydead,
+		ARRAYSIZE( tlChubPlaydead ),
+		0,
+		0,
+		"Chub Playdead"
+	},
+};
+
+Task_t tlChubStopPlaydead[] =
+{
+	{ TASK_STOP_MOVING, (float)0 },
+	{ TASK_CHUB_STOP_PLAYDEAD, (float)0 },
+};
+
+Schedule_t slChubStopPlaydead[] =
+{
+	{
+		tlChubStopPlaydead,
+		ARRAYSIZE( tlChubStopPlaydead ),
+		0,
+		0,
+		"Chub Stop Playdead"
+	},
+};
+
+DEFINE_CUSTOM_SCHEDULES( CChub )
+{
+	slChubIdleStand,
+	slChubFear,
+	slChubPlaydead,
+	slChubStopPlaydead,
+};
+
+IMPLEMENT_CUSTOM_SCHEDULES( CChub, CBaseMonster )
+
+Schedule_t *CChub::GetScheduleOfType( int Type )
+{
+	switch( Type )
+	{
+	case SCHED_IDLE_STAND:
+		return &slChubIdleStand[0];
+	case SCHED_CHUB_PLAYDEAD:
+		return &slChubPlaydead[0];
+	case SCHED_CHUB_STOP_PLAYDEAD:
+		return &slChubStopPlaydead[0];
+	}
+	return CBaseMonster::GetScheduleOfType( Type );
+}
+
+Schedule_t *CChub::GetSchedule( void )
+{
+	if( m_MonsterState == MONSTERSTATE_IDLE )
+	{
+		// half of the time it hops away from where it is
+		if( RANDOM_LONG( 0, 99 ) <= 50 )
+			return GetScheduleOfType( SCHED_TAKE_COVER_FROM_ORIGIN );
+		return CBaseMonster::GetSchedule();
+	}
+
+	if( m_MonsterState != MONSTERSTATE_COMBAT )
+		return CBaseMonster::GetSchedule();
+
+	if( HasConditions( bits_COND_ENEMY_DEAD ) )
+	{
+		if( m_fPlayDead )
+			return GetScheduleOfType( SCHED_CHUB_STOP_PLAYDEAD );
+		return CBaseMonster::GetSchedule();
+	}
+
+	if( HasConditions( bits_COND_NEW_ENEMY ) )
+		return GetScheduleOfType( SCHED_WAKE_ANGRY );
+
+	if( HasConditions( bits_COND_LIGHT_DAMAGE | bits_COND_HEAVY_DAMAGE ) )
+	{
+		if( m_fPlayDead )
+			return GetScheduleOfType( SCHED_CHUB_STOP_PLAYDEAD );
+		return CBaseMonster::GetSchedule();
+	}
+
+	if( HasMemory( bits_MEMORY_INCOVER ) && !m_fPlayDead )
+		return GetScheduleOfType( SCHED_CHUB_PLAYDEAD );
+
+	if( !HasConditions( bits_COND_SEE_ENEMY ) )
+		return GetScheduleOfType( SCHED_COMBAT_FACE );
+
+	if( m_fPlayDead )
+		return GetScheduleOfType( SCHED_IDLE_STAND );
+
+	return GetScheduleOfType( SCHED_TAKE_COVER_FROM_ENEMY );
+}
+
+//=========================================================
+// Spawn / Precache
+//=========================================================
+void CChub::Spawn( void )
+{
+	Precache();
+
+	SET_MODEL( ENT( pev ), "models/chumtoad.mdl" );
+	UTIL_SetSize( pev, Vector( -12, -12, 0 ), Vector( 12, 12, 25 ) );
+
+	pev->solid = SOLID_SLIDEBOX;
+	pev->movetype = MOVETYPE_TOSS;	// becomes MOVETYPE_STEP when it lands
+	m_bloodColor = 54;
+	pev->effects = 0;
+	pev->health = gSkillData.chubtoadHealth;
+	if( pev->health <= 0 )
+		pev->health = 10;
+	pev->view_ofs = Vector( 0, 0, 16 );
+	m_flFieldOfView = -1.0f;
+	m_MonsterState = MONSTERSTATE_NONE;
+
+	m_flBlinkTime = 0;
+	m_fPlayDead = FALSE;
+	m_flPlayDeadTime = 0;
+	m_flCroakTime = 0;
+	m_fSwimming = FALSE;
+	m_flSwimSpeed = 0;
+
+	MonsterInit();
+	SetUse( &CChub::ChubUse );
+}
+
+void CChub::Precache( void )
+{
+	PRECACHE_MODEL( "models/chumtoad.mdl" );
+	PRECACHE_SOUND( "chub/frog.wav" );
+	PRECACHE_SOUND( "items/gunpickup2.wav" );
+	PRECACHE_SOUND( "common/bodysplat.wav" );
+	PRECACHE_MODEL( "models/agibs.mdl" );
+}
+
+void CChub::SetYawSpeed( void )
+{
+	switch( m_Activity )
+	{
+	case ACT_SWIM:
+		pev->yaw_speed = 150;
+		break;
+	case 19:
+	case 24:
+	case 58:
+		pev->yaw_speed = 0;
+		break;
+	default:
+		pev->yaw_speed = 70;
+		break;
+	}
+}
+
+int CChub::IRelationship( CBaseEntity *pTarget )
+{
+	// afraid of the player once the player has hurt it
+	if( pTarget->IsPlayer() && ( m_afMemory & bits_MEMORY_PROVOKED ) )
+		return R_FR;
+	return CBaseMonster::IRelationship( pTarget );
+}
+
+//=========================================================
+// Tasks
+//=========================================================
+void CChub::StartTask( Task_t *pTask )
+{
+	m_iTaskStatus = TASKSTATUS_RUNNING;
+
+	switch( pTask->iTask )
+	{
+	case TASK_SET_ACTIVITY:
+		{
+			int act = (int)pTask->flData;
+			if( act == ACT_IDLE )
+				act = pev->waterlevel != 0 ? ACT_SWIM : ACT_IDLE;
+			m_IdealActivity = (Activity)act;
+			TaskComplete();
+		}
+		break;
+	case TASK_CHUB_IDLE:
+		if( m_fPlayDead )
+		{
+			m_IdealActivity = ACT_TWITCH;
+		}
+		else if( pev->waterlevel != 0 )
+		{
+			m_IdealActivity = ACT_SWIM;
+		}
+		else
+		{
+			m_IdealActivity = ACT_IDLE;
+			pev->movetype = MOVETYPE_STEP;
+		}
+		TaskComplete();
+		break;
+	case TASK_CHUB_PLAYDEAD:
+		ALERT( at_console, "Chub: Playing dead!\n" );
+		m_fPlayDead = TRUE;
+		pev->skin = 2;
+		m_IdealActivity = ACT_FEAR_DISPLAY;
+		break;
+	case TASK_CHUB_WAIT_PLAYDEAD:
+		m_IdealActivity = ACT_TWITCH;
+		break;
+	case TASK_CHUB_STOP_PLAYDEAD:
+		ALERT( at_console, "Chub: Stopped playdead!\n" );
+		Forget( bits_MEMORY_INCOVER );
+		m_fPlayDead = FALSE;
+		pev->deadflag = DEAD_NO;
+		m_flPlayDeadTime = 0;
+		TaskComplete();
+		break;
+	default:
+		CBaseMonster::StartTask( pTask );
+		break;
+	}
+}
+
+void CChub::RunTask( Task_t *pTask )
+{
+	switch( pTask->iTask )
+	{
+	case TASK_DIE:
+		if( m_fSequenceFinished || pev->frame >= 255 )
+		{
+			pev->deadflag = DEAD_DEAD;
+			SetUse( NULL );
+			TaskComplete();
+		}
+		break;
+	case TASK_CHUB_PLAYDEAD:
+		if( !m_fSequenceFinished )
+			return;
+		pev->deadflag = DEAD_DEAD;
+		m_flPlayDeadTime = gpGlobals->time + RANDOM_FLOAT( 5, 9 );
+		TaskComplete();
+		break;
+	case TASK_CHUB_WAIT_PLAYDEAD:
+		if( m_flPlayDeadTime < gpGlobals->time )
+			TaskComplete();
+		break;
+	default:
+		CBaseMonster::RunTask( pTask );
+		break;
+	}
+}
+
+//=========================================================
+// Damage
+//=========================================================
+int CChub::TakeDamage( entvars_t *pevInflictor, entvars_t *pevAttacker, float flDamage, int bitsDamageType )
+{
+	if( bitsDamageType & DMG_RADIATION )
+	{
+		flDamage = 0;
+	}
+	else if( flDamage > 0 )
+	{
+		Forget( bits_MEMORY_INCOVER );
+		m_flPlayDeadTime = 0;
+	}
+
+	if( pevAttacker && ( pevAttacker->flags & FL_CLIENT ) )
+		Remember( bits_MEMORY_PROVOKED );
+
+	// a "dead" toad can be hurt like any other
+	if( m_fPlayDead )
+		pev->deadflag = DEAD_NO;
+
+	int ret = CBaseMonster::TakeDamage( pevInflictor, pevAttacker, flDamage, bitsDamageType );
+
+	if( m_fPlayDead )
+		pev->deadflag = DEAD_DEAD;
+
+	return ret;
+}
+
+void CChub::GibMonster( void )
+{
+	EMIT_SOUND_DYN( ENT( pev ), CHAN_WEAPON, "common/bodysplat.wav", 1, ATTN_NORM, 0, 100 );
+	CGib::SpawnRandomGibs( pev, 2, 0 );
+
+	SetThink( &CBaseEntity::SUB_Remove );
+	pev->nextthink = gpGlobals->time;
+}
+
+void CChub::Killed( entvars_t *pevAttacker, int iGib )
+{
+	HitProxy_Remove( m_hProxy );
+	CBaseMonster::Killed( pevAttacker, iGib );
+}
+
+void CChub::UpdateOnRemove( void )
+{
+	HitProxy_Remove( m_hProxy );
+	CBaseMonster::UpdateOnRemove();
+}
+
+//=========================================================
+// Use: picks the toad up again
+//=========================================================
+void CChub::ChubUse( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value )
+{
+	if( !pActivator || !pActivator->IsPlayer() )
+		return;
+	if( m_afMemory & bits_MEMORY_PROVOKED )
+		return;
+	if( pev->deadflag != DEAD_NO && !m_fPlayDead )
+		return;
+
+	if( g_pGameRules->CanHaveAmmo( (CBasePlayer *)pActivator, "Chubtoads", CHUB_MAX_CARRY ) )
+	{
+		( (CBasePlayer *)pActivator )->GiveNamedItem( "weapon_chub" );
+		EMIT_SOUND_DYN( pActivator->edict(), CHAN_ITEM, "items/gunpickup2.wav", 1, ATTN_NORM, 0, 100 );
+		UTIL_Remove( this );
+	}
+}
+
+//=========================================================
+// Thinking
+//=========================================================
+void CChub::MonsterThink( void )
+{
+	ChubThink();
+	HitProxy_Sync( this, m_hProxy );
+}
+
+void CChub::ChubThink( void )
+{
+	if( pev->movetype == MOVETYPE_TOSS && ( pev->flags & FL_ONGROUND ) )
+		pev->movetype = MOVETYPE_STEP;
+
+	// eye blinking (skin 0..2)
+	if( m_flBlinkTime < gpGlobals->time )
+	{
+		if( !( m_fPlayDead && !m_fSwimming ) )
+		{
+			if( pev->skin >= 2 )
+			{
+				pev->skin = 0;
+				m_flBlinkTime = gpGlobals->time + RANDOM_FLOAT( 2, 5 );
+			}
+			else
+			{
+				pev->skin++;
+				m_flBlinkTime = gpGlobals->time + 0.15f;
+			}
+		}
+	}
+
+	if( m_fSwimming )
+	{
+		if( pev->health > 0 )
+		{
+			if( pev->waterlevel == 3 )
+			{
+				Swim();
+			}
+			else
+			{
+				// out of the water again
+				pev->deadflag = DEAD_NO;
+				pev->movetype = MOVETYPE_STEP;
+				pev->velocity = pev->basevelocity;
+				pev->avelocity = g_vecZero;
+				m_fPlayDead = FALSE;
+				m_fSwimming = FALSE;
+			}
+		}
+		else
+		{
+			// drowned: float up to the surface
+			SetActivity( ACT_DIESIMPLE );
+			UTIL_SetSize( pev, g_vecZero, g_vecZero );
+			SetThink( &CChub::WaterDeathThink );
+			pev->nextthink = gpGlobals->time + 0.1f;
+			pev->gravity = 0.1f;
+		}
+		return;
+	}
+
+	if( pev->waterlevel == 3 )
+	{
+		// fell into the water: floats around "dead"
+		pev->deadflag = DEAD_DEAD;
+		pev->movetype = MOVETYPE_FLY;
+		pev->avelocity = g_vecZero;
+		pev->velocity = g_vecZero;
+		m_fPlayDead = TRUE;
+		m_fSwimming = TRUE;
+	}
+
+	if( m_flCroakTime == 0 )
+	{
+		m_flCroakTime = gpGlobals->time + RANDOM_FLOAT( 1.5f, 5 );
+		CBaseMonster::MonsterThink();
+	}
+	else
+	{
+		if( gpGlobals->time >= m_flCroakTime )
+		{
+			if( !m_fPlayDead && pev->waterlevel == 0 )
+			{
+				EMIT_SOUND_DYN( ENT( pev ), CHAN_VOICE, "chub/frog.wav", 1, ATTN_NORM, 0, RANDOM_LONG( 90, 110 ) );
+				CSoundEnt::InsertSound( bits_SOUND_PLAYER, pev->origin, 384, 0.5f );
+			}
+			m_flCroakTime = 0;
+		}
+		CBaseMonster::MonsterThink();
+	}
+}
+
+void CChub::Swim( void )
+{
+	if( m_Activity != ACT_SWIM )
+		SetActivity( ACT_SWIM );
+
+	Vector angles = pev->angles;
+	angles.x = -angles.x;
+	UTIL_MakeVectors( angles );
+
+	float dist = RANDOM_LONG( 36, 72 );
+	Vector vecEnd = pev->origin + gpGlobals->v_forward * dist;
+
+	TraceResult tr;
+	UTIL_TraceLine( pev->origin, vecEnd, ignore_monsters, ENT( pev ), &tr );
+
+	// still inside the water?
+	BOOL fOutOfWater = ( UTIL_PointContents( tr.vecEndPos ) == CONTENTS_EMPTY );
+
+	if( tr.fStartSolid || tr.fAllSolid || tr.flFraction < 0.97f || fOutOfWater )
+	{
+		// obstacle: turn around
+		pev->velocity = g_vecZero;
+		pev->angles.y += 5;
+		pev->nextthink = gpGlobals->time + 0.05f;
+	}
+	else
+	{
+		m_flSwimSpeed = UTIL_Approach( 50, m_flSwimSpeed, 9 );
+		pev->velocity = gpGlobals->v_forward * m_flSwimSpeed;
+		pev->avelocity = g_vecZero;
+		pev->angles.y += RANDOM_LONG( -1, 1 ) * 2.5f;
+		pev->nextthink = gpGlobals->time + 0.1f;
+	}
+}
+
+void CChub::WaterDeathThink( void )
+{
+	if( pev->skin < 2 )
+		pev->skin++;
+
+	if( pev->waterlevel == 3 )
+	{
+		pev->movetype = MOVETYPE_FLY;
+		pev->velocity = pev->velocity * 0.5f;
+		pev->avelocity = pev->avelocity * 0.9f;
+		pev->velocity.z += 4;
+	}
+	else
+	{
+		pev->movetype = MOVETYPE_BOUNCE;
+	}
+
+	pev->nextthink = gpGlobals->time + 0.1f;
+}
+
+//=========================================================
+// weapon_chub
+//=========================================================
+class CChubWeapon : public CBasePlayerWeapon
+{
+public:
+	void Spawn( void );
+	void Precache( void );
+	int iItemSlot( void ) { return 5; }
+	int GetItemInfo( ItemInfo *p );
+	int AddToPlayer( CBasePlayer *pPlayer );
+
+	void PrimaryAttack( void );
+	void SecondaryAttack( void ) { }
+	BOOL Deploy( void );
+	void Holster( int skiplocal = 0 );
+	void WeaponIdle( void );
+	void ItemPostFrame( void );
+
+	BOOL CanThrow( void );
+	void ThrowToad( void );
+
+	virtual BOOL UseDecrement( void ) { return FALSE; }
+
+	int m_fJustThrown;
+	float m_flStartThrow;
+
+private:
+	unsigned short m_usChubFire;
+};
+
+LINK_ENTITY_TO_CLASS( weapon_chub, CChubWeapon )
+
+void CChubWeapon::Spawn( void )
+{
+	Precache();
+	m_iId = WEAPON_CHUB;
+	SET_MODEL( ENT( pev ), "models/chumtoad.mdl" );
+	m_iDefaultAmmo = CHUB_DEFAULT_GIVE;
+	pev->effects = EF_NODRAW;	// shown by Materialize() once it landed
+	FallInit();
+}
+
+void CChubWeapon::Precache( void )
+{
+	PRECACHE_MODEL( "models/chumtoad.mdl" );
+	PRECACHE_MODEL( "models/v_chub.mdl" );
+	PRECACHE_MODEL( "models/p_squeak.mdl" );
+	UTIL_PrecacheOther( "monster_chumtoad" );
+
+	m_usChubFire = PRECACHE_EVENT( 1, "events/chubfire.sc" );
+}
+
+int CChubWeapon::GetItemInfo( ItemInfo *p )
+{
+	p->pszName = STRING( pev->classname );
+	p->pszAmmo1 = "Chubtoads";
+	p->iMaxAmmo1 = CHUB_MAX_CARRY;
+	p->pszAmmo2 = NULL;
+	p->iMaxAmmo2 = -1;
+	p->iMaxClip = WEAPON_NOCLIP;
+	p->iSlot = 4;
+	p->iPosition = 4;
+	p->iId = m_iId = WEAPON_CHUB;
+	p->iWeight = CHUB_WEIGHT;
+	p->iFlags = ITEM_FLAG_LIMITINWORLD | ITEM_FLAG_EXHAUSTIBLE;
+	return 1;
+}
+
+int CChubWeapon::AddToPlayer( CBasePlayer *pPlayer )
+{
+	return CBasePlayerWeapon::AddToPlayer( pPlayer );
+}
+
+BOOL CChubWeapon::Deploy( void )
+{
+	m_pPlayer->m_iWeaponVolume = QUIET_GUN_VOLUME;
+	m_pPlayer->m_flNextAttack = UTIL_WeaponTimeBase() + 1.0f;
+	return DefaultDeploy( "models/v_chub.mdl", "models/p_squeak.mdl", CHUB_UP, "chub" );
+}
+
+void CChubWeapon::Holster( int skiplocal )
+{
+	m_pPlayer->m_flNextAttack = UTIL_WeaponTimeBase() + 1.1f;
+	m_flStartThrow = 0;
+
+	if( m_pPlayer->m_rgAmmo[m_iPrimaryAmmoType] )
+	{
+		SendWeaponAnim( CHUB_DOWN );
+		EMIT_SOUND( ENT( m_pPlayer->pev ), CHAN_WEAPON, "common/null.wav", 1.0f, ATTN_NORM );
+	}
+	else
+	{
+		m_pPlayer->pev->weapons &= ~( 1 << WEAPON_CHUB );
+		SetThink( &CBasePlayerItem::DestroyItem );
+		pev->nextthink = gpGlobals->time + 0.1f;
+	}
+}
+
+// is there room in front of the player to drop a toad?
+BOOL CChubWeapon::CanThrow( void )
+{
+	UTIL_MakeVectors( m_pPlayer->pev->v_angle );
+
+	Vector vecSrc = m_pPlayer->GetGunPosition() + gpGlobals->v_forward * 16.0f;
+	if( m_pPlayer->pev->flags & FL_DUCKING )
+		vecSrc = vecSrc - Vector( 0, 0, -18 );
+
+	TraceResult tr;
+	UTIL_TraceLine( vecSrc, vecSrc + gpGlobals->v_forward * 64.0f, dont_ignore_monsters, m_pPlayer->edict(), &tr );
+
+	if( tr.fAllSolid || tr.fStartSolid || tr.flFraction <= 0.25f )
+		return FALSE;
+	return TRUE;
+}
+
+void CChubWeapon::ThrowToad( void )
+{
+	UTIL_MakeVectors( m_pPlayer->pev->v_angle );
+
+	CBaseEntity *pToad = CBaseEntity::Create( "monster_chumtoad",
+		m_pPlayer->GetGunPosition() + gpGlobals->v_forward * 48.0f, g_vecZero, m_pPlayer->edict() );
+
+	if( pToad )
+	{
+		pToad->pev->angles.y = m_pPlayer->pev->angles.y;
+		pToad->pev->angles.x = 0;
+		pToad->pev->angles.z = 0;
+		pToad->pev->movetype = MOVETYPE_TOSS;
+		pToad->pev->flags &= ~FL_ONGROUND;
+		pToad->pev->velocity = m_pPlayer->pev->velocity + gpGlobals->v_forward * 500.0f + gpGlobals->v_up * 300.0f;
+	}
+
+	m_pPlayer->m_iWeaponVolume = QUIET_GUN_VOLUME;
+	m_pPlayer->m_rgAmmo[m_iPrimaryAmmoType]--;
+	m_fJustThrown = 1;
+}
+
+void CChubWeapon::PrimaryAttack( void )
+{
+	if( !m_pPlayer->m_rgAmmo[m_iPrimaryAmmoType] )
+		return;
+
+	if( m_flStartThrow != 0 )
+		return;
+
+	if( CanThrow() )
+	{
+		PLAYBACK_EVENT_FULL( 0, m_pPlayer->edict(), m_usChubFire, 0.0f, g_vecZero, g_vecZero, 0.0f, 0.0f, 0, 0, 0, 0 );
+		SendWeaponAnim( CHUB_THROW );
+		m_pPlayer->SetAnimation( PLAYER_ATTACK1 );
+
+		m_flStartThrow = gpGlobals->time + 1.0f;
+		m_flNextPrimaryAttack = GetNextAttackDelay( 3.0f );
+	}
+}
+
+void CChubWeapon::ItemPostFrame( void )
+{
+	if( m_flStartThrow != 0 && m_flStartThrow <= gpGlobals->time )
+	{
+		m_flStartThrow = 0;
+		if( CanThrow() )
+			ThrowToad();
+		m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + 1.0f;
+	}
+
+	CBasePlayerWeapon::ItemPostFrame();
+}
+
+void CChubWeapon::WeaponIdle( void )
+{
+	if( m_flTimeWeaponIdle > UTIL_WeaponTimeBase() )
+		return;
+
+	if( m_flStartThrow != 0 )
+		return;
+
+	if( m_fJustThrown )
+	{
+		m_fJustThrown = 0;
+
+		if( !m_pPlayer->m_rgAmmo[PrimaryAmmoIndex()] )
+		{
+			RetireWeapon();
+			return;
+		}
+
+		SendWeaponAnim( CHUB_UP );
+		m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + RANDOM_FLOAT( 10, 15 );
+		return;
+	}
+
+	int iAnim;
+	float flRand = RANDOM_FLOAT( 0, 1 );
+	if( flRand > 0.75f )
+	{
+		if( flRand > 0.875f )
+		{
+			iAnim = CHUB_FIDGETNIP;
+			m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + 5.0f;
+		}
+		else
+		{
+			iAnim = CHUB_FIDGETFIT;
+			m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + 4.375f;
+		}
+	}
+	else
+	{
+		iAnim = CHUB_IDLE1;
+		m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + 3.75f;
+	}
+	SendWeaponAnim( iAnim );
+}

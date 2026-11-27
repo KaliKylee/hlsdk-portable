@@ -355,6 +355,9 @@ void W_Precache( void )
 	// squeak grenade
 	UTIL_PrecacheOtherWeapon( "weapon_snark" );
 
+	// chubtoad (ThrillEX)
+	UTIL_PrecacheOtherWeapon( "weapon_chub" );
+
 	// hornetgun
 	UTIL_PrecacheOtherWeapon( "weapon_hornetgun" );
 
