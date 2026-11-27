@@ -592,16 +592,34 @@ void CBaseMonster :: HlextScriptMoveWatchdog ()
 		return;
 	}
 
-	if ( gpGlobals->time - m_flHlextScriptProgressTime > 4.0 && flDist > 8 )
+	if ( gpGlobals->time - m_flHlextScriptProgressTime > 3.0 && flDist > 8 )
 	{
-		HLEXT_Log( "script: %s (%s) sem progresso ate a marca por 4 s (dist %.0f); movendo direto para a marca",
-			STRING( pev->classname ), STRING( pev->targetname ), flDist );
-
-		UTIL_SetOrigin( pev, pMark->pev->origin );
-		pev->velocity = g_vecZero;
-		pev->effects |= EF_NOINTERP;
-		m_flHlextScriptProgressTime = 0;
+		HlextSnapToScriptMark( "sem progresso por 3 s" );
 	}
+}
+
+//=========================================================
+// HlextSnapToScriptMark - leva o NPC direto para a marca do scripted_sequence atual.
+//=========================================================
+void CBaseMonster :: HlextSnapToScriptMark ( const char *pszWhy )
+{
+	CBaseEntity *pMark = m_hTargetEnt;
+	if ( !pMark )
+		pMark = m_pCine;
+	if ( !pMark )
+		return;
+
+	HLEXT_Log( "script: %s (%s) %s; movendo direto para a marca (%.0f %.0f %.0f)",
+		STRING( pev->classname ), STRING( pev->targetname ), pszWhy,
+		pMark->pev->origin.x, pMark->pev->origin.y, pMark->pev->origin.z );
+
+	UTIL_SetOrigin( pev, pMark->pev->origin );
+	pev->velocity = g_vecZero;
+	pev->effects |= EF_NOINTERP;
+	m_flHlextScriptProgressTime = 0;
+	m_iHlextBlockCount = 0;
+	m_flHlextBlockFirst = 0;
+	RouteClear();
 }
 
 void CBaseMonster :: MonsterThink ()
@@ -627,7 +645,47 @@ void CBaseMonster :: MonsterThink ()
 	}
 	
 
+	// HL:E Android: NPC em script andando "encaixado" dentro de um func_wall (ex.: laje de grade
+	// do mapa hle_c0a0). O engine o trataria como preso. Ignora essa parede so durante o RunAI.
+	edict_t *pEmbedded[2] = { NULL, NULL };
+	int iEmbeddedSolid[2] = { 0, 0 };
+	int nEmbedded = 0;
+	if ( m_pCine && ( m_scriptState == SCRIPT_WALK_TO_MARK || m_scriptState == SCRIPT_RUN_TO_MARK ) )
+	{
+		for ( int n = 0; n < 2; n++ )
+		{
+			TraceResult trEmb;
+			TRACE_MONSTER_HULL( edict(), pev->origin, pev->origin, dont_ignore_monsters, edict(), &trEmb );
+			if ( !trEmb.fStartSolid || FNullEnt( trEmb.pHit ) || trEmb.pHit == ENT( 0 ) )
+				break;
+
+			entvars_t *pevHit = VARS( trEmb.pHit );
+			if ( !FClassnameIs( pevHit, "func_wall" ) || pevHit->solid != SOLID_BSP || pevHit->velocity != g_vecZero )
+				break;
+
+			static float s_flLastEmbLog = 0;
+			if ( gpGlobals->time < s_flLastEmbLog || gpGlobals->time - s_flLastEmbLog > 2.0 )
+			{
+				s_flLastEmbLog = gpGlobals->time;
+				HLEXT_Log( "script: %s (%s) encaixado em func_wall %s (modelo %s); ignorando durante o movimento",
+					STRING( pev->classname ), STRING( pev->targetname ), STRING( pevHit->targetname ), STRING( pevHit->model ) );
+			}
+
+			pEmbedded[nEmbedded] = trEmb.pHit;
+			iEmbeddedSolid[nEmbedded] = pevHit->solid;
+			nEmbedded++;
+			pevHit->solid = SOLID_NOT;
+		}
+	}
+
 	RunAI();
+
+	for ( int n = 0; n < nEmbedded; n++ )
+	{
+		if ( !FNullEnt( pEmbedded[n] ) )
+			pEmbedded[n]->v.solid = iEmbeddedSolid[n];
+	}
+
 	HlextScriptMoveWatchdog();
 
 	UpdateShockEffect();
@@ -2017,6 +2075,39 @@ void CBaseMonster :: Move ( float flInterval )
 				STRING( pev->classname ), pev->origin.x, pev->origin.y, pev->origin.z,
 				m_Route[ m_iRouteIndex ].vecLocation.x, m_Route[ m_iRouteIndex ].vecLocation.y, m_Route[ m_iRouteIndex ].vecLocation.z,
 				flDist, m_iRouteIndex, m_Route[ m_iRouteIndex ].iType, pszBlk, pszBlkName, iBlkMoving, iDoorState, m_moveWaitTime );
+		}
+
+		// NPC em script andando e batendo repetidamente num obstaculo parado: nao adianta insistir.
+		if ( m_pCine && ( m_scriptState == SCRIPT_WALK_TO_MARK || m_scriptState == SCRIPT_RUN_TO_MARK ) )
+		{
+			BOOL fMovingBlocker = pBlocker && ( pBlocker->IsMoving() || pBlocker->IsPlayer() || ( pBlocker->pev->flags & FL_MONSTER ) );
+			if ( !fMovingBlocker )
+			{
+				if ( m_flHlextBlockFirst == 0 || gpGlobals->time - m_flHlextBlockFirst > 2.5 || m_flHlextBlockFirst > gpGlobals->time )
+				{
+					m_flHlextBlockFirst = gpGlobals->time;
+					m_iHlextBlockCount = 0;
+				}
+				m_iHlextBlockCount++;
+
+				if ( m_iHlextBlockCount == 1 )
+				{
+					// despeja a rota uma vez por sequencia de bloqueios
+					char szRoute[256];
+					int nOff = 0;
+					for ( int r = 0; r < ROUTE_SIZE && r < 8 && m_Route[r].iType && nOff < 220; r++ )
+						nOff += snprintf( szRoute + nOff, sizeof( szRoute ) - nOff, "%s[%d](%.0f %.0f %.0f t%d) ", r == m_iRouteIndex ? ">" : "", r,
+							m_Route[r].vecLocation.x, m_Route[r].vecLocation.y, m_Route[r].vecLocation.z, m_Route[r].iType );
+					szRoute[ sizeof( szRoute ) - 1 ] = 0;
+					HLEXT_Log( "rota completa: %s", szRoute );
+				}
+
+				if ( m_iHlextBlockCount >= 5 )
+				{
+					HlextSnapToScriptMark( "bloqueado 5x por obstaculo parado" );
+					return;
+				}
+			}
 		}
 
 		if (pBlocker)

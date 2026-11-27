@@ -111,6 +111,9 @@ public:
 	float				m_flHlextScriptBestDist;
 	float				m_flHlextScriptProgressTime;
 	void				HlextScriptMoveWatchdog();
+	int					m_iHlextBlockCount;
+	float				m_flHlextBlockFirst;
+	void				HlextSnapToScriptMark( const char *pszWhy );
 
 	int m_SpawnChance;
 
