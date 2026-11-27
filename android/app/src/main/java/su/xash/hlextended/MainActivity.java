@@ -59,12 +59,13 @@ public class MainActivity extends Activity {
         {"USDT  \u2022  Solana", "G8br5Hgu9jSV1d84g7LfeNMBDJYRwwhntBBebA52QdLk"},
     };
 
-    private static final int BG = 0xFF0F1011;
-    private static final int PANEL = 0xFF171A18;
-    private static final int RED = 0xFFC93C3C;
-    private static final int RED_DARK = 0xFF6E2222;
-    private static final int GREEN = 0xFF3F9A63;
-    private static final int GREEN_DEEP = 0xFF1F5A38;
+    // Tema: laranja (principal) + cinza escuro (secundaria)
+    private static final int BG = 0xFF141414;
+    private static final int PANEL = 0xFF262626;
+    private static final int ORANGE = 0xFFFF7700;
+    private static final int ORANGE_DARK = 0xFFB35200;
+    private static final int GRAY_LIGHT = 0xFFB8B8B8;
+    private static final int GRAY_DEEP = 0xFF3C3C3C;
 
     private static final String ACTION_MOD = "su.xash.engine.MOD";
 
@@ -203,12 +204,12 @@ public class MainActivity extends Activity {
 
         holder.addView(col, colLp);
 
-        TextView title = text("HL EXTENDED", 32, RED, true);
+        TextView title = text("HL EXTENDED", 32, ORANGE, true);
         title.setLetterSpacing(0.12f);
         title.setGravity(Gravity.CENTER);
         col.addView(title, wrap());
 
-        TextView version = text("VERS\u00c3O " + MOD_VERSION, 15, GREEN, true);
+        TextView version = text("VERS\u00c3O " + MOD_VERSION, 15, GRAY_LIGHT, true);
         version.setLetterSpacing(0.3f);
         version.setGravity(Gravity.CENTER);
 
@@ -217,17 +218,17 @@ public class MainActivity extends Activity {
         col.addView(version, vLp);
 
         View line = new View(this);
-        line.setBackgroundColor(GREEN_DEEP);
+        line.setBackgroundColor(ORANGE_DARK);
 
         LinearLayout.LayoutParams lineLp = new LinearLayout.LayoutParams(dp(120), dp(2));
         lineLp.topMargin = dp(18);
         lineLp.bottomMargin = dp(26);
         col.addView(line, lineLp);
 
-        TextView play = text("PLAY", 24, RED, true);
+        TextView play = text("PLAY", 24, BG, true);
         play.setLetterSpacing(0.25f);
         play.setGravity(Gravity.CENTER);
-        play.setBackground(ripple(box(RED_DARK, RED, 2, 14)));
+        play.setBackground(ripple(box(ORANGE, ORANGE_DARK, 2, 14)));
 
         play.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -245,7 +246,7 @@ public class MainActivity extends Activity {
 
         // ARGUMENTOS DE INICIALIZACAO
 
-        TextView argsLabel = text("ARGUMENTOS DE INICIALIZA\u00c7\u00c3O", 12, GREEN, true);
+        TextView argsLabel = text("ARGUMENTOS DE INICIALIZA\u00c7\u00c3O", 12, GRAY_LIGHT, true);
         argsLabel.setLetterSpacing(0.08f);
 
         LinearLayout.LayoutParams argsLabelLp = wrap();
@@ -265,7 +266,7 @@ public class MainActivity extends Activity {
         );
 
         gameArgsInput.setPadding(dp(14), dp(12), dp(14), dp(12));
-        gameArgsInput.setBackground(box(PANEL, GREEN_DEEP, 1, 10));
+        gameArgsInput.setBackground(box(PANEL, GRAY_DEEP, 1, 10));
 
         LinearLayout.LayoutParams argsInputLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -277,7 +278,7 @@ public class MainActivity extends Activity {
 
         TextView argsHint = text(
                 "Personalize os par\u00e2metros enviados ao Xash3D FWGS.",
-                11, GREEN, false
+                11, GRAY_LIGHT, false
         );
 
         LinearLayout.LayoutParams argsHintLp = wrap();
@@ -298,26 +299,26 @@ public class MainActivity extends Activity {
         col.addView(row, rowLp);
 
         row.addView(
-                linkButton(new PolyIcon(GITHUB, GREEN, dp(30)), "GitHub", URL_GITHUB),
+                linkButton(new PolyIcon(GITHUB, ORANGE, dp(30)), "GitHub", URL_GITHUB),
                 cell(false)
         );
 
         row.addView(
-                linkButton(new YouTubeIcon(GREEN, dp(30)), "YouTube", URL_YOUTUBE),
+                linkButton(new YouTubeIcon(ORANGE, dp(30)), "YouTube", URL_YOUTUBE),
                 cell(true)
         );
 
         row.addView(
-                linkButton(new PolyIcon(DISCORD, GREEN, dp(30)), "Discord", URL_DISCORD),
+                linkButton(new PolyIcon(DISCORD, ORANGE, dp(30)), "Discord", URL_DISCORD),
                 cell(true)
         );
 
         // APOIE-ME
 
-        TextView support = text("APOIE-ME", 16, GREEN, true);
+        TextView support = text("APOIE-ME", 16, ORANGE, true);
         support.setLetterSpacing(0.2f);
         support.setGravity(Gravity.CENTER);
-        support.setBackground(ripple(box(PANEL, GREEN_DEEP, 2, 14)));
+        support.setBackground(ripple(box(PANEL, GRAY_DEEP, 2, 14)));
 
         support.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -334,14 +335,14 @@ public class MainActivity extends Activity {
         supLp.topMargin = dp(12);
         col.addView(support, supLp);
 
-        TextView credit = text("Port by Kali Kyle", 14, RED, false);
+        TextView credit = text("Port by Kali Kyle", 14, ORANGE, false);
         credit.setGravity(Gravity.CENTER);
 
         LinearLayout.LayoutParams crLp = wrap();
         crLp.topMargin = dp(30);
         col.addView(credit, crLp);
 
-        TextView hint = text("Requer o app Xash3D FWGS instalado", 12, GREEN, false);
+        TextView hint = text("Requer o app Xash3D FWGS instalado", 12, GRAY_LIGHT, false);
         hint.setGravity(Gravity.CENTER);
 
         LinearLayout.LayoutParams hintLp = wrap();
@@ -356,14 +357,14 @@ public class MainActivity extends Activity {
         b.setOrientation(LinearLayout.VERTICAL);
         b.setGravity(Gravity.CENTER);
         b.setPadding(dp(4), dp(12), dp(4), dp(10));
-        b.setBackground(ripple(box(PANEL, GREEN_DEEP, 2, 14)));
+        b.setBackground(ripple(box(PANEL, GRAY_DEEP, 2, 14)));
 
         ImageView iv = new ImageView(this);
         iv.setImageDrawable(icon);
 
         b.addView(iv, new LinearLayout.LayoutParams(dp(30), dp(30)));
 
-        TextView t = text(label, 12, GREEN, true);
+        TextView t = text(label, 12, GRAY_LIGHT, true);
         t.setGravity(Gravity.CENTER);
 
         LinearLayout.LayoutParams tLp = wrap();
@@ -401,13 +402,13 @@ public class MainActivity extends Activity {
         box.setOrientation(LinearLayout.VERTICAL);
         box.setPadding(dp(20), dp(20), dp(20), dp(16));
 
-        TextView title = text("APOIE O PROJETO", 18, RED, true);
+        TextView title = text("APOIE O PROJETO", 18, ORANGE, true);
         title.setLetterSpacing(0.15f);
         box.addView(title, wrap());
 
         TextView note = text(
                 "Envie somente USDT pela rede indicada e confira o endere\u00e7o antes de enviar. Obrigado por apoiar!",
-                13, GREEN, false
+                13, GRAY_LIGHT, false
         );
 
         LinearLayout.LayoutParams noteLp = wrap();
@@ -422,11 +423,11 @@ public class MainActivity extends Activity {
             LinearLayout card = new LinearLayout(this);
             card.setOrientation(LinearLayout.VERTICAL);
             card.setPadding(dp(14), dp(12), dp(14), dp(12));
-            card.setBackground(box(PANEL, GREEN_DEEP, 2, 12));
+            card.setBackground(box(PANEL, GRAY_DEEP, 2, 12));
 
-            card.addView(text(label, 14, RED, true), wrap());
+            card.addView(text(label, 14, ORANGE, true), wrap());
 
-            TextView addr = text(address, 12, GREEN, false);
+            TextView addr = text(address, 12, GRAY_LIGHT, false);
             addr.setTypeface(Typeface.MONOSPACE);
             addr.setTextIsSelectable(true);
 
@@ -434,10 +435,10 @@ public class MainActivity extends Activity {
             addrLp.topMargin = dp(6);
             card.addView(addr, addrLp);
 
-            TextView copy = text("COPIAR", 13, RED, true);
+            TextView copy = text("COPIAR", 13, ORANGE, true);
             copy.setLetterSpacing(0.2f);
             copy.setGravity(Gravity.CENTER);
-            copy.setBackground(ripple(box(0x00000000, RED, 2, 10)));
+            copy.setBackground(ripple(box(0x00000000, ORANGE, 2, 10)));
 
             copy.setOnClickListener(new View.OnClickListener() {
                 @Override
@@ -475,9 +476,9 @@ public class MainActivity extends Activity {
                 .setPositiveButton("Fechar", null)
                 .create();
 
-        dialog.getWindow().setBackgroundDrawable(box(BG, GREEN_DEEP, 2, 18));
+        dialog.getWindow().setBackgroundDrawable(box(BG, GRAY_DEEP, 2, 18));
         dialog.show();
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(GREEN);
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(ORANGE);
     }
 
     private void copyToClipboard(String label, String address) {

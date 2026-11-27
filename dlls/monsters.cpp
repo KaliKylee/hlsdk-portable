@@ -42,8 +42,17 @@
 // ---- Diagnostico de movimento de NPCs em script (HL:E Android) ----
 // Registra no hlext_log.txt por que um NPC em scripted_sequence nao chega na marca.
 // Limita a ~4 linhas/s e 150 linhas por mapa para nao inundar o arquivo.
+// Correcoes de script do HL:E Android valem so para o Barney do mapa hle_c0a0 (cena da porta do trem).
+static bool HlextIsMapBarney( CBaseMonster *pMon )
+{
+	return FClassnameIs( pMon->pev, "monster_barney" ) && FStrEq( STRING( gpGlobals->mapname ), "hle_c0a0" );
+}
+
 static bool HlextMoveLogOK( CBaseMonster *pMon )
 {
+	if ( !HlextIsMapBarney( pMon ) )
+		return false;
+
 	static int s_iCount = 0;
 	static float s_flNext = 0, s_flLast = 0;
 
@@ -549,12 +558,15 @@ CSound* CBaseMonster :: PBestScent ()
 // monster's specific animation events
 //=========================================================
 //=========================================================
-// HlextScriptMoveWatchdog - se um monstro em scripted_sequence (andar/correr ate a
+// HlextScriptMoveWatchdog - se o Barney (mapa hle_c0a0) em scripted_sequence (andar/correr ate a
 // marca) nao avanca por 4 s (fica indo e voltando, por exemplo porque uma porta ou a
 // rota o bloqueia), leva ele direto para a marca para o script nao travar o mapa.
 //=========================================================
 void CBaseMonster :: HlextScriptMoveWatchdog ()
 {
+	if ( !HlextIsMapBarney( this ) )
+		return;
+
 	if ( m_MonsterState != MONSTERSTATE_SCRIPT || !m_pCine ||
 		 ( m_scriptState != SCRIPT_WALK_TO_MARK && m_scriptState != SCRIPT_RUN_TO_MARK ) )
 	{
@@ -645,46 +657,7 @@ void CBaseMonster :: MonsterThink ()
 	}
 	
 
-	// HL:E Android: NPC em script andando "encaixado" dentro de um func_wall (ex.: laje de grade
-	// do mapa hle_c0a0). O engine o trataria como preso. Ignora essa parede so durante o RunAI.
-	edict_t *pEmbedded[2] = { NULL, NULL };
-	int iEmbeddedSolid[2] = { 0, 0 };
-	int nEmbedded = 0;
-	if ( m_pCine && ( m_scriptState == SCRIPT_WALK_TO_MARK || m_scriptState == SCRIPT_RUN_TO_MARK ) )
-	{
-		for ( int n = 0; n < 2; n++ )
-		{
-			TraceResult trEmb;
-			TRACE_MONSTER_HULL( edict(), pev->origin, pev->origin, dont_ignore_monsters, edict(), &trEmb );
-			if ( !trEmb.fStartSolid || FNullEnt( trEmb.pHit ) || trEmb.pHit == ENT( 0 ) )
-				break;
-
-			entvars_t *pevHit = VARS( trEmb.pHit );
-			if ( !FClassnameIs( pevHit, "func_wall" ) || pevHit->solid != SOLID_BSP || pevHit->velocity != g_vecZero )
-				break;
-
-			static float s_flLastEmbLog = 0;
-			if ( gpGlobals->time < s_flLastEmbLog || gpGlobals->time - s_flLastEmbLog > 2.0 )
-			{
-				s_flLastEmbLog = gpGlobals->time;
-				HLEXT_Log( "script: %s (%s) encaixado em func_wall %s (modelo %s); ignorando durante o movimento",
-					STRING( pev->classname ), STRING( pev->targetname ), STRING( pevHit->targetname ), STRING( pevHit->model ) );
-			}
-
-			pEmbedded[nEmbedded] = trEmb.pHit;
-			iEmbeddedSolid[nEmbedded] = pevHit->solid;
-			nEmbedded++;
-			pevHit->solid = SOLID_NOT;
-		}
-	}
-
 	RunAI();
-
-	for ( int n = 0; n < nEmbedded; n++ )
-	{
-		if ( !FNullEnt( pEmbedded[n] ) )
-			pEmbedded[n]->v.solid = iEmbeddedSolid[n];
-	}
 
 	HlextScriptMoveWatchdog();
 
@@ -2078,7 +2051,7 @@ void CBaseMonster :: Move ( float flInterval )
 		}
 
 		// NPC em script andando e batendo repetidamente num obstaculo parado: nao adianta insistir.
-		if ( m_pCine && ( m_scriptState == SCRIPT_WALK_TO_MARK || m_scriptState == SCRIPT_RUN_TO_MARK ) )
+		if ( HlextIsMapBarney( this ) && m_pCine && ( m_scriptState == SCRIPT_WALK_TO_MARK || m_scriptState == SCRIPT_RUN_TO_MARK ) )
 		{
 			BOOL fMovingBlocker = pBlocker && ( pBlocker->IsMoving() || pBlocker->IsPlayer() || ( pBlocker->pev->flags & FL_MONSTER ) );
 			if ( !fMovingBlocker )
