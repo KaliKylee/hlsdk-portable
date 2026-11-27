@@ -441,14 +441,25 @@ void CChub::StartTask( Task_t *pTask )
 			}
 
 			BOOL fOk = FALSE;
-			for( int i = 0; i < 6 && !fOk; i++ )
+			// try the preferred direction first, then sweep around it (so it can
+			// escape sideways when it is facing a wall)
+			static const int iOffsets[] = { 0, 30, -30, 60, -60, 90, -90, 120, -120, 150, -150, 180 };
+			for( int i = 0; i < (int)ARRAYSIZE( iOffsets ) && !fOk; i++ )
 			{
-				float flDist = RANDOM_FLOAT( 48, 128 );
-				Vector vecGoal = pev->origin + vecDir * flDist;
-				if( MoveToLocation( pTask->flData == 1 ? ACT_RUN : ACT_WALK, 2, vecGoal ) )
-					fOk = TRUE;
-				else
-					vecDir = ( vecDir + Vector( RANDOM_FLOAT( -1, 1 ), RANDOM_FLOAT( -1, 1 ), 0 ) ).Normalize();
+				float rad = iOffsets[i] * M_PI / 180.0;
+				Vector vecTry;
+				vecTry.x = vecDir.x * cos( rad ) - vecDir.y * sin( rad );
+				vecTry.y = vecDir.x * sin( rad ) + vecDir.y * cos( rad );
+				vecTry.z = 0;
+
+				static const float flDists[] = { 1.0f, 0.6f, 0.35f };
+				for( int j = 0; j < 3 && !fOk; j++ )
+				{
+					float flDist = RANDOM_FLOAT( 48, 128 ) * flDists[j];
+					Vector vecGoal = pev->origin + vecTry * flDist;
+					if( MoveToLocation( pTask->flData == 1 ? ACT_RUN : ACT_WALK, 2, vecGoal ) )
+						fOk = TRUE;
+				}
 			}
 
 			TREX_Log( "chub: hop type=%.0f ok=%d groundspeed=%.1f act=%d", pTask->flData, fOk, m_flGroundSpeed, m_Activity );
