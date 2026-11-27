@@ -662,6 +662,74 @@ static int HlextNearestNodeByDist( const Vector &vecPos, int iSkip1, int iSkip2 
 	return iBest;
 }
 
+// Menor caminho pelo grafo (Dijkstra simples sobre os links, ignorando portas/capacidades).
+// O FindShortestPath do jogo devolveu caminhos invalidos neste build; como o deslize nao tem
+// colisao, so precisamos da sequencia de nos.
+static int HlextGraphPath( int iSrc, int iDst, int *piPath, int iMax )
+{
+	const int MAXN = 512;
+	int cNodes = WorldGraph.m_cNodes;
+	if ( cNodes <= 0 || cNodes > MAXN || !WorldGraph.m_pNodes || !WorldGraph.m_pLinkPool ||
+		 iSrc < 0 || iDst < 0 || iSrc >= cNodes || iDst >= cNodes )
+		return 0;
+
+	static float dist[MAXN];
+	static int prev[MAXN];
+	static bool done[MAXN];
+	for ( int i = 0; i < cNodes; i++ )
+	{
+		dist[i] = 1e9f;
+		prev[i] = -1;
+		done[i] = false;
+	}
+	dist[iSrc] = 0;
+
+	for ( int iter = 0; iter < cNodes; iter++ )
+	{
+		int u = -1;
+		for ( int i = 0; i < cNodes; i++ )
+			if ( !done[i] && dist[i] < 1e9f && ( u < 0 || dist[i] < dist[u] ) )
+				u = i;
+		if ( u < 0 )
+			break;
+		done[u] = true;
+		if ( u == iDst )
+			break;
+
+		const CNode &node = WorldGraph.m_pNodes[u];
+		for ( int j = 0; j < node.m_cNumLinks; j++ )
+		{
+			int iLink = node.m_iFirstLink + j;
+			if ( iLink < 0 || iLink >= WorldGraph.m_cLinks )
+				continue;
+			int v = WorldGraph.m_pLinkPool[iLink].m_iDestNode;
+			if ( v < 0 || v >= cNodes || done[v] )
+				continue;
+			float nd = dist[u] + ( WorldGraph.m_pNodes[v].m_vecOrigin - node.m_vecOrigin ).Length();
+			if ( nd < dist[v] )
+			{
+				dist[v] = nd;
+				prev[v] = u;
+			}
+		}
+	}
+
+	if ( dist[iDst] >= 1e9f )
+		return 0;
+
+	static int tmp[MAXN];
+	int n = 0;
+	for ( int c = iDst; c != -1 && n < MAXN; c = prev[c] )
+		tmp[n++] = c;
+
+	if ( n > iMax )
+		return 0;
+
+	for ( int i = 0; i < n; i++ )
+		piPath[i] = tmp[n - 1 - i];
+	return n;
+}
+
 void CBaseMonster :: HlextStartGlide ( const char *pszWhy )
 {
 	if ( m_fHlextGlide )
@@ -696,13 +764,21 @@ void CBaseMonster :: HlextStartGlide ( const char *pszWhy )
 				if ( iDstTry < 0 )
 					break;
 
-				int iPath[ MAX_PATH_SIZE ];
-				int n = WorldGraph.FindShortestPath( iPath, iSrcTry, iDstTry, WorldGraph.HullIndex( this ), m_afCapability );
+				int iPath[ 20 ];
+				int n = HlextGraphPath( iSrcTry, iDstTry, iPath, 20 );
 				if ( n > 0 )
 				{
-					for ( int i = 0; i < n && m_iHlextGlideCount < 10; i++ )
+					char szNodes[160];
+					int nOff = 0;
+					for ( int i = 0; i < n && m_iHlextGlideCount < 22; i++ )
+					{
 						m_vecHlextGlide[m_iHlextGlideCount++] = WorldGraph.m_pNodes[ iPath[i] ].m_vecOrigin;
+						if ( nOff < 140 )
+							nOff += snprintf( szNodes + nOff, sizeof( szNodes ) - nOff, "%d ", iPath[i] );
+					}
+					szNodes[ sizeof( szNodes ) - 1 ] = 0;
 					nNodes = n;
+					HLEXT_Log( "deslize: caminho pelo grafo %d -> %d : %s", iSrcTry, iDstTry, szNodes );
 				}
 			}
 		}
@@ -721,6 +797,7 @@ void CBaseMonster :: HlextStartGlide ( const char *pszWhy )
 	Stop();
 	m_IdealActivity = ACT_WALK;
 	SetActivity( ACT_WALK );
+	pev->framerate = 1.4f; // anda um pouco mais rapido para o deslize nao demorar
 
 	HLEXT_Log( "script: %s (%s) %s; deslizando sem colisao ate a marca por %d nos (%.0f %.0f %.0f)",
 		STRING( pev->classname ), STRING( pev->targetname ), pszWhy, nNodes, vecMark.x, vecMark.y, vecMark.z );
@@ -733,7 +810,7 @@ BOOL CBaseMonster :: HlextGlideStep ()
 
 	// cancela se algo mudou (morreu, saiu do script) ou se passou tempo demais
 	if ( pev->deadflag != DEAD_NO || m_MonsterState != MONSTERSTATE_SCRIPT || !m_pCine ||
-		 gpGlobals->time < m_flHlextGlideStart || gpGlobals->time - m_flHlextGlideStart > 25.0 )
+		 gpGlobals->time < m_flHlextGlideStart || gpGlobals->time - m_flHlextGlideStart > 45.0 )
 	{
 		HlextEndGlide( FALSE );
 		return FALSE;
@@ -744,7 +821,7 @@ BOOL CBaseMonster :: HlextGlideStep ()
 	if ( dt > 0.25f ) dt = 0.25f;
 	m_flHlextGlideLast = gpGlobals->time;
 
-	float flSpeed = m_flGroundSpeed > 20 ? m_flGroundSpeed : 64.0f;
+	float flSpeed = ( m_flGroundSpeed > 20 ? m_flGroundSpeed : 50.0f ) * 1.4f;
 	float flLeft = flSpeed * dt;
 	Vector vecPos = pev->origin;
 
@@ -786,6 +863,7 @@ void CBaseMonster :: HlextEndGlide ( BOOL fArrived )
 		return;
 
 	m_fHlextGlide = FALSE;
+	pev->framerate = 1.0f;
 	pev->solid = m_iHlextGlideSolid ? m_iHlextGlideSolid : SOLID_SLIDEBOX;
 	UTIL_SetOrigin( pev, pev->origin ); // religa a entidade ja com o solid de volta
 

@@ -116,7 +116,7 @@ public:
 	void				HlextSnapToScriptMark( const char *pszWhy );
 	// Deslize sem colisao ate a marca (so Barney do hle_c0a0): ver HlextStartGlide
 	BOOL				m_fHlextGlide;
-	Vector				m_vecHlextGlide[12];
+	Vector				m_vecHlextGlide[24];
 	int					m_iHlextGlideCount;
 	int					m_iHlextGlideIdx;
 	int					m_iHlextGlideSolid;
