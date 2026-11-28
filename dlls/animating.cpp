@@ -25,6 +25,9 @@
 #include "cbase.h"
 #include "animation.h"
 #include "saverestore.h"
+#include "studio.h"
+#include "hlext_log.h"
+#include <string.h>
 
 TYPEDESCRIPTION	CBaseAnimating::m_SaveData[] = 
 {
@@ -236,14 +239,113 @@ void CBaseAnimating :: GetAutomovement( Vector &origin, Vector &angles, float fl
 
 }
 
+//=========================================================
+// Compatibilidade de bodygroups (HL:E Android)
+//
+// O codigo deste projeto foi escrito para os modelos do SDK 1.1.3, mas o jogo usa modelos mais
+// novos em que a ORDEM dos bodygroups mudou (ex.: scientist.mdl: heads/body/hand_items virou
+// body/hand_items/heads). Com a ordem errada, "hands 4" (o jornal) caia no grupo de cabecas e o
+// NPC ficava sem o objeto na mao. Aqui convertemos o indice do codigo (ordem antiga) para o
+// indice real do modelo carregado, procurando o grupo pelo NOME. Desligue com "hlext_bodyfix 0".
+//=========================================================
+struct HlextBodyLayout_t
+{
+	const char *pszModel;
+	const char *rgpszOldGroups[8]; // nomes dos grupos na ordem usada pelo codigo (SDK 1.1.3)
+};
+
+static const HlextBodyLayout_t g_HlextBodyLayouts[] =
+{
+	{ "models/scientist.mdl",            { "heads", "body", "hand_items", NULL } },
+	{ "models/scientist_female.mdl",     { "studio", "heads", "needle", NULL } },
+	{ "models/scientist_hev.mdl",        { "studio", "heads", "needle", "suits", NULL } },
+	{ "models/cleansuit_scientist.mdl",  { "studio", "heads", "needle", NULL } },
+	{ "models/barney.mdl",               { "heads", "helmet", "body", "glasses", "gun", NULL } },
+	{ "models/barney_hev.mdl",           { "studio", "heads", "helmet", "gun", "glasses", NULL } },
+	{ "models/otis.mdl",                 { "heads", "gun", "body", "helmet", "glasses", NULL } },
+};
+
+static bool HlextNamesMatch( const char *pszOld, const char *pszNew )
+{
+	if ( !stricmp( pszOld, pszNew ) )
+		return true;
+	// nomes que mudaram de um modelo para outro
+	if ( ( !stricmp( pszOld, "heads" ) && !stricmp( pszNew, "head" ) ) ||
+		 ( !stricmp( pszOld, "studio" ) && !stricmp( pszNew, "body" ) ) ||
+		 ( !stricmp( pszOld, "needle" ) && !stricmp( pszNew, "hand_items" ) ) )
+		return true;
+	return false;
+}
+
+// Retorna o indice real do grupo; -1 = esse grupo nao existe no modelo novo (ignorar);
+// iGroup sem mudanca quando nao ha o que converter.
+static int HlextRemapBodygroup( void *pmodel, entvars_t *pev, int iGroup )
+{
+	extern cvar_t hlext_bodyfix;
+	if ( !pmodel || !pev || hlext_bodyfix.value == 0 )
+		return iGroup;
+
+	const char *pszModel = STRING( pev->model );
+	if ( !pszModel || !pszModel[0] )
+		return iGroup;
+
+	for ( size_t i = 0; i < sizeof( g_HlextBodyLayouts ) / sizeof( g_HlextBodyLayouts[0] ); i++ )
+	{
+		const HlextBodyLayout_t &layout = g_HlextBodyLayouts[i];
+		if ( stricmp( pszModel, layout.pszModel ) )
+			continue;
+
+		int nOld = 0;
+		while ( nOld < 8 && layout.rgpszOldGroups[nOld] )
+			nOld++;
+		if ( iGroup < 0 || iGroup >= nOld )
+			return iGroup;
+
+		studiohdr_t *pstudiohdr = (studiohdr_t *)pmodel;
+		if ( pstudiohdr->numbodyparts <= 0 )
+			return iGroup;
+		mstudiobodyparts_t *pbodypart = (mstudiobodyparts_t *)( (byte *)pstudiohdr + pstudiohdr->bodypartindex );
+
+		// se o modelo ja esta na ordem antiga (SDK 1.1.3), nao mexe em nada
+		bool fSameOrder = pstudiohdr->numbodyparts == nOld;
+		for ( int g = 0; fSameOrder && g < nOld; g++ )
+			if ( !HlextNamesMatch( layout.rgpszOldGroups[g], pbodypart[g].name ) )
+				fSameOrder = false;
+		if ( fSameOrder )
+			return iGroup;
+
+		for ( int p = 0; p < pstudiohdr->numbodyparts; p++ )
+		{
+			if ( HlextNamesMatch( layout.rgpszOldGroups[iGroup], pbodypart[p].name ) )
+			{
+				static int s_iLogged = 0;
+				if ( s_iLogged++ < 12 )
+					HLEXT_Log( "bodygroups: %s grupo %d (%s) -> %d (%s)", pszModel, iGroup, layout.rgpszOldGroups[iGroup], p, pbodypart[p].name );
+				return p;
+			}
+		}
+		return -1;
+	}
+
+	return iGroup;
+}
+
 void CBaseAnimating :: SetBodygroup( int iGroup, int iValue )
 {
-	::SetBodygroup( GET_MODEL_PTR( ENT(pev) ), pev, iGroup, iValue );
+	void *pmodel = GET_MODEL_PTR( ENT(pev) );
+	iGroup = HlextRemapBodygroup( pmodel, pev, iGroup );
+	if ( iGroup < 0 )
+		return;
+	::SetBodygroup( pmodel, pev, iGroup, iValue );
 }
 
 int CBaseAnimating :: GetBodygroup( int iGroup )
 {
-	return ::GetBodygroup( GET_MODEL_PTR( ENT(pev) ), pev, iGroup );
+	void *pmodel = GET_MODEL_PTR( ENT(pev) );
+	iGroup = HlextRemapBodygroup( pmodel, pev, iGroup );
+	if ( iGroup < 0 )
+		return 0;
+	return ::GetBodygroup( pmodel, pev, iGroup );
 }
 
 
