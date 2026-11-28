@@ -148,6 +148,7 @@ set (SVDLL_SOURCES
 	chub.cpp
 	stukabat.cpp
 	alien_sphere.cpp
+	hassault.cpp
 	archer.cpp
 	m44.cpp
 	vehicle.cpp
