@@ -25,6 +25,7 @@
 #include "cl_util.h"
 #include "parsemsg.h"
 #include "hlext_log.h"
+#include "subtitle_font.h"
 
 DECLARE_MESSAGE( m_Subtitle, Subtitle )
 
@@ -58,6 +59,24 @@ namespace
 	cvar_t *cl_subtitle_blue = nullptr;
 	cvar_t *cl_subtitle_language = nullptr;
 	cvar_t *cl_subtitle_scale = nullptr;
+	cvar_t *cl_subtitle_size = nullptr;
+
+	// atlas de fonte (sprites) carregados sob demanda; 0 = indisponivel (usa a fonte do console)
+	int g_hFont[3] = { 0, 0, 0 };
+	bool g_bFontTried[3] = { false, false, false };
+
+	bool EnsureFont( int idx )
+	{
+		if ( !g_bFontTried[idx] )
+		{
+			g_bFontTried[idx] = true;
+			int h = gEngfuncs.pfnSPR_Load( g_HlextFontAtlas[idx].pszPath );
+			if ( h && gEngfuncs.pfnSPR_Frames( h ) >= 224 )
+				g_hFont[idx] = h;
+			HLEXT_Log( "legendas: fonte %s %s", g_HlextFontAtlas[idx].pszPath, g_hFont[idx] ? "carregada" : "nao encontrada (usando fonte do console)" );
+		}
+		return g_hFont[idx] != 0;
+	}
 
 	std::string Upper( const std::string &s )
 	{
@@ -195,6 +214,7 @@ int CHudSubtitle::Init()
 	cl_subtitle_blue = CVAR_CREATE( "cl_subtitle_blue", "30", FCVAR_ARCHIVE );
 	cl_subtitle_language = CVAR_CREATE( "cl_subtitle_language", "english", FCVAR_ARCHIVE );
 	cl_subtitle_scale = CVAR_CREATE( "cl_subtitle_scale", "1.5", FCVAR_ARCHIVE );
+	cl_subtitle_size = CVAR_CREATE( "cl_subtitle_size", "1.0", FCVAR_ARCHIVE );
 
 	m_iFlags |= HUD_ACTIVE;
 	gHUD.AddHudElem( this );
@@ -319,27 +339,83 @@ int CHudSubtitle::Draw( float flTime )
 	if ( g_Active.empty() )
 		return 1;
 
-	FontScaleGuard fontScale( cl_subtitle_scale ? cl_subtitle_scale->value : 1.0f );
+	// escolhe o atlas de fonte (sprite) mais proximo do tamanho desejado
+	const HlextFontAtlas_t *atl = nullptr;
+	int hSpr = 0;
+	{
+		float flSize = cl_subtitle_size ? cl_subtitle_size->value : 1.0f;
+		if ( flSize < 0.3f ) flSize = 0.3f;
+		float flTarget = ScreenHeight * 0.028f * flSize;
+		int order[3] = { 0, 1, 2 };
+		std::sort( order, order + 3, [flTarget]( int a, int b ) {
+			return fabsf( g_HlextFontAtlas[a].px - flTarget ) < fabsf( g_HlextFontAtlas[b].px - flTarget ); } );
+		for ( int k = 0; k < 3; k++ )
+		{
+			if ( EnsureFont( order[k] ) )
+			{
+				atl = &g_HlextFontAtlas[ order[k] ];
+				hSpr = g_hFont[ order[k] ];
+				break;
+			}
+		}
+	}
+	const bool useSprite = atl != nullptr;
 
-	int _w, lineH;
-	GetConsoleStringSize( "Ag", &_w, &lineH );
-	if ( lineH <= 0 ) lineH = 14;
+	// fonte do console (reserva): aumenta o con_fontscale so enquanto desenha
+	FontScaleGuard fontScale( useSprite ? 0.0f : ( cl_subtitle_scale ? cl_subtitle_scale->value : 1.0f ) );
+
+	int lineH;
+	if ( useSprite )
+	{
+		lineH = atl->lineH;
+	}
+	else
+	{
+		int _w;
+		GetConsoleStringSize( "Ag", &_w, &lineH );
+		if ( lineH <= 0 ) lineH = 14;
+	}
 
 	const int pad = lineH / 2 + 2;
 	const int maxWidth = (int)( ScreenWidth * 0.62f );
 
-	// largura de cada caractere (a fonte e sem kerning, entao soma = largura da linha)
+	// largura de cada caractere (sem kerning, entao a soma e a largura da linha)
 	int charW[256];
 	for ( int c = 0; c < 256; c++ )
 	{
-		char buf[2] = { (char)c, 0 };
-		charW[c] = c < 32 ? 0 : ConsoleStringLen( buf );
+		if ( c < 32 )
+			charW[c] = 0;
+		else if ( useSprite )
+			charW[c] = atl->advance[c - 32];
+		else
+		{
+			char buf[2] = { (char)c, 0 };
+			charW[c] = ConsoleStringLen( buf );
+		}
 	}
 	auto strW = [&]( const std::string &t )
 	{
 		int w = 0;
 		for ( size_t i = 0; i < t.size(); i++ ) w += charW[(unsigned char)t[i]];
 		return w;
+	};
+
+	// desenha um caractere na posicao (cx, ly = topo da linha); r,g,b em 0..255
+	auto drawGlyph = [&]( int cx, int ly, unsigned char ch, int r, int g, int b )
+	{
+		if ( ch <= 32 )
+			return;
+		if ( useSprite )
+		{
+			gEngfuncs.pfnSPR_Set( hSpr, r, g, b );
+			gEngfuncs.pfnSPR_DrawAdditive( ch - 32, cx - atl->padX, ly + atl->ascent - atl->baseline, NULL );
+		}
+		else
+		{
+			char buf[2] = { (char)ch, 0 };
+			gEngfuncs.pfnDrawSetTextColor( r / 255.0f, g / 255.0f, b / 255.0f );
+			DrawConsoleString( cx, ly, buf );
+		}
 	};
 
 	int bgR = cl_subtitle_red ? (int)cl_subtitle_red->value : 30;
@@ -435,8 +511,21 @@ int CHudSubtitle::Draw( float flTime )
 			{
 				// linha inteira revelada: uma chamada so, com a cor desta linha
 				float a = aOut;
-				gEngfuncs.pfnDrawSetTextColor( LerpI( bgR, act.r, a ) / 255.0f, LerpI( bgG, act.g, a ) / 255.0f, LerpI( bgB, act.b, a ) / 255.0f );
-				DrawConsoleString( lx, ly, line.c_str() );
+				if ( useSprite )
+				{
+					int tr = (int)( act.r * a ), tg = (int)( act.g * a ), tb = (int)( act.b * a );
+					int cx = lx;
+					for ( size_t c = 0; c < line.size(); c++ )
+					{
+						drawGlyph( cx, ly, (unsigned char)line[c], tr, tg, tb );
+						cx += charW[(unsigned char)line[c]];
+					}
+				}
+				else
+				{
+					gEngfuncs.pfnDrawSetTextColor( LerpI( bgR, act.r, a ) / 255.0f, LerpI( bgG, act.g, a ) / 255.0f, LerpI( bgB, act.b, a ) / 255.0f );
+					DrawConsoleString( lx, ly, line.c_str() );
+				}
 			}
 			else
 			{
@@ -448,9 +537,10 @@ int CHudSubtitle::Draw( float flTime )
 					unsigned char ch = (unsigned char)line[c];
 					if ( a > 0.02f && ch > 32 )
 					{
-						char buf[2] = { (char)ch, 0 };
-						gEngfuncs.pfnDrawSetTextColor( LerpI( bgR, act.r, a ) / 255.0f, LerpI( bgG, act.g, a ) / 255.0f, LerpI( bgB, act.b, a ) / 255.0f );
-						DrawConsoleString( cx, ly, buf );
+						if ( useSprite )
+							drawGlyph( cx, ly, ch, (int)( act.r * a ), (int)( act.g * a ), (int)( act.b * a ) );
+						else
+							drawGlyph( cx, ly, ch, LerpI( bgR, act.r, a ), LerpI( bgG, act.g, a ), LerpI( bgB, act.b, a ) );
 					}
 					cx += charW[ch];
 				}
