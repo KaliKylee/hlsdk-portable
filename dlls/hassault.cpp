@@ -28,6 +28,7 @@
 #include	"soundent.h"
 #include	"weapons.h"
 #include	"skill.h"
+#include	"animation.h"
 #include	"hitproxy.h"
 #include	"trex_log.h"
 
@@ -110,6 +111,7 @@ public:
 	int m_iBrassShell;
 	int m_iSpinState;
 	int m_iShotLog;
+	float m_flNextMoveLog;
 	float m_flSpinUpTime;
 	float m_flNextPainTime;
 	float m_flNextSuppress;
@@ -301,6 +303,14 @@ void CHAssault::MonsterThink( void )
 
 	CSquadMonster::MonsterThink();
 
+	// diagnostics for the "sliding" walk: movement speed vs. animation
+	if( IsMoving() && gpGlobals->time >= m_flNextMoveLog )
+	{
+		m_flNextMoveLog = gpGlobals->time + 1.0f;
+		TREX_Log( "hassault: move act=%d seq=%d groundspeed=%.1f framerate=%.2f realspeed=%.1f",
+			(int)m_movementActivity, pev->sequence, m_flGroundSpeed, pev->framerate, pev->velocity.Length2D() );
+	}
+
 	HitProxy_Sync( this, m_hProxy );
 }
 
@@ -473,6 +483,44 @@ BOOL CHAssault::CheckRangeAttack1( float flDot, float flDist )
 }
 
 //=========================================================
+// ray / box test (slab method): in this port traces do not reach the player,
+// so the shot is checked against the enemy's bounding box by hand
+//=========================================================
+static BOOL RayHitsBox( const Vector &vecOrigin, const Vector &vecDir, const Vector &vecMin, const Vector &vecMax, float &flHit )
+{
+	float tmin = 0, tmax = 99999.0f;
+
+	for( int i = 0; i < 3; i++ )
+	{
+		float o = vecOrigin[i], d = vecDir[i];
+		if( fabs( d ) < 0.00001f )
+		{
+			if( o < vecMin[i] || o > vecMax[i] )
+				return FALSE;
+		}
+		else
+		{
+			float t1 = ( vecMin[i] - o ) / d;
+			float t2 = ( vecMax[i] - o ) / d;
+			if( t1 > t2 )
+			{
+				float t = t1;
+				t1 = t2;
+				t2 = t;
+			}
+			if( t1 > tmin )
+				tmin = t1;
+			if( t2 < tmax )
+				tmax = t2;
+			if( tmin > tmax )
+				return FALSE;
+		}
+	}
+	flHit = tmin;
+	return TRUE;
+}
+
+//=========================================================
 // Shooting / punching
 //=========================================================
 Vector CHAssault::GetGunPosition( void )
@@ -524,7 +572,29 @@ void CHAssault::Shoot( void )
 	if( tr.flFraction != 1.0f && !FNullEnt( tr.pHit ) )
 		pHit = CBaseEntity::Instance( tr.pHit );
 
-	if( pHit && pHit->pev->takedamage )
+	BOOL fRayHit = FALSE;
+	{
+		CBaseEntity *pEnemy = m_hEnemy;
+		float flWorldDist = ( tr.flFraction == 1.0f ) ? 4096.0f : tr.flFraction * 4096.0f;
+		float flBoxDist;
+		if( pEnemy && pHit != pEnemy && pEnemy->pev->takedamage != DAMAGE_NO &&
+			RayHitsBox( vecShootOrigin, vecDir, pEnemy->pev->absmin, pEnemy->pev->absmax, flBoxDist ) && flBoxDist < flWorldDist )
+		{
+			// the enemy is in the way of the bullet
+			fRayHit = TRUE;
+			pHit = pEnemy;
+			tr.vecEndPos = vecShootOrigin + vecDir * flBoxDist;
+			tr.flFraction = flBoxDist / 4096.0f;
+			SpawnBlood( tr.vecEndPos, pEnemy->BloodColor(), flDmg );
+			pEnemy->TakeDamage( pev, pev, flDmg, DMG_BULLET );
+		}
+	}
+
+	if( fRayHit )
+	{
+		// damage already applied
+	}
+	else if( pHit && pHit->pev->takedamage )
 	{
 		ClearMultiDamage();
 		pHit->TraceAttack( pev, flDmg, vecDir, &tr, DMG_BULLET );
@@ -540,7 +610,7 @@ void CHAssault::Shoot( void )
 		float flEnemyDist = ( m_hEnemy->pev->origin - vecShootOrigin ).Length();
 		TREX_Log( "hassault: shot #%d hit=%s end=%.0f dist_to_enemy=%.0f me=(%.0f %.0f %.0f) enemy=(%.0f %.0f %.0f) takedamage=%d",
 			m_iShotLog,
-			pHit ? STRING( pHit->pev->classname ) : ( tr.flFraction != 1.0f ? "world" : "nothing" ),
+			pHit ? ( fRayHit ? "player(box)" : STRING( pHit->pev->classname ) ) : ( tr.flFraction != 1.0f ? "world" : "nothing" ),
 			tr.flFraction * 4096.0f, flEnemyDist,
 			pev->origin.x, pev->origin.y, pev->origin.z,
 			m_hEnemy->pev->origin.x, m_hEnemy->pev->origin.y, m_hEnemy->pev->origin.z,
@@ -758,10 +828,26 @@ void CHAssault::Spawn( void )
 	m_flNextSuppress = 0;
 	m_iSpinState = HASSAULT_SPIN_OFF;
 	m_iShotLog = 0;
+	m_flNextMoveLog = 0;
 	m_flSpinUpTime = 0;
 	m_fEnemyEluded = FALSE;
 
 	MonsterInit();
+
+	// log the ground speed stored in the model for walk / run
+	{
+		int iOldSeq = pev->sequence;
+		static const Activity acts[2] = { ACT_WALK, ACT_RUN };
+		for( int i = 0; i < 2; i++ )
+		{
+			int seq = LookupActivity( acts[i] );
+			float flRate = 0, flGround = 0;
+			pev->sequence = seq;
+			GetSequenceInfo( GET_MODEL_PTR( ENT( pev ) ), pev, &flRate, &flGround );
+			TREX_Log( "hassault: model %s seq=%d framerate=%.2f groundspeed=%.1f", i ? "run" : "walk", seq, flRate, flGround );
+		}
+		pev->sequence = iOldSeq;
+	}
 
 	TREX_Log( "hassault: spawned at %.0f %.0f %.0f health=%.0f spinup=%.2f(x2) dmg=%.1f skill=%d",
 		pev->origin.x, pev->origin.y, pev->origin.z, pev->health, gSkillData.hassaultSpinupDelay, gSkillData.hassaultDmgCannon, g_iSkillLevel );
