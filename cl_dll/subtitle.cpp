@@ -224,6 +224,14 @@ int CHudSubtitle::Init()
 int CHudSubtitle::VidInit()
 {
 	g_Active.clear();
+
+	// O engine descarta os sprites do cliente a cada mapa novo (e ao trocar o video): os handles
+	// guardados ficam invalidos. Sem recarregar, a caixa aparecia vazia a partir do 2o mapa.
+	for ( int i = 0; i < 3; i++ )
+	{
+		g_hFont[i] = 0;
+		g_bFontTried[i] = false;
+	}
 	return 1;
 }
 
