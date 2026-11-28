@@ -1,0 +1,1091 @@
+/***
+*
+*	Copyright (c) 1996-2002, Valve LLC. All rights reserved.
+*
+*	This product contains software technology licensed from Id
+*	Software, Inc. ("Id Technology").  Id Technology (c) 1996 Id Software, Inc.
+*	All Rights Reserved.
+*
+****/
+//=========================================================
+// monster_stukabat (+ stukabomb) - ThrillEX
+// Reconstructed from the decompiled hl.dll (CStukaBat / CStukaBomb).
+//
+//  - starts asleep (hanging); wakes up when it hears something, is hurt
+//    or when another stukabat nearby is woken up
+//  - flies, throws acid bombs (range attack 1), claws (range attack 2)
+//    and dives at an enemy that is far away
+//  - when it is hit in the air it often falls to the ground, rests there for
+//    a few seconds and then takes off again
+//=========================================================
+
+#include	"extdll.h"
+#include	"util.h"
+#include	"cbase.h"
+#include	"monsters.h"
+#include	"schedule.h"
+#include	"flyingmonster.h"
+#include	"nodes.h"
+#include	"soundent.h"
+#include	"decals.h"
+#include	"weapons.h"
+#include	"game.h"
+#include	"skill.h"
+#include	"hitproxy.h"
+#include	"trex_log.h"
+
+#define STUKA_AE_BOMB		1
+#define STUKA_AE_CLAW		2
+
+// Activities used by the model that have no symbolic name here
+#define STUKA_ACT_HOVER		( (Activity)50 )
+#define STUKA_ACT_DIVE		( (Activity)60 )
+#define STUKA_ACT_LEAP		( (Activity)8 )
+#define STUKA_ACT_FALL		( (Activity)9 )
+#define STUKA_ACT_WAKE		( (Activity)19 )
+#define STUKA_ACT_PERCH		( (Activity)18 )
+
+enum
+{
+	TASK_STUKA_TAKEOFF = LAST_COMMON_TASK + 1,
+	TASK_STUKA_FALL,
+	TASK_STUKA_WAKE,
+	TASK_STUKA_IDLE_ACT,
+	TASK_STUKA_DIVE,
+};
+
+enum
+{
+	SCHED_STUKA_TAKEOFF = LAST_COMMON_SCHEDULE + 1,
+	SCHED_STUKA_FALL,
+	SCHED_STUKA_WAKE,
+	SCHED_STUKA_EAT,
+	SCHED_STUKA_DIVE,
+	SCHED_STUKA_DIE_FALL,
+};
+
+static const char *pClawStrikeSounds[] =
+{
+	"zombie/claw_strike1.wav",
+	"zombie/claw_strike2.wav",
+	"zombie/claw_strike3.wav",
+};
+
+//=========================================================
+// stukabomb: acid projectile
+//=========================================================
+class CStukaBomb : public CBaseEntity
+{
+public:
+	void Spawn( void );
+	static void Shoot( entvars_t *pevOwner, Vector vecStart, Vector vecVelocity );
+	void Touch( CBaseEntity *pOther );
+};
+
+LINK_ENTITY_TO_CLASS( stukabomb, CStukaBomb )
+
+void CStukaBomb::Spawn( void )
+{
+	pev->movetype = MOVETYPE_FLY;
+	pev->classname = MAKE_STRING( "stukabomb" );
+	pev->solid = SOLID_BBOX;
+	pev->rendermode = kRenderTransAlpha;
+	pev->renderamt = 255;
+
+	SET_MODEL( ENT( pev ), "models/spit.mdl" );
+	pev->frame = 0;
+	UTIL_SetSize( pev, Vector( 0, 0, 0 ), Vector( 0, 0, 0 ) );
+}
+
+void CStukaBomb::Shoot( entvars_t *pevOwner, Vector vecStart, Vector vecVelocity )
+{
+	CStukaBomb *pBomb = GetClassPtr( (CStukaBomb *)NULL );
+	pBomb->Spawn();
+
+	UTIL_SetOrigin( pBomb->pev, vecStart );
+	pBomb->pev->velocity = vecVelocity;
+	pBomb->pev->owner = ENT( pevOwner );
+	pBomb->pev->angles = UTIL_VecToAngles( vecVelocity );
+}
+
+void CStukaBomb::Touch( CBaseEntity *pOther )
+{
+	TraceResult tr;
+	int iPitch = RANDOM_FLOAT( 90.0f, 110.0f );
+
+	EMIT_SOUND_DYN( ENT( pev ), CHAN_VOICE, "bullchicken/bc_acid1.wav", 1, ATTN_NORM, 0, iPitch );
+
+	if( RANDOM_LONG( 0, 1 ) )
+		EMIT_SOUND_DYN( ENT( pev ), CHAN_WEAPON, "bullchicken/bc_spithit2.wav", 1, ATTN_NORM, 0, iPitch );
+	else
+		EMIT_SOUND_DYN( ENT( pev ), CHAN_WEAPON, "bullchicken/bc_spithit1.wav", 1, ATTN_NORM, 0, iPitch );
+
+	if( !pOther->pev->takedamage )
+	{
+		// splat on the wall
+		UTIL_TraceLine( pev->origin, pev->origin + pev->velocity * 10, dont_ignore_monsters, ENT( pev ), &tr );
+		UTIL_DecalTrace( &tr, DECAL_SPIT1 + RANDOM_LONG( 0, 1 ) );
+	}
+
+	float flDmg = gSkillData.stukaDmgBomb;
+	if( flDmg <= 0 )
+		flDmg = 15;
+
+	entvars_t *pevOwner = pev->owner ? VARS( pev->owner ) : pev;
+	RadiusDamage( pev->origin, pev, pevOwner, flDmg, 64, CLASS_NONE, DMG_POISON );
+
+	SetThink( &CBaseEntity::SUB_Remove );
+	pev->nextthink = gpGlobals->time;
+}
+
+//=========================================================
+// monster_stukabat
+//=========================================================
+class CStukaBat : public CFlyingMonster
+{
+public:
+	void Spawn( void );
+	void Precache( void );
+	void SetYawSpeed( void );
+	int Classify( void ) { return CLASS_ALIEN_MONSTER; }
+	int ISoundMask( void ) { return bits_SOUND_WORLD | bits_SOUND_COMBAT | bits_SOUND_PLAYER | bits_SOUND_DANGER; }
+
+	void HandleAnimEvent( MonsterEvent_t *pEvent );
+	BOOL CheckRangeAttack1( float flDot, float flDist );
+	BOOL CheckRangeAttack2( float flDot, float flDist );
+	BOOL CheckMeleeAttack1( float flDot, float flDist ) { return FALSE; }
+	BOOL CheckMeleeAttack2( float flDot, float flDist ) { return FALSE; }
+	int CheckLocalMove( const Vector &vecStart, const Vector &vecEnd, CBaseEntity *pTarget, float *pflDist );
+
+	int TakeDamage( entvars_t *pevInflictor, entvars_t *pevAttacker, float flDamage, int bitsDamageType );
+	void Killed( entvars_t *pevAttacker, int iGib );
+	void UpdateOnRemove( void );
+
+	void StartTask( Task_t *pTask );
+	void RunTask( Task_t *pTask );
+	Schedule_t *GetSchedule( void );
+	Schedule_t *GetScheduleOfType( int Type );
+	Activity GetStoppedActivity( void );
+	Activity FlyActivity( void );
+	void RunAI( void );
+	void MonsterThink( void );
+	void Move( float flInterval = 0.1 );
+	void MoveExecute( CBaseEntity *pTargetEnt, const Vector &vecDir, float flInterval );
+
+	void Wake( void );
+	void HelpCall( float flRadius );
+
+	virtual int Save( CSave &save );
+	virtual int Restore( CRestore &restore );
+	static TYPEDESCRIPTION m_SaveData[];
+
+	int m_iAwake;		// 0 = asleep (hanging), 1 = waking up, 2 = awake
+	BOOL m_fFallDeath;	// killed while airborne
+	BOOL m_fHurtFall;	// hit: crash to the ground
+	BOOL m_fDiving;
+	float m_flNextBomb;
+	float m_flNextClaw;
+	float m_flPerchTime;	// when to take off again after it fell
+	float m_flLastDive;
+	EHANDLE m_hProxy;
+
+	CUSTOM_SCHEDULES
+};
+
+LINK_ENTITY_TO_CLASS( monster_stukabat, CStukaBat )
+
+TYPEDESCRIPTION CStukaBat::m_SaveData[] =
+{
+	DEFINE_FIELD( CStukaBat, m_iAwake, FIELD_INTEGER ),
+	DEFINE_FIELD( CStukaBat, m_fFallDeath, FIELD_BOOLEAN ),
+	DEFINE_FIELD( CStukaBat, m_fHurtFall, FIELD_BOOLEAN ),
+	DEFINE_FIELD( CStukaBat, m_fDiving, FIELD_BOOLEAN ),
+	DEFINE_FIELD( CStukaBat, m_flNextBomb, FIELD_TIME ),
+	DEFINE_FIELD( CStukaBat, m_flNextClaw, FIELD_TIME ),
+	DEFINE_FIELD( CStukaBat, m_flPerchTime, FIELD_TIME ),
+	DEFINE_FIELD( CStukaBat, m_flLastDive, FIELD_TIME ),
+};
+
+IMPLEMENT_SAVERESTORE( CStukaBat, CFlyingMonster )
+
+//=========================================================
+// Schedules
+//=========================================================
+Task_t tlStukaIdle[] =
+{
+	{ TASK_STOP_MOVING, (float)0 },
+	{ TASK_STUKA_IDLE_ACT, (float)0 },
+	{ TASK_WAIT, (float)5 },
+};
+
+Schedule_t slStukaIdle[] =
+{
+	{
+		tlStukaIdle,
+		ARRAYSIZE( tlStukaIdle ),
+		bits_COND_NEW_ENEMY | bits_COND_LIGHT_DAMAGE | bits_COND_HEAVY_DAMAGE | bits_COND_PROVOKED |
+		bits_COND_SMELL | bits_COND_HEAR_SOUND | bits_COND_SMELL_FOOD,
+		bits_SOUND_COMBAT | bits_SOUND_WORLD | bits_SOUND_PLAYER | bits_SOUND_DANGER | bits_SOUND_CARCASS | bits_SOUND_MEAT | bits_SOUND_GARBAGE,
+		"Stuka Idle"
+	},
+};
+
+Task_t tlStukaAlertStand[] =
+{
+	{ TASK_STOP_MOVING, (float)0 },
+	{ TASK_STUKA_IDLE_ACT, (float)0 },
+	{ TASK_WAIT, (float)5 },
+	{ TASK_SUGGEST_STATE, (float)MONSTERSTATE_IDLE },
+};
+
+Schedule_t slStukaAlertStand[] =
+{
+	{
+		tlStukaAlertStand,
+		ARRAYSIZE( tlStukaAlertStand ),
+		bits_COND_NEW_ENEMY | bits_COND_LIGHT_DAMAGE | bits_COND_HEAVY_DAMAGE | bits_COND_SMELL | bits_COND_SMELL_FOOD |
+		bits_COND_PROVOKED | bits_COND_HEAR_SOUND,
+		bits_SOUND_COMBAT | bits_SOUND_WORLD | bits_SOUND_PLAYER | bits_SOUND_DANGER | bits_SOUND_CARCASS | bits_SOUND_MEAT | bits_SOUND_GARBAGE,
+		"Stuka Alert Stand"
+	},
+};
+
+Task_t tlStukaAlertFace[] =
+{
+	{ TASK_STOP_MOVING, (float)0 },
+	{ TASK_STUKA_IDLE_ACT, (float)0 },
+	{ TASK_FACE_IDEAL, (float)0 },
+};
+
+Schedule_t slStukaAlertFace[] =
+{
+	{
+		tlStukaAlertFace,
+		ARRAYSIZE( tlStukaAlertFace ),
+		bits_COND_NEW_ENEMY | bits_COND_LIGHT_DAMAGE | bits_COND_HEAVY_DAMAGE | bits_COND_PROVOKED,
+		0,
+		"Stuka Alert Face"
+	},
+};
+
+Task_t tlStukaCombatFace[] =
+{
+	{ TASK_STOP_MOVING, (float)0 },
+	{ TASK_STUKA_IDLE_ACT, (float)0 },
+	{ TASK_FACE_ENEMY, (float)0 },
+};
+
+Schedule_t slStukaCombatFace[] =
+{
+	{
+		tlStukaCombatFace,
+		ARRAYSIZE( tlStukaCombatFace ),
+		bits_COND_CAN_RANGE_ATTACK1 | bits_COND_CAN_RANGE_ATTACK2 | bits_COND_CAN_MELEE_ATTACK1 | bits_COND_CAN_MELEE_ATTACK2 | bits_COND_NEW_ENEMY | bits_COND_ENEMY_DEAD,
+		0,
+		"Stuka Combat Face"
+	},
+};
+
+Task_t tlStukaChase[] =
+{
+	{ TASK_SET_FAIL_SCHEDULE, (float)SCHED_CHASE_ENEMY_FAILED },
+	{ TASK_GET_PATH_TO_ENEMY, (float)0 },
+	{ TASK_RUN_PATH, (float)0 },
+	{ TASK_WAIT_FOR_MOVEMENT, (float)0 },
+};
+
+Schedule_t slStukaChase[] =
+{
+	{
+		tlStukaChase,
+		ARRAYSIZE( tlStukaChase ),
+		0,
+		0,
+		"Stuka Chase"
+	},
+};
+
+Task_t tlStukaFail[] =
+{
+	{ TASK_STOP_MOVING, (float)0 },
+	{ TASK_STUKA_IDLE_ACT, (float)0 },
+	{ TASK_WAIT, (float)2 },
+	{ TASK_WAIT_PVS, (float)0 },
+};
+
+Schedule_t slStukaFail[] =
+{
+	{
+		tlStukaFail,
+		ARRAYSIZE( tlStukaFail ),
+		bits_COND_CAN_RANGE_ATTACK1 | bits_COND_CAN_RANGE_ATTACK2 | bits_COND_CAN_MELEE_ATTACK1 | bits_COND_CAN_MELEE_ATTACK2,
+		0,
+		"Stuka Fail"
+	},
+};
+
+Task_t tlStukaRangeAttack1[] =
+{
+	{ TASK_FACE_ENEMY, (float)0 },
+	{ TASK_RANGE_ATTACK1, (float)0 },
+};
+
+Schedule_t slStukaRangeAttack1[] =
+{
+	{
+		tlStukaRangeAttack1,
+		ARRAYSIZE( tlStukaRangeAttack1 ),
+		bits_COND_NEW_ENEMY | bits_COND_ENEMY_DEAD | bits_COND_HEAVY_DAMAGE | bits_COND_LIGHT_DAMAGE |
+		bits_COND_ENEMY_OCCLUDED | bits_COND_NO_AMMO_LOADED | bits_COND_CAN_MELEE_ATTACK1,
+		bits_SOUND_DANGER,
+		"Stuka Range Attack1"
+	},
+};
+
+Task_t tlStukaRangeAttack2[] =
+{
+	{ TASK_RANGE_ATTACK2, (float)0 },
+	{ TASK_WAIT_FOR_MOVEMENT, (float)0 },
+};
+
+Schedule_t slStukaRangeAttack2[] =
+{
+	{
+		tlStukaRangeAttack2,
+		ARRAYSIZE( tlStukaRangeAttack2 ),
+		bits_COND_NEW_ENEMY | bits_COND_ENEMY_DEAD | bits_COND_HEAVY_DAMAGE | bits_COND_LIGHT_DAMAGE |
+		bits_COND_ENEMY_OCCLUDED | bits_COND_NO_AMMO_LOADED,
+		bits_SOUND_DANGER,
+		"Stuka Range Attack2"
+	},
+};
+
+Task_t tlStukaTakeoff[] =
+{
+	{ TASK_STOP_MOVING, (float)0 },
+	{ TASK_STUKA_TAKEOFF, (float)0 },
+};
+
+Schedule_t slStukaTakeoff[] =
+{
+	{
+		tlStukaTakeoff,
+		ARRAYSIZE( tlStukaTakeoff ),
+		0,
+		0,
+		"Stuka Take off"
+	},
+};
+
+Task_t tlStukaFall[] =
+{
+	{ TASK_STOP_MOVING, (float)0 },
+	{ TASK_STUKA_FALL, (float)0 },
+};
+
+Schedule_t slStukaFall[] =
+{
+	{
+		tlStukaFall,
+		ARRAYSIZE( tlStukaFall ),
+		0,
+		0,
+		"Stuka Fall"
+	},
+};
+
+Task_t tlStukaWake[] =
+{
+	{ TASK_STUKA_WAKE, (float)0 },
+};
+
+Schedule_t slStukaWake[] =
+{
+	{
+		tlStukaWake,
+		ARRAYSIZE( tlStukaWake ),
+		0,
+		0,
+		"Stuka Wake"
+	},
+};
+
+Task_t tlStukaEat[] =
+{
+	{ TASK_STOP_MOVING, (float)0 },
+	{ TASK_GET_PATH_TO_BESTSCENT, (float)0 },
+	{ TASK_WALK_PATH, (float)0 },
+	{ TASK_WAIT_FOR_MOVEMENT, (float)0 },
+	{ TASK_PLAY_SEQUENCE, (float)ACT_EAT },
+	{ TASK_PLAY_SEQUENCE, (float)ACT_EAT },
+	{ TASK_PLAY_SEQUENCE, (float)ACT_EAT },
+	{ TASK_EAT, (float)50 },
+};
+
+Schedule_t slStukaEat[] =
+{
+	{
+		tlStukaEat,
+		ARRAYSIZE( tlStukaEat ),
+		bits_COND_LIGHT_DAMAGE | bits_COND_HEAVY_DAMAGE | bits_COND_NEW_ENEMY,
+		bits_SOUND_MEAT | bits_SOUND_CARCASS,
+		"SquidEat"
+	},
+};
+
+Task_t tlStukaDive[] =
+{
+	{ TASK_SET_FAIL_SCHEDULE, (float)SCHED_CHASE_ENEMY_FAILED },
+	{ TASK_GET_PATH_TO_ENEMY, (float)0 },
+	{ TASK_STUKA_DIVE, (float)0 },
+	{ TASK_WAIT_FOR_MOVEMENT, (float)0 },
+};
+
+Schedule_t slStukaDive[] =
+{
+	{
+		tlStukaDive,
+		ARRAYSIZE( tlStukaDive ),
+		0,
+		0,
+		"Stuka Dive"
+	},
+};
+
+Task_t tlStukaDieFall[] =
+{
+	{ TASK_STOP_MOVING, (float)0 },
+	{ TASK_STUKA_FALL, (float)0 },
+	{ TASK_DIE, (float)0 },
+};
+
+Schedule_t slStukaDieFall[] =
+{
+	{
+		tlStukaDieFall,
+		ARRAYSIZE( tlStukaDieFall ),
+		0,
+		0,
+		"Stuka Die Fall"
+	},
+};
+
+DEFINE_CUSTOM_SCHEDULES( CStukaBat )
+{
+	slStukaIdle,
+	slStukaAlertStand,
+	slStukaAlertFace,
+	slStukaCombatFace,
+	slStukaChase,
+	slStukaFail,
+	slStukaRangeAttack1,
+	slStukaRangeAttack2,
+	slStukaTakeoff,
+	slStukaFall,
+	slStukaWake,
+	slStukaEat,
+	slStukaDive,
+	slStukaDieFall,
+};
+
+IMPLEMENT_CUSTOM_SCHEDULES( CStukaBat, CFlyingMonster )
+
+Schedule_t *CStukaBat::GetScheduleOfType( int Type )
+{
+	switch( Type )
+	{
+	case SCHED_IDLE_STAND:
+		return &slStukaIdle[0];
+	case SCHED_ALERT_FACE:
+		return &slStukaAlertFace[0];
+	case SCHED_ALERT_STAND:
+		return &slStukaAlertStand[0];
+	case SCHED_COMBAT_FACE:
+		return &slStukaCombatFace[0];
+	case SCHED_CHASE_ENEMY:
+		return &slStukaChase[0];
+	case SCHED_CHASE_ENEMY_FAILED:
+	case SCHED_FAIL:
+		return &slStukaFail[0];
+	case SCHED_RANGE_ATTACK1:
+		return &slStukaRangeAttack1[0];
+	case SCHED_RANGE_ATTACK2:
+		return &slStukaRangeAttack2[0];
+	case SCHED_STUKA_TAKEOFF:
+		return &slStukaTakeoff[0];
+	case SCHED_STUKA_FALL:
+		return &slStukaFall[0];
+	case SCHED_STUKA_WAKE:
+		m_iAwake = 1;
+		return &slStukaWake[0];
+	case SCHED_STUKA_EAT:
+		return &slStukaEat[0];
+	case SCHED_STUKA_DIVE:
+		return &slStukaDive[0];
+	case SCHED_STUKA_DIE_FALL:
+		return &slStukaDieFall[0];
+	}
+	return CFlyingMonster::GetScheduleOfType( Type );
+}
+
+Schedule_t *CStukaBat::GetSchedule( void )
+{
+	switch( m_MonsterState )
+	{
+	case MONSTERSTATE_IDLE:
+		if( m_iAwake == 0 )
+			return GetScheduleOfType( SCHED_IDLE_STAND );
+		if( HasConditions( bits_COND_HEAR_SOUND ) && pev->movetype != MOVETYPE_FLY )
+			return GetScheduleOfType( SCHED_ALERT_FACE );
+		if( FRouteClear() )
+			return GetScheduleOfType( SCHED_IDLE_STAND );
+		return GetScheduleOfType( SCHED_IDLE_WALK );
+
+	case MONSTERSTATE_COMBAT:
+		if( m_iAwake == 0 )
+			return GetScheduleOfType( SCHED_STUKA_WAKE );
+
+		if( HasConditions( bits_COND_ENEMY_DEAD ) )
+			return CFlyingMonster::GetSchedule();
+
+		if( HasConditions( bits_COND_NEW_ENEMY ) )
+			return GetScheduleOfType( SCHED_COMBAT_FACE );
+
+		if( m_fHurtFall )
+		{
+			m_fHurtFall = FALSE;
+			return GetScheduleOfType( SCHED_STUKA_FALL );
+		}
+
+		if( !HasConditions( bits_COND_SEE_ENEMY ) )
+		{
+			if( !HasConditions( bits_COND_ENEMY_OCCLUDED ) )
+				return GetScheduleOfType( SCHED_COMBAT_FACE );
+			if( pev->movetype != MOVETYPE_FLY )
+				return GetScheduleOfType( SCHED_IDLE_STAND );
+			return GetScheduleOfType( SCHED_CHASE_ENEMY );
+		}
+
+		TREX_Log( "Stukabat: I can see the enemy!" );
+
+		if( HasConditions( bits_COND_CAN_RANGE_ATTACK2 ) )
+		{
+			// claw: stop in the air
+			pev->velocity.z = 0;
+			return GetScheduleOfType( SCHED_RANGE_ATTACK2 );
+		}
+
+		if( HasConditions( bits_COND_CAN_RANGE_ATTACK1 ) )
+		{
+			if( FacingIdeal() )
+				return GetScheduleOfType( SCHED_RANGE_ATTACK1 );
+			return GetScheduleOfType( SCHED_COMBAT_FACE );
+		}
+
+		if( pev->movetype == MOVETYPE_FLY )
+		{
+			// dive at an enemy that is far away
+			if( !m_fDiving && m_flLastDive + 15.0f < gpGlobals->time && m_hEnemy != 0 )
+			{
+				float flDist = ( m_hEnemy->pev->origin - pev->origin ).Length();
+				if( flDist > 512 )
+				{
+					TraceResult tr;
+					UTIL_TraceLine( pev->origin, m_hEnemy->pev->origin, ignore_monsters, edict(), &tr );
+					if( tr.flFraction >= 0.99f )
+					{
+						TREX_Log( "Stukabat: Diving!" );
+						m_flLastDive = gpGlobals->time;
+						return GetScheduleOfType( SCHED_STUKA_DIVE );
+					}
+				}
+			}
+			return GetScheduleOfType( SCHED_CHASE_ENEMY );
+		}
+
+		// on the ground after a fall
+		if( ( pev->flags & FL_ONGROUND ) && m_flPerchTime < gpGlobals->time )
+			return GetScheduleOfType( SCHED_STUKA_TAKEOFF );
+		return GetScheduleOfType( SCHED_TAKE_COVER_FROM_ENEMY );
+
+	case MONSTERSTATE_ALERT:
+		if( HasConditions( bits_COND_LIGHT_DAMAGE | bits_COND_HEAVY_DAMAGE ) )
+		{
+			if( m_iAwake != 0 )
+				return CFlyingMonster::GetSchedule();
+			return GetScheduleOfType( SCHED_STUKA_WAKE );
+		}
+		if( HasConditions( bits_COND_HEAR_SOUND ) || HasConditions( bits_COND_NO_AMMO_LOADED ) )
+		{
+			if( m_iAwake != 0 )
+				return GetScheduleOfType( SCHED_ALERT_FACE );
+			return GetScheduleOfType( SCHED_STUKA_WAKE );
+		}
+		if( HasConditions( bits_COND_SMELL_FOOD ) && FShouldEat() )
+		{
+			TREX_Log( "Stukabat: Found food!" );
+			return GetScheduleOfType( SCHED_STUKA_EAT );
+		}
+		return GetScheduleOfType( SCHED_ALERT_STAND );
+
+	case MONSTERSTATE_DEAD:
+		if( !m_fFallDeath )
+			return GetScheduleOfType( SCHED_DIE );
+		return GetScheduleOfType( SCHED_STUKA_DIE_FALL );
+
+	default:
+		break;
+	}
+	return CFlyingMonster::GetSchedule();
+}
+
+//=========================================================
+// Spawn / Precache
+//=========================================================
+void CStukaBat::Spawn( void )
+{
+	Precache();
+
+	SET_MODEL( ENT( pev ), "models/stukabat.mdl" );
+	UTIL_SetSize( pev, Vector( -8, -8, 0 ), Vector( 8, 8, 18 ) );
+
+	pev->solid = SOLID_BBOX;
+	pev->movetype = MOVETYPE_FLY;
+	pev->flags |= FL_FLY;
+	m_bloodColor = BLOOD_COLOR_YELLOW;
+	pev->health = gSkillData.stukaHealth;
+	if( pev->health <= 0 )
+		pev->health = 30;
+	pev->view_ofs = Vector( 0, 0, 8 );
+	m_flFieldOfView = -1.0f;
+	m_MonsterState = MONSTERSTATE_NONE;
+
+	SetFlyingFlapSound( "zombie/claw_miss1.wav" );
+	SetFlyingSpeed( 275 );
+	SetFlyingMomentum( 2.5f );
+
+	m_iAwake = 0;
+	m_fFallDeath = FALSE;
+	m_fHurtFall = FALSE;
+	m_fDiving = FALSE;
+	m_flNextBomb = 0;
+	m_flNextClaw = 0;
+	m_flPerchTime = 0;
+	m_flLastDive = gpGlobals->time;
+
+	MonsterInit();
+
+	TREX_Log( "stukabat: spawned at %.0f %.0f %.0f health=%.0f", pev->origin.x, pev->origin.y, pev->origin.z, pev->health );
+}
+
+void CStukaBat::Precache( void )
+{
+	PRECACHE_MODEL( "models/stukabat.mdl" );
+	PRECACHE_MODEL( "models/spit.mdl" );
+	PRECACHE_SOUND( "zombie/claw_miss1.wav" );
+	PRECACHE_SOUND( "bullchicken/bc_attack1.wav" );
+	PRECACHE_SOUND( "bullchicken/bc_acid1.wav" );
+	PRECACHE_SOUND( "bullchicken/bc_spithit1.wav" );
+	PRECACHE_SOUND( "bullchicken/bc_spithit2.wav" );
+	PRECACHE_SOUND_ARRAY( pClawStrikeSounds );
+}
+
+void CStukaBat::SetYawSpeed( void )
+{
+	switch( m_Activity )
+	{
+	case ACT_IDLE:
+	case STUKA_ACT_LEAP:
+	case STUKA_ACT_WAKE:
+		pev->yaw_speed = 0;
+		break;
+	case STUKA_ACT_HOVER:
+		pev->yaw_speed = 120;
+		break;
+	default:
+		pev->yaw_speed = 90;
+		break;
+	}
+}
+
+Activity CStukaBat::FlyActivity( void )
+{
+	if( HasConditions( bits_COND_CAN_RANGE_ATTACK1 ) && !m_fDiving )
+		return ACT_RANGE_ATTACK1;
+	if( HasConditions( bits_COND_CAN_RANGE_ATTACK2 ) )
+		return ACT_RANGE_ATTACK2;
+	if( m_fDiving )
+		return STUKA_ACT_DIVE;
+	if( m_flightSpeed <= 40.0f )
+		return STUKA_ACT_HOVER;
+	return ACT_FLY;
+}
+
+Activity CStukaBat::GetStoppedActivity( void )
+{
+	if( pev->movetype == MOVETYPE_FLY )
+		return STUKA_ACT_HOVER;
+	return ACT_IDLE;
+}
+
+//=========================================================
+// Attacks
+//=========================================================
+BOOL CStukaBat::CheckRangeAttack1( float flDot, float flDist )
+{
+	return pev->movetype == MOVETYPE_FLY && m_flightSpeed >= 50.0f && m_flNextBomb <= gpGlobals->time &&
+		flDist > 96 && flDist <= 1024 && flDot > 0.9f;
+}
+
+BOOL CStukaBat::CheckRangeAttack2( float flDot, float flDist )
+{
+	return pev->movetype == MOVETYPE_FLY && m_flNextClaw <= gpGlobals->time && flDist <= 48;
+}
+
+void CStukaBat::HandleAnimEvent( MonsterEvent_t *pEvent )
+{
+	switch( pEvent->event )
+	{
+	case STUKA_AE_BOMB:
+		{
+			EMIT_SOUND_DYN( ENT( pev ), CHAN_WEAPON, "bullchicken/bc_attack1.wav", 1.0, ATTN_NORM, 0, 100 );
+			CSoundEnt::InsertSound( bits_SOUND_COMBAT, pev->origin, 384, 0.3f );
+
+			if( m_hEnemy != 0 )
+			{
+				UTIL_MakeVectors( pev->angles );
+				Vector vecStart = pev->origin + gpGlobals->v_forward * 32;
+				Vector vecTarget = m_hEnemy->pev->origin + m_hEnemy->pev->view_ofs;
+				Vector vecDir = ( vecTarget - vecStart ).Normalize();
+
+				CStukaBomb::Shoot( pev, vecStart, vecDir * 900.0f );
+
+				// a spray of acid drops
+				Vector vecSpray = gpGlobals->v_up * 400 + gpGlobals->v_forward * 400;
+				for( int i = 0; i < 4; i++ )
+				{
+					vecSpray.x += RANDOM_FLOAT( -0.5f, 0.5f );
+					vecSpray.y += RANDOM_FLOAT( -0.5f, 0.5f );
+					vecSpray.z += RANDOM_FLOAT( -0.5f, 0.5f );
+					UTIL_BloodStream( vecStart, vecSpray.Normalize(), 54, 400 );
+				}
+			}
+			m_flNextBomb = gpGlobals->time + RANDOM_FLOAT( 5, 10 );
+		}
+		break;
+	case STUKA_AE_CLAW:
+		{
+			float flDmg = gSkillData.stukaDmgSlash;
+			if( flDmg <= 0 )
+				flDmg = 10;
+
+			CBaseEntity *pHurt = CheckTraceHullAttack( 96, (int)flDmg, DMG_SLASH );
+			if( pHurt )
+			{
+				if( !FClassnameIs( pHurt->pev, "monster_stukabat" ) )
+				{
+					if( pHurt->pev->flags & ( FL_CLIENT | FL_MONSTER ) )
+					{
+						pHurt->pev->punchangle.z = -20;
+						pHurt->pev->punchangle.x = 5;
+						UTIL_MakeVectors( pev->angles );
+						pHurt->pev->velocity = pHurt->pev->velocity - gpGlobals->v_right * 100;
+					}
+					m_flNextClaw = gpGlobals->time + RANDOM_FLOAT( 1, 3 );
+					EMIT_SOUND_DYN( ENT( pev ), CHAN_WEAPON, pClawStrikeSounds[RANDOM_LONG( 0, ARRAYSIZE( pClawStrikeSounds ) - 1 )], 1.0, ATTN_NORM, 0, 100 + RANDOM_LONG( -5, 5 ) );
+				}
+			}
+			else
+			{
+				EMIT_SOUND_DYN( ENT( pev ), CHAN_WEAPON, "zombie/claw_miss1.wav", 1.0, ATTN_NORM, 0, 100 );
+			}
+		}
+		break;
+	default:
+		CFlyingMonster::HandleAnimEvent( pEvent );
+		break;
+	}
+}
+
+//=========================================================
+// Damage / death
+//=========================================================
+int CStukaBat::TakeDamage( entvars_t *pevInflictor, entvars_t *pevAttacker, float flDamage, int bitsDamageType )
+{
+	if( bitsDamageType == DMG_POISON )
+		flDamage = 0;
+	else if( flDamage > 0 && RANDOM_LONG( 0, 99 ) >= 10 )
+		m_fHurtFall = TRUE;	// crash to the ground
+
+	return CFlyingMonster::TakeDamage( pevInflictor, pevAttacker, flDamage, bitsDamageType );
+}
+
+void CStukaBat::Killed( entvars_t *pevAttacker, int iGib )
+{
+	if( !( pev->flags & FL_ONGROUND ) )
+		m_fFallDeath = TRUE;
+
+	HitProxy_Remove( m_hProxy );
+	CFlyingMonster::Killed( pevAttacker, iGib );
+}
+
+void CStukaBat::UpdateOnRemove( void )
+{
+	HitProxy_Remove( m_hProxy );
+	CFlyingMonster::UpdateOnRemove();
+}
+
+//=========================================================
+// Waking up
+//=========================================================
+void CStukaBat::Wake( void )
+{
+	m_IdealMonsterState = MONSTERSTATE_ALERT;
+	SetConditions( bits_COND_NO_AMMO_LOADED );
+}
+
+void CStukaBat::HelpCall( float flRadius )
+{
+	TREX_Log( "Stukabat: Help!" );
+
+	CBaseEntity *pEnt = NULL;
+	while( ( pEnt = UTIL_FindEntityByClassname( pEnt, "monster_stukabat" ) ) != NULL )
+	{
+		if( pEnt == this )
+			continue;
+		if( ( pEnt->pev->origin - pev->origin ).Length() > flRadius )
+			continue;
+
+		CStukaBat *pBuddy = (CStukaBat *)pEnt;
+		TREX_Log( "Stukabat: grabbed a buddie" );
+		if( pBuddy->m_iAwake == 0 )
+			pBuddy->Wake();
+	}
+}
+
+//=========================================================
+// Tasks
+//=========================================================
+void CStukaBat::StartTask( Task_t *pTask )
+{
+	switch( pTask->iTask )
+	{
+	case TASK_DIE:
+		RouteClear();
+		pev->frame = 0;
+		if( m_fFallDeath )
+		{
+			TREX_Log( "Stukabat: Fall death" );
+			if( RANDOM_LONG( 1, 10 ) > 5 )
+				pev->sequence = LookupSequence( "Death_fall_simple" );
+			else
+				pev->sequence = LookupSequence( "Death_fall_violent" );
+		}
+		else
+		{
+			TREX_Log( "Stukabat: Ground death" );
+			pev->sequence = LookupSequence( "Die_on_ground" );
+		}
+		if( pev->sequence < 0 )
+		{
+			// the model does not have it: use the generic death
+			pev->sequence = 0;
+			CFlyingMonster::StartTask( pTask );
+			break;
+		}
+		ResetSequenceInfo();
+		pev->deadflag = DEAD_DYING;
+		break;
+
+	case TASK_STOP_MOVING:
+		if( m_IdealActivity == m_movementActivity )
+			m_IdealActivity = GetStoppedActivity();
+		pev->velocity = g_vecZero;
+		RouteClear();
+		TaskComplete();
+		break;
+
+	case TASK_STUKA_TAKEOFF:
+		TREX_Log( "Stukabat: Taking off!" );
+		RouteClear();
+		m_IdealActivity = STUKA_ACT_LEAP;
+		break;
+
+	case TASK_STUKA_FALL:
+		pev->movetype = MOVETYPE_TOSS;
+		m_IdealActivity = STUKA_ACT_FALL;
+		break;
+
+	case TASK_STUKA_WAKE:
+		TREX_Log( "Stukabat: Wake" );
+		m_IdealActivity = STUKA_ACT_WAKE;
+		break;
+
+	case TASK_STUKA_IDLE_ACT:
+		if( m_iAwake <= 0 )
+			m_IdealActivity = ACT_IDLE;
+		else
+			m_IdealActivity = GetStoppedActivity();
+		TaskComplete();
+		break;
+
+	case TASK_STUKA_DIVE:
+		m_fDiving = TRUE;
+		m_flLastDive = gpGlobals->time;
+		break;
+
+	default:
+		CFlyingMonster::StartTask( pTask );
+		break;
+	}
+}
+
+void CStukaBat::RunTask( Task_t *pTask )
+{
+	switch( pTask->iTask )
+	{
+	case TASK_STUKA_TAKEOFF:
+		if( m_fSequenceFinished )
+		{
+			pev->flags |= FL_FLY;
+			pev->movetype = MOVETYPE_FLY;
+			m_IdealActivity = STUKA_ACT_HOVER;
+			pev->velocity.z += 48;
+			m_flNextBomb = gpGlobals->time + RANDOM_FLOAT( 5, 10 );
+			m_flLastDive = gpGlobals->time;
+			TaskComplete();
+		}
+		break;
+
+	case TASK_STUKA_FALL:
+		if( pev->flags & FL_ONGROUND )
+		{
+			pev->flags &= ~FL_FLY;
+			if( pev->waterlevel == 3 )
+				Killed( pev, GIB_NEVER );
+			if( !m_fFallDeath )
+			{
+				m_IdealActivity = STUKA_ACT_PERCH;
+				pev->movetype = MOVETYPE_STEP;
+				m_flPerchTime = gpGlobals->time + RANDOM_FLOAT( 5, 15 );
+			}
+			TaskComplete();
+		}
+		break;
+
+	case TASK_STUKA_WAKE:
+		if( m_fSequenceFinished )
+		{
+			m_iAwake = 2;
+			pev->origin.z -= 12;
+			pev->velocity.z += 64;
+			m_flNextBomb = gpGlobals->time + RANDOM_FLOAT( 2, 5 );
+			m_flLastDive = gpGlobals->time;
+			HelpCall( 256 );
+			TaskComplete();
+		}
+		break;
+
+	case TASK_STUKA_DIVE:
+		MakeIdealYaw( m_vecEnemyLKP );
+		ChangeYaw( pev->yaw_speed );
+		if( HasConditions( bits_COND_CAN_RANGE_ATTACK2 ) || m_flLastDive + 4.0f < gpGlobals->time )
+		{
+			TREX_Log( "Stukabat: Stopped diving!" );
+			m_fDiving = FALSE;
+			m_Activity = ACT_RESET;
+			TaskComplete();
+		}
+		break;
+
+	default:
+		CFlyingMonster::RunTask( pTask );
+		break;
+	}
+}
+
+//=========================================================
+// AI / movement
+//=========================================================
+void CStukaBat::RunAI( void )
+{
+	// same as CBaseMonster::RunAI, but a sleeping bat does not look around
+	if( ( m_MonsterState == MONSTERSTATE_IDLE || m_MonsterState == MONSTERSTATE_ALERT ) &&
+		RANDOM_LONG( 0, 99 ) == 0 && !( pev->spawnflags & SF_MONSTER_GAG ) )
+		IdleSound();
+
+	if( m_MonsterState != MONSTERSTATE_NONE && m_MonsterState != MONSTERSTATE_PRONE && m_MonsterState != MONSTERSTATE_DEAD )
+	{
+		if( !FNullEnt( FIND_CLIENT_IN_PVS( edict() ) ) || ( m_MonsterState == MONSTERSTATE_COMBAT ) )
+		{
+			if( m_iAwake > 0 )
+				Look( m_flDistLook );
+			Listen();
+			ClearConditions( IgnoreConditions() );
+			GetEnemy();
+		}
+
+		if( m_hEnemy != 0 )
+			CheckEnemy( m_hEnemy );
+
+		CheckAmmo();
+	}
+
+	FCheckAITrigger();
+	PrescheduleThink();
+	MaintainSchedule();
+	ClearConditions( bits_COND_LIGHT_DAMAGE | bits_COND_HEAVY_DAMAGE );
+}
+
+void CStukaBat::MonsterThink( void )
+{
+	CFlyingMonster::MonsterThink();
+
+	if( m_IdealActivity != ACT_FLY && pev->angles.z != 0 )
+		pev->angles.z = 0;
+
+	HitProxy_Sync( this, m_hProxy );
+}
+
+int CStukaBat::CheckLocalMove( const Vector &vecStart, const Vector &vecEnd, CBaseEntity *pTarget, float *pflDist )
+{
+	TraceResult tr;
+	Vector vecFrom = vecStart + Vector( 0, 0, 16 );
+	Vector vecTo = vecEnd + Vector( 0, 0, 16 );
+
+	UTIL_TraceLine( vecFrom, vecTo, dont_ignore_monsters, edict(), &tr );
+
+	if( pflDist )
+		*pflDist = ( vecEnd - vecStart ).Length();
+
+	if( tr.flFraction >= 1.0f )
+		return LOCALMOVE_VALID;
+	if( pTarget && tr.pHit == pTarget->edict() )
+		return LOCALMOVE_VALID;
+	return LOCALMOVE_INVALID;
+}
+
+void CStukaBat::Move( float flInterval )
+{
+	if( pev->movetype == MOVETYPE_FLY )
+		CFlyingMonster::Move( flInterval );
+	else
+		CBaseMonster::Move( flInterval );
+}
+
+void CStukaBat::MoveExecute( CBaseEntity *pTargetEnt, const Vector &vecDir, float flInterval )
+{
+	if( pev->movetype != MOVETYPE_FLY )
+	{
+		CBaseMonster::MoveExecute( pTargetEnt, vecDir, flInterval );
+		return;
+	}
+
+	// cruise speed, faster while diving
+	float flWanted = m_fDiving ? 300.0f : 100.0f;
+	m_flightSpeed = UTIL_Approach( flWanted, m_flightSpeed, 75.0f * gpGlobals->frametime * 4.0f );
+
+	m_IdealActivity = FlyActivity();
+
+	CFlyingMonster::MoveExecute( pTargetEnt, vecDir, flInterval );
+}

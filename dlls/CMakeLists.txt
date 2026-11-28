@@ -146,6 +146,7 @@ set (SVDLL_SOURCES
 	kingpin.cpp
 	hitproxy.cpp
 	chub.cpp
+	stukabat.cpp
 	archer.cpp
 	m44.cpp
 	vehicle.cpp
