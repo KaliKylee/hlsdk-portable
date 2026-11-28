@@ -41,6 +41,7 @@ namespace
 	{
 		std::string text;
 		float expire;
+		float start;
 		int r, g, b;
 	};
 
@@ -56,6 +57,7 @@ namespace
 	cvar_t *cl_subtitle_green = nullptr;
 	cvar_t *cl_subtitle_blue = nullptr;
 	cvar_t *cl_subtitle_language = nullptr;
+	cvar_t *cl_subtitle_scale = nullptr;
 
 	std::string Upper( const std::string &s )
 	{
@@ -147,6 +149,12 @@ namespace
 				text += l;
 			}
 
+			// "\n" literal (barra + n) vira espaco; a quebra de linha e feita pelo desenho
+			for ( size_t pos = 0; ( pos = text.find( "\\n", pos ) ) != std::string::npos; )
+				text.replace( pos, 2, " " );
+			for ( size_t pos = 0; ( pos = text.find( "  ", pos ) ) != std::string::npos; )
+				text.erase( pos, 1 );
+
 			e.text = text;
 			if ( line != "SubtitleFormat" && !text.empty() )
 				g_Entries[Upper( line )] = e;
@@ -186,6 +194,7 @@ int CHudSubtitle::Init()
 	cl_subtitle_green = CVAR_CREATE( "cl_subtitle_green", "30", FCVAR_ARCHIVE );
 	cl_subtitle_blue = CVAR_CREATE( "cl_subtitle_blue", "30", FCVAR_ARCHIVE );
 	cl_subtitle_language = CVAR_CREATE( "cl_subtitle_language", "english", FCVAR_ARCHIVE );
+	cl_subtitle_scale = CVAR_CREATE( "cl_subtitle_scale", "1.5", FCVAR_ARCHIVE );
 
 	m_iFlags |= HUD_ACTIVE;
 	gHUD.AddHudElem( this );
@@ -242,6 +251,7 @@ int CHudSubtitle::MsgFunc_Subtitle( const char *pszName, int iSize, void *pbuf )
 	SubActive a;
 	a.text = e.text;
 	a.expire = expire;
+	a.start = gHUD.m_flTime;
 	a.r = e.r; a.g = e.g; a.b = e.b;
 	g_Active.push_back( a );
 
@@ -249,6 +259,52 @@ int CHudSubtitle::MsgFunc_Subtitle( const char *pszName, int iSize, void *pbuf )
 		g_Active.erase( g_Active.begin() );
 
 	return 1;
+}
+
+namespace
+{
+	// Aumenta a fonte do console so enquanto desenhamos as legendas (con_fontscale do Xash).
+	struct FontScaleGuard
+	{
+		cvar_t *p;
+		float old;
+		explicit FontScaleGuard( float mult )
+		{
+			p = gEngfuncs.pfnGetCvarPointer( "con_fontscale" );
+			old = p ? p->value : 0.0f;
+			if ( p && old > 0.0f && mult > 0.1f && mult < 6.0f )
+				p->value = old * mult;
+			else
+				p = nullptr;
+		}
+		~FontScaleGuard()
+		{
+			if ( p )
+				p->value = old;
+		}
+	};
+
+	inline int LerpI( int a, int b, float t )
+	{
+		return (int)( a + ( b - a ) * t + 0.5f );
+	}
+
+	inline float Clamp01( float v )
+	{
+		return v < 0.0f ? 0.0f : ( v > 1.0f ? 1.0f : v );
+	}
+
+	// retangulo com cantos arredondados (3 retangulos sobrepostos)
+	void FillRounded( int x, int y, int w, int h, int r, int g, int b, int a )
+	{
+		if ( a <= 0 ) return;
+		int c = (int)( ScreenHeight * 0.008f );
+		if ( c < 3 ) c = 3;
+		if ( c * 2 > h ) c = h / 2;
+		FillRGBA( x + c, y, w - 2 * c, h, r, g, b, a );
+		FillRGBA( x, y + c, w, h - 2 * c, r, g, b, a );
+		FillRGBA( x + c / 2, y + c / 2, w - c, h - c, r, g, b, a );
+	}
 }
 
 int CHudSubtitle::Draw( float flTime )
@@ -263,14 +319,34 @@ int CHudSubtitle::Draw( float flTime )
 	if ( g_Active.empty() )
 		return 1;
 
-	const int pad = 6;
-	const int maxWidth = (int)( ScreenWidth * 0.7f );
+	FontScaleGuard fontScale( cl_subtitle_scale ? cl_subtitle_scale->value : 1.0f );
 
 	int _w, lineH;
 	GetConsoleStringSize( "Ag", &_w, &lineH );
 	if ( lineH <= 0 ) lineH = 14;
 
-	// monta as linhas (quebra por palavras) de cada legenda
+	const int pad = lineH / 2 + 2;
+	const int maxWidth = (int)( ScreenWidth * 0.62f );
+
+	// largura de cada caractere (a fonte e sem kerning, entao soma = largura da linha)
+	int charW[256];
+	for ( int c = 0; c < 256; c++ )
+	{
+		char buf[2] = { (char)c, 0 };
+		charW[c] = c < 32 ? 0 : ConsoleStringLen( buf );
+	}
+	auto strW = [&]( const std::string &t )
+	{
+		int w = 0;
+		for ( size_t i = 0; i < t.size(); i++ ) w += charW[(unsigned char)t[i]];
+		return w;
+	};
+
+	int bgR = cl_subtitle_red ? (int)cl_subtitle_red->value : 30;
+	int bgG = cl_subtitle_green ? (int)cl_subtitle_green->value : 30;
+	int bgB = cl_subtitle_blue ? (int)cl_subtitle_blue->value : 30;
+
+	// quebra de linhas de cada legenda
 	std::vector<std::vector<std::string> > blocks;
 	int totalH = 0;
 	for ( size_t n = 0; n < g_Active.size(); n++ )
@@ -285,7 +361,7 @@ int CHudSubtitle::Draw( float flTime )
 				if ( !word.empty() )
 				{
 					std::string test = cur.empty() ? word : cur + " " + word;
-					if ( !cur.empty() && ConsoleStringLen( test.c_str() ) > maxWidth - 2 * pad )
+					if ( !cur.empty() && strW( test ) > maxWidth - 2 * pad )
 					{
 						out.push_back( cur );
 						cur = word;
@@ -301,39 +377,89 @@ int CHudSubtitle::Draw( float flTime )
 		if ( !cur.empty() ) out.push_back( cur );
 		if ( out.empty() ) out.push_back( "" );
 
-		totalH += (int)out.size() * lineH + 2 * pad + 2;
+		totalH += (int)out.size() * lineH + 2 * pad + 4;
 		blocks.push_back( out );
 	}
 
-	int bgR = cl_subtitle_red ? (int)cl_subtitle_red->value : 30;
-	int bgG = cl_subtitle_green ? (int)cl_subtitle_green->value : 30;
-	int bgB = cl_subtitle_blue ? (int)cl_subtitle_blue->value : 30;
-
-	int y = (int)( ScreenHeight * 0.84f ) - totalH;
+	int y = (int)( ScreenHeight * 0.86f ) - totalH;
 	if ( y < 0 ) y = 0;
 
 	for ( size_t n = 0; n < blocks.size(); n++ )
 	{
 		const std::vector<std::string> &ls = blocks[n];
+		const SubActive &act = g_Active[n];
+
+		float age = flTime - act.start;
+		float life = act.expire - act.start;
+		if ( life < 0.5f ) life = 0.5f;
+
+		// aparece e some suavemente
+		float aOut = Clamp01( ( act.expire - flTime ) / 0.45f );
+		float aBox = Clamp01( age / 0.18f ) * aOut;
+
+		// texto "revelado" da esquerda para a direita, linha por linha
+		int nChars = 0;
+		for ( size_t i = 0; i < ls.size(); i++ ) nChars += (int)ls[i].size() + 1;
+		const float soft = 10.0f;
+		float revealDur = 0.03f * nChars;
+		if ( revealDur < 0.4f ) revealDur = 0.4f;
+		if ( revealDur > life * 0.55f ) revealDur = life * 0.55f;
+		float pos = ( age / revealDur ) * ( nChars + soft );
 
 		int w = 0;
 		for ( size_t i = 0; i < ls.size(); i++ )
-			w = std::max( w, ConsoleStringLen( ls[i].c_str() ) );
+			w = std::max( w, strW( ls[i] ) );
 
 		int boxW = w + 2 * pad;
 		int boxH = (int)ls.size() * lineH + 2 * pad;
 		int x = ( ScreenWidth - boxW ) / 2;
 
-		FillRGBA( x, y, boxW, boxH, bgR, bgG, bgB, 170 );
+		FillRounded( x, y, boxW, boxH, bgR, bgG, bgB, (int)( 185.0f * aBox ) );
 
-		gEngfuncs.pfnDrawSetTextColor( g_Active[n].r / 255.0f, g_Active[n].g / 255.0f, g_Active[n].b / 255.0f );
+		int idx0 = 0;
 		for ( size_t i = 0; i < ls.size(); i++ )
 		{
-			int lw = ConsoleStringLen( ls[i].c_str() );
-			DrawConsoleString( ( ScreenWidth - lw ) / 2, y + pad + (int)i * lineH, ls[i].c_str() );
+			const std::string &line = ls[i];
+			int lw = strW( line );
+			int lx = ( ScreenWidth - lw ) / 2;
+			int ly = y + pad + (int)i * lineH;
+
+			float aFirst = Clamp01( ( pos - idx0 ) / soft );
+			float aLast = Clamp01( ( pos - ( idx0 + (int)line.size() - 1 ) ) / soft );
+
+			if ( aFirst <= 0.0f )
+			{
+				// ainda nao chegou nesta linha
+			}
+			else if ( aLast >= 1.0f )
+			{
+				// linha inteira revelada: uma chamada so, com a cor desta linha
+				float a = aOut;
+				gEngfuncs.pfnDrawSetTextColor( LerpI( bgR, act.r, a ) / 255.0f, LerpI( bgG, act.g, a ) / 255.0f, LerpI( bgB, act.b, a ) / 255.0f );
+				DrawConsoleString( lx, ly, line.c_str() );
+			}
+			else
+			{
+				// linha em fade: caractere por caractere (o engine reseta a cor a cada desenho)
+				int cx = lx;
+				for ( size_t c = 0; c < line.size(); c++ )
+				{
+					float a = Clamp01( ( pos - ( idx0 + (int)c ) ) / soft ) * aOut;
+					unsigned char ch = (unsigned char)line[c];
+					if ( a > 0.02f && ch > 32 )
+					{
+						char buf[2] = { (char)ch, 0 };
+						gEngfuncs.pfnDrawSetTextColor( LerpI( bgR, act.r, a ) / 255.0f, LerpI( bgG, act.g, a ) / 255.0f, LerpI( bgB, act.b, a ) / 255.0f );
+						DrawConsoleString( cx, ly, buf );
+					}
+					cx += charW[ch];
+				}
+			}
+
+			idx0 += (int)line.size() + 1;
 		}
 
-		y += boxH + 2;
+		y += boxH + 4;
 	}
 
 	return 1;
