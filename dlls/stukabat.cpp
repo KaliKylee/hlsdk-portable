@@ -571,6 +571,7 @@ Schedule_t *CStukaBat::GetSchedule( void )
 		if( HasConditions( bits_COND_CAN_RANGE_ATTACK2 ) )
 		{
 			// claw: stop in the air
+			TREX_Log( "Stukabat: claw!" );
 			pev->velocity.z = 0;
 			return GetScheduleOfType( SCHED_RANGE_ATTACK2 );
 		}
@@ -578,7 +579,10 @@ Schedule_t *CStukaBat::GetSchedule( void )
 		if( HasConditions( bits_COND_CAN_RANGE_ATTACK1 ) )
 		{
 			if( FacingIdeal() )
+			{
+				TREX_Log( "Stukabat: bomb!" );
 				return GetScheduleOfType( SCHED_RANGE_ATTACK1 );
+			}
 			return GetScheduleOfType( SCHED_COMBAT_FACE );
 		}
 
@@ -802,6 +806,7 @@ void CStukaBat::HandleAnimEvent( MonsterEvent_t *pEvent )
 		}
 		break;
 	default:
+		TREX_Log( "stukabat: anim event %d", pEvent->event );
 		CFlyingMonster::HandleAnimEvent( pEvent );
 		break;
 	}
@@ -1081,11 +1086,23 @@ void CStukaBat::MoveExecute( CBaseEntity *pTargetEnt, const Vector &vecDir, floa
 		return;
 	}
 
-	// cruise speed, faster while diving
+	// cruise speed, faster while diving (own flight code: the stock one slows the
+	// monster down whenever the animation differs from the movement activity)
 	float flWanted = m_fDiving ? 300.0f : 100.0f;
-	m_flightSpeed = UTIL_Approach( flWanted, m_flightSpeed, 75.0f * gpGlobals->frametime * 4.0f );
-
+	m_flightSpeed = UTIL_Approach( flWanted, m_flightSpeed, 150.0f * flInterval );
+	m_flGroundSpeed = m_flightSpeed;
 	m_IdealActivity = FlyActivity();
 
-	CFlyingMonster::MoveExecute( pTargetEnt, vecDir, flInterval );
+	Vector vecMove = pev->origin + ( ( vecDir + ( m_vecTravel * m_momentum ) ).Normalize() * ( m_flGroundSpeed * flInterval ) );
+
+	if( CheckLocalMove( pev->origin, vecMove, pTargetEnt, NULL ) )
+	{
+		m_vecTravel = ( vecMove - pev->origin ).Normalize();
+		UTIL_MoveToOrigin( ENT( pev ), vecMove, ( m_flGroundSpeed * flInterval ), MOVE_STRAFE );
+	}
+	else
+	{
+		m_stopTime = gpGlobals->time;
+		m_vecTravel = g_vecZero;
+	}
 }
