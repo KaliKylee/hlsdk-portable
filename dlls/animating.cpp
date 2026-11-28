@@ -263,7 +263,18 @@ static const HlextBodyLayout_t g_HlextBodyLayouts[] =
 	{ "models/barney.mdl",               { "heads", "helmet", "body", "glasses", "gun", NULL } },
 	{ "models/barney_hev.mdl",           { "studio", "heads", "helmet", "gun", "glasses", NULL } },
 	{ "models/otis.mdl",                 { "heads", "gun", "body", "helmet", "glasses", NULL } },
+	// operarios: Head=0 Hat=2 Hands=3 no codigo (SDK 1.1.3). No modelo novo: body/heads/hand_items/hat.
+	{ "models/worker.mdl",               { "heads", "clothing", "helmet", "items", NULL } },
+	// Head=1 Hands=2 Helm=3 Gloves=4 no codigo. O modelo novo nao tem luvas (grupo some).
+	{ "models/construction.mdl",         { "studio", "heads", "items", "helmet", "hands", NULL } },
+	// Head=0 Clothing=1 Hat=2 no codigo. O modelo novo (body/heads/hand_items) so tem cabecas em comum.
+	{ "models/chef.mdl",                 { "heads", "clothing", "hat", NULL } },
 };
+
+static bool HlextNamesExact( const char *pszOld, const char *pszNew )
+{
+	return !stricmp( pszOld, pszNew );
+}
 
 static bool HlextNamesMatch( const char *pszOld, const char *pszNew )
 {
@@ -272,7 +283,9 @@ static bool HlextNamesMatch( const char *pszOld, const char *pszNew )
 	// nomes que mudaram de um modelo para outro
 	if ( ( !stricmp( pszOld, "heads" ) && !stricmp( pszNew, "head" ) ) ||
 		 ( !stricmp( pszOld, "studio" ) && !stricmp( pszNew, "body" ) ) ||
-		 ( !stricmp( pszOld, "needle" ) && !stricmp( pszNew, "hand_items" ) ) )
+		 ( !stricmp( pszOld, "needle" ) && !stricmp( pszNew, "hand_items" ) ) ||
+		 ( !stricmp( pszOld, "items" ) && !stricmp( pszNew, "hand_items" ) ) ||
+		 ( !stricmp( pszOld, "helmet" ) && !stricmp( pszNew, "hat" ) ) )
 		return true;
 	return false;
 }
@@ -314,16 +327,22 @@ static int HlextRemapBodygroup( void *pmodel, entvars_t *pev, int iGroup )
 		if ( fSameOrder )
 			return iGroup;
 
-		for ( int p = 0; p < pstudiohdr->numbodyparts; p++ )
+		for ( int pass = 0; pass < 2; pass++ )
 		{
-			if ( HlextNamesMatch( layout.rgpszOldGroups[iGroup], pbodypart[p].name ) )
+			for ( int p = 0; p < pstudiohdr->numbodyparts; p++ )
 			{
-				static int s_iLogged = 0;
-				if ( s_iLogged++ < 12 )
-					HLEXT_Log( "bodygroups: %s grupo %d (%s) -> %d (%s)", pszModel, iGroup, layout.rgpszOldGroups[iGroup], p, pbodypart[p].name );
-				return p;
+				bool fMatch = pass == 0 ? HlextNamesExact( layout.rgpszOldGroups[iGroup], pbodypart[p].name )
+										: HlextNamesMatch( layout.rgpszOldGroups[iGroup], pbodypart[p].name );
+				if ( fMatch )
+				{
+					static int s_iLogged = 0;
+					if ( s_iLogged++ < 40 )
+						HLEXT_Log( "bodygroups: %s grupo %d (%s) -> %d (%s)", pszModel, iGroup, layout.rgpszOldGroups[iGroup], p, pbodypart[p].name );
+					return p;
+				}
 			}
 		}
+		HLEXT_Log( "bodygroups: %s grupo %d (%s) nao existe no modelo novo; ignorado", pszModel, iGroup, layout.rgpszOldGroups[iGroup] );
 		return -1;
 	}
 
