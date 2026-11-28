@@ -344,6 +344,7 @@ Schedule_t slStukaRangeAttack1[] =
 
 Task_t tlStukaRangeAttack2[] =
 {
+	{ TASK_FACE_ENEMY, (float)0 },
 	{ TASK_RANGE_ATTACK2, (float)0 },
 	{ TASK_WAIT_FOR_MOVEMENT, (float)0 },
 };
@@ -752,6 +753,7 @@ void CStukaBat::HandleAnimEvent( MonsterEvent_t *pEvent )
 	{
 	case STUKA_AE_BOMB:
 		{
+			TREX_Log( "stukabat: bomb event" );
 			EMIT_SOUND_DYN( ENT( pev ), CHAN_WEAPON, "bullchicken/bc_attack1.wav", 1.0, ATTN_NORM, 0, 100 );
 			CSoundEnt::InsertSound( bits_SOUND_COMBAT, pev->origin, 384, 0.3f );
 
@@ -783,7 +785,13 @@ void CStukaBat::HandleAnimEvent( MonsterEvent_t *pEvent )
 			if( flDmg <= 0 )
 				flDmg = 10;
 
+			// CheckTraceHullAttack uses the global v_forward
+			Vector vecAngles = pev->angles;
+			vecAngles.x = 0;
+			UTIL_MakeVectors( vecAngles );
+
 			CBaseEntity *pHurt = CheckTraceHullAttack( 96, (int)flDmg, DMG_SLASH );
+			TREX_Log( "stukabat: claw event, hit=%s", pHurt ? STRING( pHurt->pev->classname ) : "nothing" );
 			if( pHurt )
 			{
 				if( !FClassnameIs( pHurt->pev, "monster_stukabat" ) )
