@@ -896,6 +896,14 @@ void ClientPrecache( void )
 	// setup precaches always needed
 	PRECACHE_SOUND( "player/sprayer.wav" );			// spray paint sound for PreAlpha
 
+	// ThrillEX alien sphere assets (so they are not "late precached" by spawnmonster)
+	PRECACHE_MODEL( "models/sphere.mdl" );
+	PRECACHE_MODEL( "models/laser.mdl" );
+	PRECACHE_MODEL( "models/shrapnel.mdl" );
+	PRECACHE_SOUND( "debris/beamstart4.wav" );
+	PRECACHE_SOUND( "weapons/electro4.wav" );
+	PRECACHE_SOUND( "common/bodysplat.wav" );
+
 	// PRECACHE_SOUND( "player/pl_jumpland2.wav" );		// UNDONE: play 2x step sound
 
 	PRECACHE_SOUND( "player/pl_fallpain2.wav" );

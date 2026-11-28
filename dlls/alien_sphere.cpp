@@ -32,7 +32,7 @@
 
 #define SPHERE_AE_FIRE		1
 #define SPHERE_LASER_SPEED	2100.0f
-#define SPHERE_LASER_DAMAGE	12.0f
+#define SPHERE_LASER_DAMAGE	10.0f
 #define SPHERE_LOOK_FALLBACK	1.0f	// seconds after which the attack fires even without the anim event
 
 enum
@@ -444,12 +444,12 @@ void CXenSphere::FireLaser( void )
 		WRITE_COORD( pev->origin.x );
 		WRITE_COORD( pev->origin.y );
 		WRITE_COORD( pev->origin.z + 16 );
-		WRITE_BYTE( 12 );	// radius
+		WRITE_BYTE( 20 );	// radius
 		WRITE_BYTE( 255 );
 		WRITE_BYTE( 48 );
 		WRITE_BYTE( 192 );
-		WRITE_BYTE( 4 );	// life
-		WRITE_BYTE( 8 );	// decay
+		WRITE_BYTE( 6 );	// life
+		WRITE_BYTE( 6 );	// decay
 	MESSAGE_END();
 }
 
