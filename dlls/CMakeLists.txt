@@ -147,6 +147,7 @@ set (SVDLL_SOURCES
 	hitproxy.cpp
 	chub.cpp
 	stukabat.cpp
+	alien_sphere.cpp
 	archer.cpp
 	m44.cpp
 	vehicle.cpp
