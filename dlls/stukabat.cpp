@@ -792,6 +792,22 @@ void CStukaBat::HandleAnimEvent( MonsterEvent_t *pEvent )
 
 			CBaseEntity *pHurt = CheckTraceHullAttack( 96, (int)flDmg, DMG_SLASH );
 			TREX_Log( "stukabat: claw event, hit=%s", pHurt ? STRING( pHurt->pev->classname ) : "nothing" );
+
+			if( !pHurt && m_hEnemy != 0 )
+			{
+				// the hull trace can miss a target hugging the bat: hit the enemy directly
+				Vector vecToEnemy = m_hEnemy->Center() - Center();
+				float flDistEnemy = vecToEnemy.Length();
+				Vector vecFlat = vecToEnemy;
+				vecFlat.z = 0;
+				float flDot = DotProduct( vecFlat.Normalize(), gpGlobals->v_forward );
+				TREX_Log( "stukabat: claw fallback dist=%.0f dot=%.2f", flDistEnemy, flDot );
+				if( flDistEnemy <= 96 && flDot > 0.3f )
+				{
+					m_hEnemy->TakeDamage( pev, pev, flDmg, DMG_SLASH );
+					pHurt = m_hEnemy;
+				}
+			}
 			if( pHurt )
 			{
 				if( !FClassnameIs( pHurt->pev, "monster_stukabat" ) )
