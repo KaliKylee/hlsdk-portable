@@ -1,5 +1,6 @@
 package su.xash.invasion;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
@@ -10,6 +11,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
+import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.ColorFilter;
 import android.graphics.Paint;
@@ -17,25 +19,55 @@ import android.graphics.Path;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.Typeface;
+import android.graphics.drawable.ClipDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.LayerDrawable;
 import android.graphics.drawable.RippleDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.StatFs;
+import android.os.SystemClock;
+import android.provider.Settings;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowInsets;
+import android.view.WindowManager;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
+import java.net.URL;
+import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipException;
+import java.util.zip.ZipFile;
 
 public class MainActivity extends Activity {
 
@@ -70,9 +102,138 @@ public class MainActivity extends Activity {
 
     private static final String ACTION_MOD = "su.xash.engine.MOD";
 
+    // DOWNLOADS
+
+    private static final String XASH_DIR = "/storage/emulated/0/xash";
+
+    private static final String URL_VALVE = "https://www.dropbox.com/scl/fi/917y7zdtoycwn0grjt28i/valve.zip?rlkey=9dexlaia9mluk5ull27omf2u2&st=cpr4epvh&dl=0";
+    private static final String URL_INVASION = "https://www.dropbox.com/scl/fi/flj4ve5wo67kxhhiuy9an/invasion.zip?rlkey=wmokl4gdjbwqdlg06z3riw2x8&st=1uyv3k6d&dl=0";
+
+    private static final int REQ_STORAGE = 4021;
+
+    private static final int ST_IDLE = 0;
+    private static final int ST_DOWNLOADING = 1;
+    private static final int ST_INSTALLING = 2;
+
+    private final Handler ui = new Handler(Looper.getMainLooper());
+    private DownloadItem[] downloads;
+    private DownloadItem pendingItem;
+    private AlertDialog downloadsDialog;
+
+    // IDIOMA (0 = portugues, 1 = ingles, 2 = espanhol)
+
+    private static final String PREF_LANG = "language";
+    private static final String[] LANG_NAMES = {"Portugu\u00eas", "English", "Espa\u00f1ol"};
+    private volatile int lang = 1;
+
+    private String tr(String pt, String en, String es) {
+        if (lang == 0) {
+            return pt;
+        }
+
+        return lang == 2 ? es : en;
+    }
+
+    private int systemLang() {
+        String l = java.util.Locale.getDefault().getLanguage();
+
+        if ("pt".equals(l)) {
+            return 0;
+        }
+
+        if ("es".equals(l)) {
+            return 2;
+        }
+
+        return 1;
+    }
+
+    private void loadLang() {
+        int sys = systemLang();
+        int saved = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).getInt(PREF_LANG, sys);
+        lang = (saved >= 0 && saved <= 2) ? saved : sys;
+    }
+
+    private void setLanguage(int l) {
+        lang = l;
+
+        getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                .edit()
+                .putInt(PREF_LANG, l)
+                .apply();
+
+        if (downloadsDialog != null) {
+            downloadsDialog.dismiss();
+            downloadsDialog = null;
+        }
+
+        if (gameArgsInput != null) {
+            getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                    .edit()
+                    .putString(PREF_GAME_ARGS, gameArgsInput.getText().toString().trim())
+                    .apply();
+        }
+
+        setContentView(buildUi());
+        setupDownloadsButton();
+    }
+
+    private void showLanguageDialog() {
+        LinearLayout lb = new LinearLayout(this);
+        lb.setOrientation(LinearLayout.VERTICAL);
+        lb.setPadding(dp(20), dp(20), dp(20), dp(12));
+
+        TextView title = text(tr("IDIOMA", "LANGUAGE", "IDIOMA"), 18, LIME, true);
+        title.setLetterSpacing(0.15f);
+        lb.addView(title, wrap());
+
+        final AlertDialog[] ref = new AlertDialog[1];
+
+        for (int i = 0; i < LANG_NAMES.length; i++) {
+            final int idx = i;
+            boolean sel = (i == lang);
+
+            TextView opt = text(LANG_NAMES[i], 15, sel ? LIME : GREEN, true);
+            opt.setGravity(Gravity.CENTER);
+            opt.setBackground(ripple(box(sel ? LIME_DARK : PANEL, sel ? LIME : GREEN_DEEP, 2, 12)));
+
+            opt.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (ref[0] != null) {
+                        ref[0].dismiss();
+                    }
+
+                    if (idx != lang) {
+                        setLanguage(idx);
+                    }
+                }
+            });
+
+            LinearLayout.LayoutParams optLp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    dp(48)
+            );
+
+            optLp.topMargin = dp(10);
+            lb.addView(opt, optLp);
+        }
+
+        ref[0] = new AlertDialog.Builder(this)
+                .setView(lb)
+                .setPositiveButton(tr("Fechar", "Close", "Cerrar"), null)
+                .create();
+
+        ref[0].getWindow().setBackgroundDrawable(box(BG, GREEN_DEEP, 2, 18));
+        ref[0].show();
+        ref[0].getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(GREEN);
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        loadLang();
 
         Intent in = getIntent();
 
@@ -87,7 +248,204 @@ public class MainActivity extends Activity {
             w.setNavigationBarColor(BG);
         }
 
+        downloads = new DownloadItem[] {
+            new DownloadItem(
+                    "valve",
+                    "Half-Life 1 (Valve Files)",
+                    "Arquivos obrigat\u00f3rios para o funcionamento do jogo",
+                    URL_VALVE, "valve", "valve.zip"),
+            new DownloadItem(
+                    "invasion",
+                    "Invasion (Invasion Files)",
+                    "Arquivos necess\u00e1rios para o mod",
+                    URL_INVASION, GAMEDIR, "invasion.zip")
+        };
+
         setContentView(buildUi());
+        setupDownloadsButton();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        if (downloads == null) {
+            return;
+        }
+
+        for (DownloadItem d : downloads) {
+            d.refreshInstalled();
+            d.render();
+        }
+
+        if (pendingItem != null) {
+            DownloadItem item = pendingItem;
+            pendingItem = null;
+
+            if (hasStoragePermission()) {
+                item.start();
+            }
+        }
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+
+        if (downloads == null) {
+            return;
+        }
+
+        // reconstroi a UI preservando os argumentos digitados e o estado dos downloads
+        if (gameArgsInput != null) {
+            getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                    .edit()
+                    .putString(PREF_GAME_ARGS, gameArgsInput.getText().toString().trim())
+                    .apply();
+        }
+
+        setContentView(buildUi());
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+
+        if (downloadsDialog != null) {
+            downloadsDialog.dismiss();
+            downloadsDialog = null;
+        }
+
+        if (isFinishing() && downloads != null) {
+            for (DownloadItem d : downloads) {
+                d.cancelled = true;
+            }
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode != REQ_STORAGE) {
+            return;
+        }
+
+        DownloadItem item = pendingItem;
+        pendingItem = null;
+
+        if (item != null) {
+            if (hasStoragePermission()) {
+                item.start();
+            } else {
+                Toast.makeText(this,
+                        tr("Permiss\u00e3o de armazenamento negada. N\u00e3o \u00e9 poss\u00edvel instalar os arquivos.", "Storage permission denied. The files cannot be installed.", "Permiso de almacenamiento denegado. No se pueden instalar los archivos."),
+                        Toast.LENGTH_LONG).show();
+            }
+        }
+    }
+
+    // PERMISSAO DE ARMAZENAMENTO
+
+    private boolean hasStoragePermission() {
+        if (Build.VERSION.SDK_INT >= 30) {
+            return Environment.isExternalStorageManager();
+        }
+
+        if (Build.VERSION.SDK_INT >= 23) {
+            return checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                    == PackageManager.PERMISSION_GRANTED;
+        }
+
+        return true;
+    }
+
+    private void requestStoragePermission(DownloadItem item) {
+        pendingItem = item;
+
+        if (Build.VERSION.SDK_INT >= 30) {
+            LinearLayout pbox = new LinearLayout(this);
+            pbox.setOrientation(LinearLayout.VERTICAL);
+            pbox.setPadding(dp(20), dp(20), dp(20), dp(8));
+
+            TextView ptitle = text(tr("Permiss\u00e3o necess\u00e1ria", "Permission required", "Permiso necesario"), 18, LIME, true);
+            ptitle.setLetterSpacing(0.1f);
+            pbox.addView(ptitle, wrap());
+
+            TextView pmsg = text(
+                    tr("Para instalar os arquivos em ", "To install the files in ", "Para instalar los archivos en ") + XASH_DIR + tr(", permita o acesso a todos os arquivos para este app e volte ao launcher.", ", allow access to all files for this app and return to the launcher.", ", permita el acceso a todos los archivos para esta app y vuelva al launcher."),
+                    14, 0xFFE8E8E8, false
+            );
+
+            LinearLayout.LayoutParams pmsgLp = wrap();
+            pmsgLp.topMargin = dp(12);
+            pbox.addView(pmsg, pmsgLp);
+
+            AlertDialog dialog = new AlertDialog.Builder(this)
+                    .setView(pbox)
+                    .setPositiveButton(tr("Abrir configura\u00e7\u00f5es", "Open settings", "Abrir configuraci\u00f3n"), new android.content.DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(android.content.DialogInterface d, int which) {
+                            openAllFilesSettings();
+                        }
+                    })
+                    .setNegativeButton(tr("Cancelar", "Cancel", "Cancelar"), new android.content.DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(android.content.DialogInterface d, int which) {
+                            pendingItem = null;
+                        }
+                    })
+                    .create();
+
+            dialog.getWindow().setBackgroundDrawable(box(BG, GREEN_DEEP, 2, 18));
+            dialog.show();
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(GREEN);
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(LIME);
+        } else if (Build.VERSION.SDK_INT >= 23) {
+            requestPermissions(new String[] {
+                    Manifest.permission.READ_EXTERNAL_STORAGE,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE
+            }, REQ_STORAGE);
+        }
+    }
+
+    private void openAllFilesSettings() {
+        if (Build.VERSION.SDK_INT < 30) {
+            return;
+        }
+
+        try {
+            startActivity(new Intent(
+                    Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                    Uri.parse("package:" + getPackageName())));
+        } catch (ActivityNotFoundException e) {
+            try {
+                startActivity(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
+            } catch (ActivityNotFoundException ex) {
+                pendingItem = null;
+                Toast.makeText(this,
+                        tr("N\u00e3o foi poss\u00edvel abrir as configura\u00e7\u00f5es de permiss\u00e3o", "Could not open the permission settings", "No se pudo abrir la configuraci\u00f3n de permisos"),
+                        Toast.LENGTH_LONG).show();
+            }
+        }
+    }
+
+    private void updateKeepScreenOn() {
+        boolean busy = false;
+
+        if (downloads != null) {
+            for (DownloadItem d : downloads) {
+                if (d.state != ST_IDLE) {
+                    busy = true;
+                }
+            }
+        }
+
+        if (busy) {
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        } else {
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        }
     }
 
     private void launchGame() {
@@ -100,7 +458,7 @@ public class MainActivity extends Activity {
                 pkg = "su.xash.engine";
                 getPackageManager().getPackageInfo(pkg, 0);
             } catch (PackageManager.NameNotFoundException ex) {
-                Toast.makeText(this, "Instale o Xash3D FWGS para jogar", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, tr("Instale o Xash3D FWGS para jogar", "Install Xash3D FWGS to play", "Instala Xash3D FWGS para jugar"), Toast.LENGTH_LONG).show();
                 openUrl(URL_ENGINE);
                 return;
             }
@@ -137,7 +495,7 @@ public class MainActivity extends Activity {
             startActivity(game);
             finish();
         } catch (ActivityNotFoundException e) {
-            Toast.makeText(this, "Nao foi possivel abrir o Xash3D FWGS", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, tr("N\u00e3o foi poss\u00edvel abrir o Xash3D FWGS", "Could not open Xash3D FWGS", "No se pudo abrir Xash3D FWGS"), Toast.LENGTH_LONG).show();
         }
     }
 
@@ -145,7 +503,7 @@ public class MainActivity extends Activity {
         try {
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
         } catch (ActivityNotFoundException e) {
-            Toast.makeText(this, "Nenhum app para abrir o link", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Nenhum app para abrir o link", "No app available to open the link", "Ninguna app para abrir el enlace"), Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -210,7 +568,7 @@ public class MainActivity extends Activity {
         title.setGravity(Gravity.CENTER);
         col.addView(title, wrap());
 
-        TextView version = text("VERS\u00c3O " + MOD_VERSION, 15, GREEN, true);
+        TextView version = text(tr("VERS\u00c3O ", "VERSION ", "VERSI\u00d3N ") + MOD_VERSION, 15, GREEN, true);
         version.setLetterSpacing(0.3f);
         version.setGravity(Gravity.CENTER);
 
@@ -247,7 +605,7 @@ public class MainActivity extends Activity {
 
         // ARGUMENTOS DE INICIALIZACAO
 
-        TextView argsLabel = text("ARGUMENTOS DE INICIALIZA\u00c7\u00c3O", 12, GREEN, true);
+        TextView argsLabel = text(tr("ARGUMENTOS DE INICIALIZA\u00c7\u00c3O", "STARTUP ARGUMENTS", "ARGUMENTOS DE INICIO"), 12, GREEN, true);
         argsLabel.setLetterSpacing(0.08f);
 
         LinearLayout.LayoutParams argsLabelLp = wrap();
@@ -278,7 +636,7 @@ public class MainActivity extends Activity {
         col.addView(gameArgsInput, argsInputLp);
 
         TextView argsHint = text(
-                "Personalize os par\u00e2metros enviados ao Xash3D FWGS.",
+                tr("Personalize os par\u00e2metros enviados ao Xash3D FWGS.", "Customize the parameters sent to Xash3D FWGS.", "Personaliza los par\u00e1metros enviados a Xash3D FWGS."),
                 11, GREEN, false
         );
 
@@ -316,7 +674,7 @@ public class MainActivity extends Activity {
 
         // APOIE-ME
 
-        TextView support = text("APOIE-ME", 16, GREEN, true);
+        TextView support = text(tr("APOIE-ME", "SUPPORT ME", "AP\u00d3YAME"), 16, GREEN, true);
         support.setLetterSpacing(0.2f);
         support.setGravity(Gravity.CENTER);
         support.setBackground(ripple(box(PANEL, GREEN_DEEP, 2, 14)));
@@ -336,6 +694,26 @@ public class MainActivity extends Activity {
         supLp.topMargin = dp(12);
         col.addView(support, supLp);
 
+        TextView langBtn = text(tr("IDIOMA", "LANGUAGE", "IDIOMA") + ": " + LANG_NAMES[lang], 14, GREEN, true);
+        langBtn.setLetterSpacing(0.1f);
+        langBtn.setGravity(Gravity.CENTER);
+        langBtn.setBackground(ripple(box(PANEL, GREEN_DEEP, 2, 14)));
+
+        langBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showLanguageDialog();
+            }
+        });
+
+        LinearLayout.LayoutParams langLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(48)
+        );
+
+        langLp.topMargin = dp(12);
+        col.addView(langBtn, langLp);
+
         TextView credit = text("Port by Kali Kyle", 14, LIME, false);
         credit.setGravity(Gravity.CENTER);
 
@@ -343,7 +721,7 @@ public class MainActivity extends Activity {
         crLp.topMargin = dp(30);
         col.addView(credit, crLp);
 
-        TextView hint = text("Requer o app Xash3D FWGS instalado", 12, GREEN, false);
+        TextView hint = text(tr("Requer o app Xash3D FWGS instalado", "Requires the Xash3D FWGS app installed", "Requiere la app Xash3D FWGS instalada"), 12, GREEN, false);
         hint.setGravity(Gravity.CENTER);
 
         LinearLayout.LayoutParams hintLp = wrap();
@@ -396,6 +774,857 @@ public class MainActivity extends Activity {
         return lp;
     }
 
+    // SECAO DE DOWNLOADS
+
+    private void setupDownloadsButton() {
+        android.app.ActionBar bar = getActionBar();
+
+        if (bar == null) {
+            return;
+        }
+
+        LinearLayout btn = new LinearLayout(this);
+        btn.setOrientation(LinearLayout.HORIZONTAL);
+        btn.setGravity(Gravity.CENTER_VERTICAL);
+        btn.setPadding(dp(12), dp(6), dp(12), dp(6));
+        btn.setBackground(ripple(box(0x00000000, GREEN_DEEP, 1, 18)));
+
+        ImageView icon = new ImageView(this);
+        icon.setImageDrawable(new PolyIcon(DOWNLOAD, GREEN, dp(20)));
+        btn.addView(icon, new LinearLayout.LayoutParams(dp(20), dp(20)));
+
+        TextView label = text(tr("Downloads", "Downloads", "Descargas"), 14, GREEN, true);
+
+        LinearLayout.LayoutParams labelLp = wrap();
+        labelLp.leftMargin = dp(6);
+        btn.addView(label, labelLp);
+
+        btn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showDownloadsDialog();
+            }
+        });
+
+        android.app.ActionBar.LayoutParams lp = new android.app.ActionBar.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.END | Gravity.CENTER_VERTICAL
+        );
+
+        lp.rightMargin = dp(8);
+
+        bar.setCustomView(btn, lp);
+        bar.setDisplayShowCustomEnabled(true);
+    }
+
+    private void showDownloadsDialog() {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(20), dp(20), dp(20), dp(16));
+
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+
+        ImageView icon = new ImageView(this);
+        icon.setImageDrawable(new PolyIcon(DOWNLOAD, LIME, dp(22)));
+        head.addView(icon, new LinearLayout.LayoutParams(dp(22), dp(22)));
+
+        TextView title = text(tr("DOWNLOADS", "DOWNLOADS", "DESCARGAS"), 18, LIME, true);
+        title.setLetterSpacing(0.15f);
+
+        LinearLayout.LayoutParams titleLp = wrap();
+        titleLp.leftMargin = dp(10);
+        head.addView(title, titleLp);
+
+        box.addView(head, wrap());
+
+        TextView hint = text(tr("Os arquivos s\u00e3o extra\u00eddos em ", "Files are extracted to ", "Los archivos se extraen en ") + XASH_DIR, 12, GREEN, false);
+
+        LinearLayout.LayoutParams hintLp = wrap();
+        hintLp.topMargin = dp(8);
+        box.addView(hint, hintLp);
+
+        for (DownloadItem d : downloads) {
+            d.refreshInstalled();
+
+            LinearLayout.LayoutParams cardLp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+
+            cardLp.topMargin = dp(12);
+            box.addView(d.createView(), cardLp);
+            d.render();
+        }
+
+        ScrollView sv = new ScrollView(this);
+
+        sv.addView(box, new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        if (downloadsDialog != null) {
+            downloadsDialog.dismiss();
+        }
+
+        downloadsDialog = new AlertDialog.Builder(this)
+                .setView(sv)
+                .setPositiveButton(tr("Fechar", "Close", "Cerrar"), null)
+                .create();
+
+        downloadsDialog.getWindow().setBackgroundDrawable(box(BG, GREEN_DEEP, 2, 18));
+        downloadsDialog.show();
+        downloadsDialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(GREEN);
+    }
+
+    private static String fmtBytes(long b) {
+        if (b < 1024L * 1024L) {
+            return Math.max(1, b / 1024L) + " KB";
+        }
+
+        double mb = b / (1024.0 * 1024.0);
+
+        if (mb < 1024.0) {
+            return String.format(java.util.Locale.US, "%.1f MB", mb);
+        }
+
+        return String.format(java.util.Locale.US, "%.2f GB", mb / 1024.0);
+    }
+
+    private static long freeSpace(File dir) {
+        try {
+            StatFs fs = new StatFs(dir.getPath());
+
+            if (Build.VERSION.SDK_INT >= 18) {
+                return fs.getAvailableBytes();
+            }
+
+            return (long) fs.getAvailableBlocks() * (long) fs.getBlockSize();
+        } catch (Exception e) {
+            return Long.MAX_VALUE;
+        }
+    }
+
+    private static class CancelException extends IOException {
+        CancelException() {
+            super("cancelado");
+        }
+    }
+
+    private class DownloadItem {
+        final String id;
+        final String title;
+        final String subtitle;
+        final String url;
+        final String dirName;
+        final String zipName;
+
+        volatile int state = ST_IDLE;
+        volatile boolean cancelled = false;
+        volatile boolean installed = false;
+        volatile int progress = 0; // 0..1000
+        volatile boolean indeterminate = false;
+        volatile String detail = "";
+        volatile String error = null;
+
+        TextView statusView;
+        TextView buttonView;
+        ProgressBar bar;
+
+        final Runnable renderRunnable = new Runnable() {
+            @Override
+            public void run() {
+                render();
+            }
+        };
+
+        String subtitleText() {
+            if ("valve".equals(id)) {
+                return tr("Arquivos obrigat\u00f3rios para o funcionamento do jogo", "Required files for the game to run", "Archivos obligatorios para el funcionamiento del juego");
+            }
+
+            return tr("Arquivos necess\u00e1rios para o mod", "Files required for the mod", "Archivos necesarios para el mod");
+        }
+
+        DownloadItem(String id, String title, String subtitle, String url, String dirName, String zipName) {
+            this.id = id;
+            this.title = title;
+            this.subtitle = subtitle;
+            this.url = url;
+            this.dirName = dirName;
+            this.zipName = zipName;
+        }
+
+        View createView() {
+            LinearLayout card = new LinearLayout(MainActivity.this);
+            card.setOrientation(LinearLayout.VERTICAL);
+            card.setPadding(dp(14), dp(12), dp(14), dp(14));
+            card.setBackground(box(PANEL, GREEN_DEEP, 2, 14));
+
+            LinearLayout top = new LinearLayout(MainActivity.this);
+            top.setOrientation(LinearLayout.HORIZONTAL);
+            top.setGravity(Gravity.CENTER_VERTICAL);
+
+            ImageView iv = new ImageView(MainActivity.this);
+            iv.setImageDrawable(new PolyIcon(DOWNLOAD, LIME, dp(24)));
+            top.addView(iv, new LinearLayout.LayoutParams(dp(24), dp(24)));
+
+            TextView t = text(title, 14, LIME, true);
+
+            LinearLayout.LayoutParams tLp = new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+            tLp.leftMargin = dp(10);
+            top.addView(t, tLp);
+
+            card.addView(top, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT));
+
+            TextView sub = text(subtitleText(), 12, GREEN, false);
+
+            LinearLayout.LayoutParams subLp = wrap();
+            subLp.topMargin = dp(6);
+            card.addView(sub, subLp);
+
+            statusView = text("", 12, 0xFFE8E8E8, false);
+
+            LinearLayout.LayoutParams stLp = wrap();
+            stLp.topMargin = dp(8);
+            card.addView(statusView, stLp);
+
+            bar = new ProgressBar(MainActivity.this, null, android.R.attr.progressBarStyleHorizontal);
+            bar.setMax(1000);
+
+            GradientDrawable track = new GradientDrawable();
+            track.setColor(BG);
+            track.setStroke(dp(1), GREEN_DEEP);
+            track.setCornerRadius(dp(4));
+
+            GradientDrawable fill = new GradientDrawable();
+            fill.setColor(GREEN);
+            fill.setCornerRadius(dp(4));
+
+            LayerDrawable layers = new LayerDrawable(new Drawable[] {
+                    track,
+                    new ClipDrawable(fill, Gravity.LEFT, ClipDrawable.HORIZONTAL)
+            });
+            layers.setId(0, android.R.id.background);
+            layers.setId(1, android.R.id.progress);
+            bar.setProgressDrawable(layers);
+
+            LinearLayout.LayoutParams barLp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, dp(8));
+            barLp.topMargin = dp(8);
+            card.addView(bar, barLp);
+
+            buttonView = text("", 13, LIME, true);
+            buttonView.setLetterSpacing(0.1f);
+            buttonView.setGravity(Gravity.CENTER);
+
+            buttonView.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    onButton();
+                }
+            });
+
+            LinearLayout.LayoutParams bLp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, dp(46));
+            bLp.topMargin = dp(12);
+            card.addView(buttonView, bLp);
+
+            return card;
+        }
+
+        void onButton() {
+            if (state != ST_IDLE) {
+                cancelled = true;
+                detail = tr("Cancelando...", "Cancelling...", "Cancelando...");
+                render();
+                return;
+            }
+
+            if (installed) {
+                return;
+            }
+
+            if (!url.startsWith("http")) {
+                error = tr(
+                        "Link de download ainda n\u00e3o configurado neste launcher.",
+                        "Download link not configured in this launcher yet.",
+                        "El enlace de descarga a\u00fan no est\u00e1 configurado en este launcher.");
+                render();
+                return;
+            }
+
+            if (!hasStoragePermission()) {
+                requestStoragePermission(this);
+                return;
+            }
+
+            start();
+        }
+
+        void render() {
+            if (buttonView == null) {
+                return;
+            }
+
+            boolean running = state != ST_IDLE;
+
+            bar.setVisibility(running ? View.VISIBLE : View.GONE);
+
+            if (running) {
+                bar.setIndeterminate(indeterminate);
+
+                if (!indeterminate) {
+                    bar.setProgress(progress);
+                }
+
+                statusView.setTextColor(0xFFE8E8E8);
+                statusView.setText(detail);
+
+                buttonView.setText(tr("CANCELAR", "CANCEL", "CANCELAR"));
+                buttonView.setTextColor(LIME);
+                buttonView.setEnabled(true);
+                buttonView.setBackground(ripple(box(PANEL, LIME, 2, 12)));
+            } else if (installed) {
+                statusView.setTextColor(GREEN);
+                statusView.setText(tr("Instalado em ", "Installed in ", "Instalado en ") + XASH_DIR + "/" + dirName);
+
+                buttonView.setText(tr("Arquivos j\u00e1 instalados", "Files already installed", "Archivos ya instalados"));
+                buttonView.setTextColor(GREEN);
+                buttonView.setEnabled(false);
+                buttonView.setBackground(box(PANEL, GREEN_DEEP, 2, 12));
+            } else {
+                if (error != null) {
+                    statusView.setTextColor(LIME);
+                    statusView.setText(error);
+                } else {
+                    statusView.setTextColor(0xFFE8E8E8);
+                    statusView.setText(tr("Arquivos n\u00e3o instalados", "Files not installed", "Archivos no instalados"));
+                }
+
+                buttonView.setText(tr("Baixar arquivos", "Download Files", "Descargar archivos"));
+                buttonView.setTextColor(LIME);
+                buttonView.setEnabled(true);
+                buttonView.setBackground(ripple(box(LIME_DARK, LIME, 2, 12)));
+            }
+        }
+
+        // ---------- verificacao de instalacao ----------
+
+        void refreshInstalled() {
+            if (state != ST_IDLE) {
+                return;
+            }
+
+            installed = checkInstalled();
+        }
+
+        private boolean checkInstalled() {
+            File base = new File(XASH_DIR);
+
+            String roots = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                    .getString("dl_roots_" + id, null);
+
+            if (roots != null && roots.length() > 0) {
+                boolean all = true;
+
+                for (String r : roots.split("\\|")) {
+                    if (r.length() > 0 && !new File(base, r).exists()) {
+                        all = false;
+                    }
+                }
+
+                if (all) {
+                    return true;
+                }
+            }
+
+            // instalacao manual (sem registro do launcher): basta a pasta existir
+            return dirCheck(base);
+        }
+
+        private File findDir(File base) {
+            File exact = new File(base, dirName);
+
+            if (exact.isDirectory()) {
+                return exact;
+            }
+
+            File[] list = base.listFiles();
+
+            if (list != null) {
+                for (File f : list) {
+                    if (f.isDirectory() && f.getName().equalsIgnoreCase(dirName)) {
+                        return f;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private boolean dirCheck(File base) {
+            File d = findDir(base);
+
+            if (d == null) {
+                return false;
+            }
+
+            String[] names = d.list();
+
+            // names == null: pasta existe mas nao da para listar (sem permissao) -> considera instalada
+            return names == null || names.length > 0;
+        }
+
+        private boolean hasAnyFile(File dir, int depth) {
+            if (depth < 0 || !dir.isDirectory()) {
+                return false;
+            }
+
+            File[] files = dir.listFiles();
+
+            if (files == null) {
+                return false;
+            }
+
+            for (File f : files) {
+                if (f.isFile()) {
+                    return true;
+                }
+            }
+
+            for (File f : files) {
+                if (f.isDirectory() && hasAnyFile(f, depth - 1)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // ---------- execucao ----------
+
+        void start() {
+            if (state != ST_IDLE) {
+                return;
+            }
+
+            cancelled = false;
+            error = null;
+            progress = 0;
+            indeterminate = true;
+            detail = tr("Conectando...", "Connecting...", "Conectando...");
+            state = ST_DOWNLOADING;
+
+            updateKeepScreenOn();
+            render();
+
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    work();
+                }
+            }, "download-" + id).start();
+        }
+
+        private void post(int st, int prog, boolean indet, String text) {
+            state = st;
+            progress = prog;
+            indeterminate = indet;
+            detail = text;
+            ui.post(renderRunnable);
+        }
+
+        private void work() {
+            File tmp = null;
+            String result = null;
+            final List<File> created = new ArrayList<File>();
+            boolean ok = false;
+            LinkedHashSet<String> roots = null;
+
+            try {
+                File base = new File(XASH_DIR);
+
+                if (!base.isDirectory() && !base.mkdirs()) {
+                    throw new IOException(tr("N\u00e3o foi poss\u00edvel criar a pasta ", "Could not create folder ", "No se pudo crear la carpeta ") + XASH_DIR
+                            + tr(". Verifique a permiss\u00e3o de armazenamento.", ". Check the storage permission.", ". Verifique el permiso de almacenamiento."));
+                }
+
+                tmp = new File(base, "." + zipName + ".part");
+
+                download(base, tmp);
+                roots = install(base, tmp, created);
+                ok = true;
+            } catch (CancelException e) {
+                result = tr("Cancelado.", "Cancelled.", "Cancelado.");
+            } catch (Exception e) {
+                result = friendlyError(e);
+            } finally {
+                if (tmp != null && tmp.exists()) {
+                    tmp.delete();
+                }
+            }
+
+            if (!ok) {
+                // desfaz arquivos novos criados nesta tentativa, para nao parecer instalado pela metade
+                for (int i = created.size() - 1; i >= 0; i--) {
+                    created.get(i).delete();
+                }
+            } else if (roots != null && roots.size() <= 50) {
+                StringBuilder sb = new StringBuilder();
+
+                for (String r : roots) {
+                    if (sb.length() > 0) {
+                        sb.append('|');
+                    }
+
+                    sb.append(r);
+                }
+
+                getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                        .edit()
+                        .putString("dl_roots_" + id, sb.toString())
+                        .apply();
+            }
+
+            final boolean success = ok;
+            final String msg = result;
+
+            ui.post(new Runnable() {
+                @Override
+                public void run() {
+                    state = ST_IDLE;
+                    cancelled = false;
+                    indeterminate = false;
+                    error = success ? null : msg;
+                    installed = success || checkInstalledAfterFail();
+
+                    updateKeepScreenOn();
+                    render();
+
+                    if (success) {
+                        Toast.makeText(MainActivity.this,
+                                title + tr(" instalado com sucesso", " installed successfully", " instalado con \u00e9xito"),
+                                Toast.LENGTH_LONG).show();
+                    }
+                }
+            });
+        }
+
+        private boolean checkInstalledAfterFail() {
+            // falha/cancelamento nao deve marcar como instalado, a menos que ja estivesse antes
+            return installed && checkInstalled();
+        }
+
+        private HttpURLConnection open() throws IOException {
+            String u = url.replace("dl=0", "dl=1");
+
+            for (int i = 0; i < 10; i++) {
+                if (cancelled) {
+                    throw new CancelException();
+                }
+
+                HttpURLConnection c = (HttpURLConnection) new URL(u).openConnection();
+                c.setInstanceFollowRedirects(false);
+                c.setConnectTimeout(20000);
+                c.setReadTimeout(30000);
+                c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) InvasionLauncher");
+
+                int code = c.getResponseCode();
+
+                if (code == 301 || code == 302 || code == 303 || code == 307 || code == 308) {
+                    String loc = c.getHeaderField("Location");
+                    c.disconnect();
+
+                    if (loc == null) {
+                        throw new IOException(tr("Redirecionamento inv\u00e1lido do servidor", "Invalid redirect from the server", "Redirecci\u00f3n no v\u00e1lida del servidor"));
+                    }
+
+                    u = new URL(new URL(u), loc).toString();
+                    continue;
+                }
+
+                if (code == 200) {
+                    return c;
+                }
+
+                c.disconnect();
+
+                if (code == 404 || code == 403 || code == 410) {
+                    throw new IOException(tr("Link do Dropbox indispon\u00edvel (HTTP ", "Dropbox link unavailable (HTTP ", "Enlace de Dropbox no disponible (HTTP ") + code + ")");
+                }
+
+                throw new IOException(tr("O servidor respondeu com erro HTTP ", "The server responded with HTTP error ", "El servidor respondi\u00f3 con error HTTP ") + code);
+            }
+
+            throw new IOException(tr("Redirecionamentos demais ao acessar o link", "Too many redirects while accessing the link", "Demasiadas redirecciones al acceder al enlace"));
+        }
+
+        private void download(File base, File tmp) throws IOException {
+            HttpURLConnection c = open();
+
+            try {
+                String type = c.getContentType();
+
+                if (type != null && type.toLowerCase().startsWith("text/html")) {
+                    throw new IOException(tr("O link n\u00e3o retornou um arquivo ZIP (link inv\u00e1lido ou expirado)", "The link did not return a ZIP file (invalid or expired link)", "El enlace no devolvi\u00f3 un archivo ZIP (enlace no v\u00e1lido o caducado)"));
+                }
+
+                long total = -1;
+
+                try {
+                    String len = c.getHeaderField("Content-Length");
+
+                    if (len != null) {
+                        total = Long.parseLong(len.trim());
+                    }
+                } catch (NumberFormatException ignored) {
+                }
+
+                if (total > 0 && freeSpace(base) < total) {
+                    throw new IOException(tr("Espa\u00e7o insuficiente: s\u00e3o necess\u00e1rios pelo menos ", "Not enough space: at least ", "Espacio insuficiente: se necesitan al menos ")
+                            + fmtBytes(total) + tr(" livres para baixar", " of free space is needed to download", " libres para descargar"));
+                }
+
+                InputStream in = c.getInputStream();
+                OutputStream out = new FileOutputStream(tmp);
+
+                try {
+                    byte[] buf = new byte[65536];
+                    long done = 0;
+                    long last = 0;
+                    int n;
+
+                    while ((n = in.read(buf)) != -1) {
+                        if (cancelled) {
+                            throw new CancelException();
+                        }
+
+                        out.write(buf, 0, n);
+                        done += n;
+
+                        long now = SystemClock.uptimeMillis();
+
+                        if (now - last >= 250) {
+                            last = now;
+
+                            if (total > 0) {
+                                int p = (int) (done * 1000L / total);
+                                post(ST_DOWNLOADING, p, false,
+                                        tr("Baixando... ", "Downloading... ", "Descargando... ") + (p / 10) + "%  (" + fmtBytes(done) + " / " + fmtBytes(total) + ")");
+                            } else {
+                                post(ST_DOWNLOADING, 0, true, tr("Baixando... ", "Downloading... ", "Descargando... ") + fmtBytes(done));
+                            }
+                        }
+                    }
+
+                    out.flush();
+
+                    if (total > 0 && done != total) {
+                        throw new IOException(tr("Download incompleto (", "Incomplete download (", "Descarga incompleta (") + fmtBytes(done) + tr(" de ", " of ", " de ") + fmtBytes(total)
+                                + tr("). Verifique a conex\u00e3o e tente novamente", "). Check your connection and try again.", "). Verifique su conexi\u00f3n e int\u00e9ntelo de nuevo."));
+                    }
+                } finally {
+                    try {
+                        out.close();
+                    } catch (IOException ignored) {
+                    }
+
+                    try {
+                        in.close();
+                    } catch (IOException ignored) {
+                    }
+                }
+            } finally {
+                c.disconnect();
+            }
+        }
+
+        private LinkedHashSet<String> install(File base, File zip, List<File> created) throws IOException {
+            post(ST_INSTALLING, 0, true, tr("Preparando instala\u00e7\u00e3o...", "Preparing installation...", "Preparando instalaci\u00f3n..."));
+
+            ZipFile zf = new ZipFile(zip);
+
+            try {
+                long totalBytes = 0;
+                int count = 0;
+
+                Enumeration<? extends ZipEntry> en = zf.entries();
+
+                while (en.hasMoreElements()) {
+                    ZipEntry e = en.nextElement();
+                    count++;
+
+                    if (!e.isDirectory() && e.getSize() > 0) {
+                        totalBytes += e.getSize();
+                    }
+                }
+
+                if (count == 0) {
+                    throw new ZipException("ZIP vazio");
+                }
+
+                if (freeSpace(base) < totalBytes) {
+                    throw new IOException(tr("Espa\u00e7o insuficiente: s\u00e3o necess\u00e1rios mais ", "Not enough space: you need ", "Espacio insuficiente: se necesitan ")
+                            + fmtBytes(totalBytes) + tr(" livres para instalar", " more free space to install", " m\u00e1s de espacio libre para instalar"));
+                }
+
+                String baseCanon = base.getCanonicalPath();
+                LinkedHashSet<String> roots = new LinkedHashSet<String>();
+
+                byte[] buf = new byte[65536];
+                long done = 0;
+                int idx = 0;
+                long last = 0;
+
+                en = zf.entries();
+
+                while (en.hasMoreElements()) {
+                    if (cancelled) {
+                        throw new CancelException();
+                    }
+
+                    ZipEntry e = en.nextElement();
+                    idx++;
+
+                    String name = e.getName().replace('\\', '/');
+
+                    while (name.startsWith("/")) {
+                        name = name.substring(1);
+                    }
+
+                    if (name.length() == 0 || name.startsWith("__MACOSX/")) {
+                        continue;
+                    }
+
+                    File out = new File(base, name);
+                    String canon = out.getCanonicalPath();
+
+                    if (!canon.equals(baseCanon) && !canon.startsWith(baseCanon + File.separator)) {
+                        throw new IOException(tr("Entrada inv\u00e1lida no ZIP: ", "Invalid entry in ZIP: ", "Entrada no v\u00e1lida en el ZIP: ") + name);
+                    }
+
+                    int slash = name.indexOf('/');
+                    roots.add(slash < 0 ? name : name.substring(0, slash));
+
+                    if (e.isDirectory()) {
+                        if (!out.isDirectory() && !out.mkdirs()) {
+                            throw new IOException(tr("N\u00e3o foi poss\u00edvel criar a pasta ", "Could not create folder ", "No se pudo crear la carpeta ") + name);
+                        }
+
+                        continue;
+                    }
+
+                    File parent = out.getParentFile();
+
+                    if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
+                        throw new IOException(tr("N\u00e3o foi poss\u00edvel criar a pasta ", "Could not create folder ", "No se pudo crear la carpeta ") + parent.getPath());
+                    }
+
+                    boolean existed = out.exists();
+
+                    if (!existed) {
+                        created.add(out);
+                    }
+
+                    InputStream in = zf.getInputStream(e);
+                    OutputStream os = new BufferedOutputStream(new FileOutputStream(out), 65536);
+
+                    try {
+                        int n;
+
+                        while ((n = in.read(buf)) != -1) {
+                            if (cancelled) {
+                                throw new CancelException();
+                            }
+
+                            os.write(buf, 0, n);
+                            done += n;
+
+                            long now = SystemClock.uptimeMillis();
+
+                            if (now - last >= 250) {
+                                last = now;
+                                postInstall(done, totalBytes, idx, count);
+                            }
+                        }
+                    } finally {
+                        try {
+                            os.close();
+                        } catch (IOException ignored) {
+                        }
+
+                        try {
+                            in.close();
+                        } catch (IOException ignored) {
+                        }
+                    }
+                }
+
+                post(ST_INSTALLING, 1000, false, tr("Instalando... 100%", "Installing... 100%", "Instalando... 100%"));
+                return roots;
+            } finally {
+                try {
+                    zf.close();
+                } catch (IOException ignored) {
+                }
+            }
+        }
+
+        private void postInstall(long done, long totalBytes, int idx, int count) {
+            int p;
+
+            if (totalBytes > 0) {
+                p = (int) (done * 1000L / totalBytes);
+            } else {
+                p = (int) (idx * 1000L / count);
+            }
+
+            if (p > 1000) {
+                p = 1000;
+            }
+
+            post(ST_INSTALLING, p, false,
+                    tr("Instalando... ", "Installing... ", "Instalando... ") + (p / 10) + "%  (" + tr("arquivo ", "file ", "archivo ") + idx + tr(" de ", " of ", " de ") + count + ")");
+        }
+
+        private String friendlyError(Exception e) {
+            if (e instanceof UnknownHostException
+                    || e instanceof SocketTimeoutException
+                    || e instanceof SocketException) {
+                return tr("Falha de conex\u00e3o com a internet. Verifique a rede e tente novamente.", "Internet connection failed. Check your network and try again.", "Fallo de conexi\u00f3n a internet. Verifique la red e int\u00e9ntelo de nuevo.");
+            }
+
+            if (e instanceof ZipException) {
+                return tr("O arquivo baixado est\u00e1 corrompido (ZIP inv\u00e1lido). Tente baixar novamente.", "The downloaded file is corrupted (invalid ZIP). Try downloading again.", "El archivo descargado est\u00e1 da\u00f1ado (ZIP no v\u00e1lido). Intente descargar de nuevo.");
+            }
+
+            if (e instanceof SecurityException || e instanceof FileNotFoundException) {
+                String m = e.getMessage() == null ? "" : e.getMessage();
+
+                if (m.contains("ENOSPC")) {
+                    return tr("Sem espa\u00e7o no armazenamento.", "Out of storage space.", "Sin espacio de almacenamiento.");
+                }
+
+                return tr("Sem permiss\u00e3o para gravar em ", "No permission to write to ", "Sin permiso para escribir en ") + XASH_DIR + tr(". Conceda a permiss\u00e3o de armazenamento.", ". Grant the storage permission.", ". Conceda el permiso de almacenamiento.");
+            }
+
+            String m = e.getMessage();
+
+            if (m != null && m.contains("ENOSPC")) {
+                return tr("Sem espa\u00e7o no armazenamento.", "Out of storage space.", "Sin espacio de almacenamiento.");
+            }
+
+            return tr("Erro: ", "Error: ", "Error: ") + (m == null ? e.getClass().getSimpleName() : m);
+        }
+    }
+
     // JANELA APOIE-ME
 
     private void showSupportDialog() {
@@ -403,12 +1632,12 @@ public class MainActivity extends Activity {
         box.setOrientation(LinearLayout.VERTICAL);
         box.setPadding(dp(20), dp(20), dp(20), dp(16));
 
-        TextView title = text("APOIE O PROJETO", 18, LIME, true);
+        TextView title = text(tr("APOIE O PROJETO", "SUPPORT THE PROJECT", "APOYA EL PROYECTO"), 18, LIME, true);
         title.setLetterSpacing(0.15f);
         box.addView(title, wrap());
 
         TextView note = text(
-                "Envie somente USDT pela rede indicada e confira o endere\u00e7o antes de enviar. Obrigado por apoiar!",
+                tr("Envie somente USDT pela rede indicada e confira o endere\u00e7o antes de enviar. Obrigado por apoiar!", "Send only USDT on the indicated network and double-check the address before sending. Thank you for your support!", "Env\u00ede solo USDT por la red indicada y verifique la direcci\u00f3n antes de enviar. \u00a1Gracias por apoyar!"),
                 13, GREEN, false
         );
 
@@ -436,7 +1665,7 @@ public class MainActivity extends Activity {
             addrLp.topMargin = dp(6);
             card.addView(addr, addrLp);
 
-            TextView copy = text("COPIAR", 13, LIME, true);
+            TextView copy = text(tr("COPIAR", "COPY", "COPIAR"), 13, LIME, true);
             copy.setLetterSpacing(0.2f);
             copy.setGravity(Gravity.CENTER);
             copy.setBackground(ripple(box(0x00000000, LIME, 2, 10)));
@@ -474,7 +1703,7 @@ public class MainActivity extends Activity {
 
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setView(sv)
-                .setPositiveButton("Fechar", null)
+                .setPositiveButton(tr("Fechar", "Close", "Cerrar"), null)
                 .create();
 
         dialog.getWindow().setBackgroundDrawable(box(BG, GREEN_DEEP, 2, 18));
@@ -488,7 +1717,7 @@ public class MainActivity extends Activity {
 
         if (cm != null) {
             cm.setPrimaryClip(ClipData.newPlainText(label, address));
-            Toast.makeText(this, "Endere\u00e7o copiado", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, tr("Endere\u00e7o copiado", "Address copied", "Direcci\u00f3n copiada"), Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -541,6 +1770,11 @@ public class MainActivity extends Activity {
         {20.32f, 4.37f, 19.73f, 4.11f, 19.14f, 3.87f, 18.53f, 3.65f, 17.92f, 3.45f, 17.31f, 3.27f, 16.69f, 3.11f, 16.06f, 2.97f, 15.43f, 2.85f, 15.41f, 2.85f, 15.39f, 2.86f, 15.36f, 2.88f, 15.22f, 3.13f, 15.10f, 3.38f, 14.97f, 3.64f, 14.85f, 3.90f, 14.75f, 4.14f, 13.64f, 4.01f, 12.54f, 3.94f, 11.44f, 3.94f, 10.35f, 4.01f, 9.26f, 4.14f, 9.15f, 3.90f, 9.03f, 3.64f, 8.90f, 3.38f, 8.77f, 3.13f, 8.64f, 2.89f, 8.62f, 2.87f, 8.60f, 2.86f, 8.57f, 2.85f, 7.93f, 2.97f, 7.31f, 3.11f, 6.69f, 3.27f, 6.07f, 3.45f, 5.46f, 3.65f, 4.86f, 3.87f, 4.26f, 4.11f, 3.68f, 4.37f, 3.65f, 4.38f, 2.04f, 7.17f, 0.93f, 9.92f, 0.27f, 12.65f, 0.01f, 15.36f, 0.10f, 18.06f, 0.11f, 18.08f, 0.12f, 18.10f, 1.35f, 18.95f, 2.56f, 19.66f, 3.76f, 20.25f, 4.95f, 20.74f, 6.12f, 21.14f, 6.15f, 21.15f, 6.17f, 21.14f, 6.19f, 21.13f, 6.48f, 20.73f, 6.74f, 20.34f, 6.98f, 19.94f, 7.21f, 19.54f, 7.43f, 19.12f, 7.44f, 19.09f, 7.44f, 19.06f, 7.42f, 19.03f, 7.39f, 19.02f, 7.00f, 18.86f, 6.62f, 18.69f, 6.25f, 18.51f, 5.88f, 18.32f, 5.52f, 18.12f, 5.49f, 18.10f, 5.48f, 18.06f, 5.49f, 18.02f, 5.51f, 18.00f, 5.59f, 17.94f, 5.66f, 17.88f, 5.74f, 17.82f, 5.81f, 17.76f, 5.88f, 17.70f, 5.91f, 17.69f, 5.93f, 17.69f, 5.95f, 17.69f, 8.35f, 18.55f, 10.79f, 18.99f, 13.23f, 18.99f, 15.66f, 18.55f, 18.02f, 17.69f, 18.05f, 17.69f, 18.07f, 17.69f, 18.10f, 17.70f, 18.17f, 17.76f, 18.25f, 17.82f, 18.32f, 17.88f, 18.40f, 17.94f, 18.47f, 18.00f, 18.50f, 18.02f, 18.50f, 18.06f, 18.49f, 18.10f, 18.47f, 18.12f, 18.24f, 18.25f, 18.01f, 18.38f, 17.78f, 18.49f, 17.55f, 18.61f, 17.31f, 18.72f, 17.08f, 18.82f, 16.84f, 18.92f, 16.59f, 19.01f, 16.57f, 19.03f, 16.55f, 19.06f, 16.55f, 19.09f, 16.55f, 19.12f, 16.78f, 19.54f, 17.01f, 19.94f, 17.26f, 20.34f, 17.51f, 20.73f, 17.78f, 21.11f, 17.81f, 21.14f, 17.83f, 21.15f, 17.85f, 21.15f, 19.04f, 20.74f, 20.23f, 20.25f, 21.43f, 19.66f, 22.64f, 18.95f, 23.87f, 18.11f, 23.89f, 18.09f, 23.90f, 18.07f, 23.98f, 15.03f, 23.64f, 12.16f, 22.91f, 9.44f, 21.81f, 6.85f, 20.35f, 4.40f, 20.33f, 4.38f},
         {8.02f, 15.33f, 7.34f, 15.21f, 6.75f, 14.86f, 6.28f, 14.34f, 5.97f, 13.68f, 5.86f, 12.91f, 5.97f, 12.15f, 6.28f, 11.48f, 6.74f, 10.96f, 7.33f, 10.62f, 8.02f, 10.49f, 8.71f, 10.62f, 9.31f, 10.96f, 9.77f, 11.49f, 10.08f, 12.15f, 10.18f, 12.91f, 10.07f, 13.68f, 9.76f, 14.34f, 9.30f, 14.86f, 8.71f, 15.21f, 8.02f, 15.33f},
         {15.99f, 15.33f, 15.32f, 15.21f, 14.72f, 14.86f, 14.26f, 14.34f, 13.95f, 13.68f, 13.84f, 12.91f, 13.95f, 12.15f, 14.25f, 11.48f, 14.72f, 10.96f, 15.31f, 10.62f, 15.99f, 10.49f, 16.69f, 10.62f, 17.28f, 10.96f, 17.75f, 11.49f, 18.05f, 12.15f, 18.15f, 12.91f, 18.04f, 13.68f, 17.74f, 14.34f, 17.28f, 14.86f, 16.68f, 15.21f, 15.99f, 15.33f}
+    };
+
+    private static final float[][] DOWNLOAD = {
+        {5f, 20f, 19f, 20f, 19f, 18f, 5f, 18f},
+        {19f, 9f, 15f, 9f, 15f, 3f, 9f, 3f, 9f, 9f, 5f, 9f, 12f, 16f}
     };
 
     private static final float[][] GITHUB = {
