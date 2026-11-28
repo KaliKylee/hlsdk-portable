@@ -116,6 +116,7 @@ public class MainActivity extends Activity {
     private final Handler ui = new Handler(Looper.getMainLooper());
     private DownloadItem[] downloads;
     private DownloadItem pendingItem;
+    private AlertDialog downloadsDialog;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -148,6 +149,7 @@ public class MainActivity extends Activity {
         };
 
         setContentView(buildUi());
+        setupDownloadsButton();
     }
 
     @Override
@@ -195,6 +197,11 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+
+        if (downloadsDialog != null) {
+            downloadsDialog.dismiss();
+            downloadsDialog = null;
+        }
 
         if (isFinishing() && downloads != null) {
             for (DownloadItem d : downloads) {
@@ -509,16 +516,6 @@ public class MainActivity extends Activity {
         argsHintLp.topMargin = dp(5);
         col.addView(argsHint, argsHintLp);
 
-        // DOWNLOADS
-
-        LinearLayout.LayoutParams dlLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-
-        dlLp.topMargin = dp(20);
-        col.addView(buildDownloadSection(), dlLp);
-
         // LINKS
 
         LinearLayout row = new LinearLayout(this);
@@ -631,32 +628,75 @@ public class MainActivity extends Activity {
 
     // SECAO DE DOWNLOADS
 
-    private View buildDownloadSection() {
-        LinearLayout sec = new LinearLayout(this);
-        sec.setOrientation(LinearLayout.VERTICAL);
+    private void setupDownloadsButton() {
+        android.app.ActionBar bar = getActionBar();
+
+        if (bar == null) {
+            return;
+        }
+
+        LinearLayout btn = new LinearLayout(this);
+        btn.setOrientation(LinearLayout.HORIZONTAL);
+        btn.setGravity(Gravity.CENTER_VERTICAL);
+        btn.setPadding(dp(12), dp(6), dp(12), dp(6));
+        btn.setBackground(ripple(box(0x00000000, GREEN_DEEP, 1, 18)));
+
+        ImageView icon = new ImageView(this);
+        icon.setImageDrawable(new PolyIcon(DOWNLOAD, GREEN, dp(20)));
+        btn.addView(icon, new LinearLayout.LayoutParams(dp(20), dp(20)));
+
+        TextView label = text("Downloads", 14, GREEN, true);
+
+        LinearLayout.LayoutParams labelLp = wrap();
+        labelLp.leftMargin = dp(6);
+        btn.addView(label, labelLp);
+
+        btn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showDownloadsDialog();
+            }
+        });
+
+        android.app.ActionBar.LayoutParams lp = new android.app.ActionBar.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.END | Gravity.CENTER_VERTICAL
+        );
+
+        lp.rightMargin = dp(8);
+
+        bar.setCustomView(btn, lp);
+        bar.setDisplayShowCustomEnabled(true);
+    }
+
+    private void showDownloadsDialog() {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(20), dp(20), dp(20), dp(16));
 
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
         head.setGravity(Gravity.CENTER_VERTICAL);
 
         ImageView icon = new ImageView(this);
-        icon.setImageDrawable(new PolyIcon(DOWNLOAD, GREEN, dp(18)));
-        head.addView(icon, new LinearLayout.LayoutParams(dp(18), dp(18)));
+        icon.setImageDrawable(new PolyIcon(DOWNLOAD, RED, dp(22)));
+        head.addView(icon, new LinearLayout.LayoutParams(dp(22), dp(22)));
 
-        TextView label = text("DOWNLOADS", 12, GREEN, true);
-        label.setLetterSpacing(0.08f);
+        TextView title = text("DOWNLOADS", 18, RED, true);
+        title.setLetterSpacing(0.15f);
 
-        LinearLayout.LayoutParams labelLp = wrap();
-        labelLp.leftMargin = dp(8);
-        head.addView(label, labelLp);
+        LinearLayout.LayoutParams titleLp = wrap();
+        titleLp.leftMargin = dp(10);
+        head.addView(title, titleLp);
 
-        sec.addView(head, wrap());
+        box.addView(head, wrap());
 
-        TextView hint = text("Os arquivos s\u00e3o extra\u00eddos em " + XASH_DIR, 11, GREEN, false);
+        TextView hint = text("Os arquivos s\u00e3o extra\u00eddos em " + XASH_DIR, 12, GREEN, false);
 
         LinearLayout.LayoutParams hintLp = wrap();
-        hintLp.topMargin = dp(5);
-        sec.addView(hint, hintLp);
+        hintLp.topMargin = dp(8);
+        box.addView(hint, hintLp);
 
         for (DownloadItem d : downloads) {
             d.refreshInstalled();
@@ -666,12 +706,30 @@ public class MainActivity extends Activity {
                     ViewGroup.LayoutParams.WRAP_CONTENT
             );
 
-            cardLp.topMargin = dp(10);
-            sec.addView(d.createView(), cardLp);
+            cardLp.topMargin = dp(12);
+            box.addView(d.createView(), cardLp);
             d.render();
         }
 
-        return sec;
+        ScrollView sv = new ScrollView(this);
+
+        sv.addView(box, new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        if (downloadsDialog != null) {
+            downloadsDialog.dismiss();
+        }
+
+        downloadsDialog = new AlertDialog.Builder(this)
+                .setView(sv)
+                .setPositiveButton("Fechar", null)
+                .create();
+
+        downloadsDialog.getWindow().setBackgroundDrawable(box(BG, GREEN_DEEP, 2, 18));
+        downloadsDialog.show();
+        downloadsDialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(GREEN);
     }
 
     private static String fmtBytes(long b) {
@@ -909,19 +967,54 @@ public class MainActivity extends Activity {
                     .getString("dl_roots_" + id, null);
 
             if (roots != null && roots.length() > 0) {
-                String[] list = roots.split("\\|");
+                boolean all = true;
 
-                for (String r : list) {
+                for (String r : roots.split("\\|")) {
                     if (r.length() > 0 && !new File(base, r).exists()) {
-                        return false;
+                        all = false;
                     }
                 }
 
-                return true;
+                if (all) {
+                    return true;
+                }
             }
 
-            // instalacao manual (sem registro do launcher): pasta existe e tem arquivos
-            return hasAnyFile(new File(base, dirName), 4);
+            // instalacao manual (sem registro do launcher): basta a pasta existir
+            return dirCheck(base);
+        }
+
+        private File findDir(File base) {
+            File exact = new File(base, dirName);
+
+            if (exact.isDirectory()) {
+                return exact;
+            }
+
+            File[] list = base.listFiles();
+
+            if (list != null) {
+                for (File f : list) {
+                    if (f.isDirectory() && f.getName().equalsIgnoreCase(dirName)) {
+                        return f;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private boolean dirCheck(File base) {
+            File d = findDir(base);
+
+            if (d == null) {
+                return false;
+            }
+
+            String[] names = d.list();
+
+            // names == null: pasta existe mas nao da para listar (sem permissao) -> considera instalada
+            return names == null || names.length > 0;
         }
 
         private boolean hasAnyFile(File dir, int depth) {
