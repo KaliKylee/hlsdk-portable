@@ -37,6 +37,8 @@
 #define HASSAULT_AE_PUNCH_C		12
 #define HASSAULT_AE_STEP		13
 
+#define HASSAULT_SPINUP_SCALE	2.0f	// the original delay felt too short on the phone
+
 #define HASSAULT_SPIN_OFF		0
 #define HASSAULT_SPIN_UP		1	// spinning up, can not shoot yet
 #define HASSAULT_SPIN_READY		2	// ready to fire
@@ -107,6 +109,7 @@ public:
 
 	int m_iBrassShell;
 	int m_iSpinState;
+	int m_iShotLog;
 	float m_flSpinUpTime;
 	float m_flNextPainTime;
 	float m_flNextSuppress;
@@ -153,7 +156,7 @@ Schedule_t slHAssaultFail[] =
 Task_t tlHAssaultSpinup[] =
 {
 	{ TASK_FACE_ENEMY, (float)0 },
-	{ TASK_WAIT, (float)0.9 },
+	{ TASK_WAIT, (float)1.9 },
 };
 
 Schedule_t slHAssaultSpinup[] =
@@ -397,7 +400,7 @@ Schedule_t *CHAssault::GetScheduleOfType( int Type )
 		EMIT_SOUND_DYN( ENT( pev ), CHAN_ITEM, "hassault/hw_spinup.wav", 1.0, ATTN_NORM, 0, 100 );
 		RouteClear();
 		m_iSpinState = HASSAULT_SPIN_UP;
-		m_flSpinUpTime = gpGlobals->time + ( gSkillData.hassaultSpinupDelay > 0 ? gSkillData.hassaultSpinupDelay : 1.0f );
+		m_flSpinUpTime = gpGlobals->time + HASSAULT_SPINUP_SCALE * ( gSkillData.hassaultSpinupDelay > 0 ? gSkillData.hassaultSpinupDelay : 1.0f );
 		return slHAssaultSpinup;
 	case SCHED_HASSAULT_SPINDOWN:
 		return slHAssaultSpindown;
@@ -511,7 +514,29 @@ void CHAssault::Shoot( void )
 	if( flDmg <= 0 )
 		flDmg = 8;
 
-	FireBullets( 1, vecShootOrigin, vecShootDir, vecSpread, 4096, BULLET_MONSTER_12MM, 0, (int)flDmg );
+	// own bullet trace: the stock FireBullets did not reach the player in this port
+	Vector vecDir = vecShootDir + RANDOM_FLOAT( -1, 1 ) * vecSpread.x * gpGlobals->v_right + RANDOM_FLOAT( -1, 1 ) * vecSpread.y * gpGlobals->v_up;
+	TraceResult tr;
+	UTIL_TraceLine( vecShootOrigin, vecShootOrigin + vecDir * 4096, dont_ignore_monsters, ENT( pev ), &tr );
+
+	CBaseEntity *pHit = NULL;
+	if( tr.flFraction != 1.0f && !FNullEnt( tr.pHit ) )
+		pHit = CBaseEntity::Instance( tr.pHit );
+
+	if( pHit && pHit->pev->takedamage )
+	{
+		ClearMultiDamage();
+		pHit->TraceAttack( pev, flDmg, vecDir, &tr, DMG_BULLET );
+		ApplyMultiDamage( pev, pev );
+	}
+	else if( tr.flFraction != 1.0f )
+	{
+		DecalGunshot( &tr, BULLET_MONSTER_MP5 );
+	}
+
+	if( ++m_iShotLog <= 6 || ( m_iShotLog % 25 ) == 0 )
+		TREX_Log( "hassault: shot #%d hit=%s frac=%.2f takedamage=%d dmg=%.0f", m_iShotLog,
+			pHit ? STRING( pHit->pev->classname ) : "nothing", tr.flFraction, pHit ? (int)pHit->pev->takedamage : -1, flDmg );
 
 	pev->effects |= EF_MUZZLEFLASH;
 
@@ -524,8 +549,34 @@ void CHAssault::Shoot( void )
 void CHAssault::Punch( float flDamage )
 {
 	CBaseEntity *pHurt = CheckTraceHullAttack( 70, (int)flDamage, DMG_CLUB );
+	BOOL fHit = ( pHurt && pHurt->pev->takedamage != DAMAGE_NO );
 
-	if( pHurt )
+	// fallback: the hull trace often hits nothing / the world in this port
+	if( !fHit && m_hEnemy != 0 && m_hEnemy->pev->takedamage != DAMAGE_NO )
+	{
+		CBaseEntity *pEnemy = m_hEnemy;
+		Vector2D vec2LOS = ( pEnemy->pev->origin - pev->origin ).Make2D();
+		float flDist = vec2LOS.Length();
+		UTIL_MakeAimVectors( pev->angles );
+		float flDot = 0;
+		if( flDist > 0 )
+			flDot = DotProduct( vec2LOS.Normalize(), gpGlobals->v_forward.Make2D() );
+
+		TraceResult tr;
+		UTIL_TraceLine( pev->origin + Vector( 0, 0, 32 ), pEnemy->BodyTarget( pev->origin ), ignore_monsters, ENT( pev ), &tr );
+
+		TREX_Log( "hassault: punch fallback dist=%.0f dot=%.2f los=%.2f hull=%s", flDist, flDot, tr.flFraction,
+			pHurt ? STRING( pHurt->pev->classname ) : "nothing" );
+
+		if( flDist <= 100 && flDot > 0.3f && tr.flFraction >= 0.95f )
+		{
+			pEnemy->TakeDamage( pev, pev, flDamage, DMG_CLUB );
+			pHurt = pEnemy;
+			fHit = TRUE;
+		}
+	}
+
+	if( fHit )
 	{
 		if( pHurt->pev->flags & ( FL_CLIENT | FL_MONSTER ) )
 		{
@@ -690,21 +741,20 @@ void CHAssault::Spawn( void )
 	pev->movetype = MOVETYPE_STEP;
 	m_bloodColor = BLOOD_COLOR_RED;
 	pev->effects = 0;
-	pev->health = gSkillData.hassaultHealth;
-	if( pev->health <= 0 )
-		pev->health = 200;
+	pev->health = 350;	// fixed (ThrillEX port); sk_hassault_health is ignored
 	m_flFieldOfView = -1.0f;
 	m_MonsterState = MONSTERSTATE_NONE;
 	m_afCapability = bits_CAP_SQUAD | bits_CAP_TURN_HEAD | bits_CAP_DOORS_GROUP;
 	m_flNextPainTime = gpGlobals->time;
 	m_flNextSuppress = 0;
 	m_iSpinState = HASSAULT_SPIN_OFF;
+	m_iShotLog = 0;
 	m_flSpinUpTime = 0;
 	m_fEnemyEluded = FALSE;
 
 	MonsterInit();
 
-	TREX_Log( "hassault: spawned at %.0f %.0f %.0f health=%.0f spinup=%.2f dmg=%.1f skill=%d",
+	TREX_Log( "hassault: spawned at %.0f %.0f %.0f health=%.0f spinup=%.2f(x2) dmg=%.1f skill=%d",
 		pev->origin.x, pev->origin.y, pev->origin.z, pev->health, gSkillData.hassaultSpinupDelay, gSkillData.hassaultDmgCannon, g_iSkillLevel );
 }
 

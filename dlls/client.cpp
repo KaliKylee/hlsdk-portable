@@ -904,6 +904,22 @@ void ClientPrecache( void )
 	PRECACHE_SOUND( "weapons/electro4.wav" );
 	PRECACHE_SOUND( "common/bodysplat.wav" );
 
+	// ThrillEX human assault assets
+	PRECACHE_MODEL( "models/hassault.mdl" );
+	PRECACHE_SOUND( "hassault/hw_gun4.wav" );
+	PRECACHE_SOUND( "hassault/hw_spin.wav" );
+	PRECACHE_SOUND( "hassault/hw_spinup.wav" );
+	PRECACHE_SOUND( "hassault/hw_spindown.wav" );
+	PRECACHE_SOUND( "hassault/hw_alert.wav" );
+	PRECACHE_SOUND( "hgrunt/gr_step1.wav" );
+	PRECACHE_SOUND( "hgrunt/gr_step2.wav" );
+	PRECACHE_SOUND( "hgrunt/gr_step3.wav" );
+	PRECACHE_SOUND( "hgrunt/gr_step4.wav" );
+	PRECACHE_SOUND( "player/hoot1.wav" );
+	PRECACHE_SOUND( "player/hoot2.wav" );
+	PRECACHE_SOUND( "player/hoot3.wav" );
+	PRECACHE_SOUND( "hgrunt/makesquad.wav" );
+
 	// PRECACHE_SOUND( "player/pl_jumpland2.wav" );		// UNDONE: play 2x step sound
 
 	PRECACHE_SOUND( "player/pl_fallpain2.wav" );
