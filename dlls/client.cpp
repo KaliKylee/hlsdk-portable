@@ -919,6 +919,15 @@ void ClientPrecache( void )
 	PRECACHE_SOUND( "player/hoot2.wav" );
 	PRECACHE_SOUND( "player/hoot3.wav" );
 	PRECACHE_SOUND( "hgrunt/makesquad.wav" );
+	PRECACHE_SOUND( "hassault/hw_shoot1.wav" );
+	PRECACHE_SOUND( "hgrunt/gr_die1.wav" );
+	PRECACHE_SOUND( "hgrunt/gr_die2.wav" );
+	PRECACHE_SOUND( "hgrunt/gr_die3.wav" );
+	PRECACHE_SOUND( "hgrunt/gr_pain1.wav" );
+	PRECACHE_SOUND( "hgrunt/gr_pain2.wav" );
+	PRECACHE_SOUND( "hgrunt/gr_pain3.wav" );
+	PRECACHE_SOUND( "hgrunt/gr_pain4.wav" );
+	PRECACHE_SOUND( "hgrunt/gr_pain5.wav" );
 
 	// PRECACHE_SOUND( "player/pl_jumpland2.wav" );		// UNDONE: play 2x step sound
 

@@ -486,7 +486,8 @@ void CHAssault::Shoot( void )
 		return;
 
 	Vector vecShootOrigin = GetGunPosition();
-	Vector vecShootDir = ShootAtEnemy( vecShootOrigin );
+	// aim straight at the enemy (ShootAtEnemy used a stale last-known position)
+	Vector vecShootDir = ( m_hEnemy->BodyTarget( vecShootOrigin ) - vecShootOrigin ).Normalize();
 
 	UTIL_MakeVectors( pev->angles );
 
@@ -534,9 +535,17 @@ void CHAssault::Shoot( void )
 		DecalGunshot( &tr, BULLET_MONSTER_MP5 );
 	}
 
-	if( ++m_iShotLog <= 6 || ( m_iShotLog % 25 ) == 0 )
-		TREX_Log( "hassault: shot #%d hit=%s frac=%.2f takedamage=%d dmg=%.0f", m_iShotLog,
-			pHit ? STRING( pHit->pev->classname ) : "nothing", tr.flFraction, pHit ? (int)pHit->pev->takedamage : -1, flDmg );
+	if( ++m_iShotLog <= 8 || ( m_iShotLog % 25 ) == 0 )
+	{
+		float flEnemyDist = ( m_hEnemy->pev->origin - vecShootOrigin ).Length();
+		TREX_Log( "hassault: shot #%d hit=%s end=%.0f dist_to_enemy=%.0f me=(%.0f %.0f %.0f) enemy=(%.0f %.0f %.0f) takedamage=%d",
+			m_iShotLog,
+			pHit ? STRING( pHit->pev->classname ) : ( tr.flFraction != 1.0f ? "world" : "nothing" ),
+			tr.flFraction * 4096.0f, flEnemyDist,
+			pev->origin.x, pev->origin.y, pev->origin.z,
+			m_hEnemy->pev->origin.x, m_hEnemy->pev->origin.y, m_hEnemy->pev->origin.z,
+			pHit ? (int)pHit->pev->takedamage : -1 );
+	}
 
 	pev->effects |= EF_MUZZLEFLASH;
 
@@ -741,7 +750,7 @@ void CHAssault::Spawn( void )
 	pev->movetype = MOVETYPE_STEP;
 	m_bloodColor = BLOOD_COLOR_RED;
 	pev->effects = 0;
-	pev->health = 350;	// fixed (ThrillEX port); sk_hassault_health is ignored
+	pev->health = 275;	// fixed (ThrillEX port); sk_hassault_health is ignored
 	m_flFieldOfView = -1.0f;
 	m_MonsterState = MONSTERSTATE_NONE;
 	m_afCapability = bits_CAP_SQUAD | bits_CAP_TURN_HEAD | bits_CAP_DOORS_GROUP;
